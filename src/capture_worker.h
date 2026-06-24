@@ -1,10 +1,45 @@
-/**
- * Create a C++ class named CaptureWorker that inherits from QObject to run in a separate QThread:
- * - It should take a QRect representing the scanning zone.
- * - In a loop running every 300ms, use QScreen::grabWindow to capture that specific screen area.
- * - Convert the captured QPixmap into an OpenCV cv::Mat (Grayscale).
- * - Apply cv::threshold (Binary Inverse with Otsu) to process the image for Chinese OCR.
- * - To optimize, compare the current frame with the previous frame using cv::absdiff. 
- *   If the mean pixel difference is below a threshold (meaning the subtitle hasn't changed), do not process further.
- * - If the image has changed significantly, emit a Qt signal imageProcessed(const cv::Mat& processedImg)
- */
+#pragma once
+
+#include <QMutex>
+#include <QObject>
+#include <QRect>
+
+#include <algorithm>
+#include <atomic>
+
+#include <opencv2/core.hpp>
+
+#include "tuning_params.h"
+
+Q_DECLARE_METATYPE(cv::Mat)
+
+class CaptureWorker : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit CaptureWorker(const QRect &scanZone, QObject *parent = nullptr);
+
+public slots:
+    void start();
+    void stop();
+    void setScanZone(const QRect &scanZone);
+    void setNoiseParams(double changeThreshold, double minChangedRatio, double minStdDev);
+
+signals:
+    void imageProcessed(const cv::Mat &processedImg);
+
+private:
+    cv::Mat grabGrayFrame() const;
+    cv::Mat preprocessForOcr(const cv::Mat &grayFrame) const;
+
+    QRect scanZone_;
+    mutable QMutex zoneMutex_;
+    std::atomic_bool running_{false};
+    cv::Mat previousSmallGray_;
+    double changeThreshold_ = tuning::kChangeThreshold;
+    double minChangedRatio_ = tuning::kMinChangedRatio;
+    double minStdDev_ = tuning::kMinStdDev;
+    const int minIntervalMs_ = 28;
+    const int maxIntervalMs_ = 140;
+};

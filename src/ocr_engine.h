@@ -1,7 +1,39 @@
-/**
- * Write a C++ class named OcrEngine using the Tesseract C++ API (tesseract::TessBaseAPI):
- * - In the constructor, initialize Tesseract with the Chinese Simplified language model (chi_sim).
- * - Implement a method QString performOcr(const cv::Mat& inputImg) that takes the preprocessed OpenCV matrix from the CaptureWorker, 
- *   feeds it into Tesseract, extracts the Chinese text, removes all spaces from the string, and returns the cleaned text.
- * - Handle clean up properly in the destructor by calling End().
- */
+#pragma once
+
+#include <QString>
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <opencv2/core.hpp>
+
+#include <onnxruntime_cxx_api.h>
+
+class OcrEngine
+{
+public:
+    OcrEngine();
+    ~OcrEngine();
+
+    QString performOcr(const cv::Mat &inputImg);
+    bool isReady() const;
+
+private:
+    QString decodeCtc(const float *logits, int timeSteps, int classes) const;
+    bool loadCharset(const QString &charsetPath);
+    static QString normalizeHanText(const QString &text);
+
+    Ort::Env env_;
+    Ort::SessionOptions sessionOptions_;
+    std::unique_ptr<Ort::Session> session_;
+    Ort::MemoryInfo memoryInfo_;
+
+    std::string inputName_;
+    std::string outputName_;
+    std::vector<const char *> inputNames_;
+    std::vector<const char *> outputNames_;
+    std::vector<std::string> charset_;
+
+    bool initialized_ = false;
+};

@@ -1,5 +1,95 @@
-# Write a CMakeLists.txt file for a C++ Qt6 project named ScreenSubTranslator.
-# It needs to find and link the following packages: Qt6Widgets, Qt6Network, and OpenCV.
-# Also, find the tesseract OCR library manually and include its directories.
-# The target should include main.cpp and all source files inside the src/ folder.
-# Use C++17 standard.
+cmake_minimum_required(VERSION 3.16)
+
+project(ScreenSubTranslator VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Network)
+
+find_library(SENTENCEPIECE_LIBRARY
+	sentencepiece
+	PATHS /usr/lib /usr/local/lib
+)
+if(NOT SENTENCEPIECE_LIBRARY)
+	message(FATAL_ERROR "Could not find libsentencepiece. Install with: sudo apt install libsentencepiece-dev")
+endif()
+message(STATUS "Using SentencePiece library: ${SENTENCEPIECE_LIBRARY}")
+find_package(OpenCV REQUIRED)
+
+# Find ONNX Runtime from environment variables (for example from ~/.zshrc).
+set(ONNXRUNTIME_ROOT "$ENV{ONNXRUNTIME_ROOT}" CACHE PATH "Path to ONNX Runtime root")
+
+find_path(ONNXRUNTIME_INCLUDE_DIR
+	onnxruntime_cxx_api.h
+	HINTS
+		${ONNXRUNTIME_ROOT}
+		$ENV{CMAKE_PREFIX_PATH}
+	PATH_SUFFIXES
+		include
+		include/onnxruntime
+)
+
+find_library(ONNXRUNTIME_LIBRARY
+	onnxruntime
+	HINTS
+		${ONNXRUNTIME_ROOT}
+		$ENV{CMAKE_PREFIX_PATH}
+	PATH_SUFFIXES
+		lib
+		lib64
+)
+
+if(NOT ONNXRUNTIME_INCLUDE_DIR OR NOT ONNXRUNTIME_LIBRARY)
+	message(FATAL_ERROR
+		"Could not find ONNX Runtime. Check ONNXRUNTIME_ROOT/CMAKE_PREFIX_PATH in your shell env. "
+		"Current ONNXRUNTIME_ROOT='${ONNXRUNTIME_ROOT}'")
+endif()
+
+message(STATUS "Using ONNX Runtime include: ${ONNXRUNTIME_INCLUDE_DIR}")
+message(STATUS "Using ONNX Runtime library: ${ONNXRUNTIME_LIBRARY}")
+
+add_executable(ScreenSubTranslator
+	main.cpp
+	src/capture_worker.cpp
+	src/ocr_engine.cpp
+	src/ocr_worker.cpp
+	src/overlay_window.cpp
+	src/translate_client.cpp
+)
+
+add_executable(OcrBatchEval
+	tools/ocr_batch_eval.cpp
+	src/ocr_engine.cpp
+)
+
+target_include_directories(ScreenSubTranslator PRIVATE
+	${OpenCV_INCLUDE_DIRS}
+	${ONNXRUNTIME_INCLUDE_DIR}
+	src
+)
+
+target_link_libraries(ScreenSubTranslator PRIVATE
+	Qt6::Widgets
+	Qt6::Concurrent
+	Qt6::Network
+	${OpenCV_LIBS}
+	${ONNXRUNTIME_LIBRARY}
+	${SENTENCEPIECE_LIBRARY}
+)
+
+target_include_directories(OcrBatchEval PRIVATE
+	${OpenCV_INCLUDE_DIRS}
+	${ONNXRUNTIME_INCLUDE_DIR}
+	src
+)
+
+target_link_libraries(OcrBatchEval PRIVATE
+	Qt6::Core
+	${OpenCV_LIBS}
+	${ONNXRUNTIME_LIBRARY}
+	${SENTENCEPIECE_LIBRARY}
+)
