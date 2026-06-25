@@ -25,11 +25,11 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     setAttribute(Qt::WA_TranslucentBackground, true);
     setMouseTracking(true);
     setMinimumSize(500, 120);
-    resize(900, 180);
+    resize(900, 200);
 
     setupUi();
     setupHotkeys();
-    move(250, 780);
+    move(400, 780);
     logFilePath_ = QCoreApplication::applicationDirPath() + QStringLiteral("/subtitle_log.txt");
     ocrAcceptedTimer_.start();
     appendSubtitleLog(QStringLiteral("SESSION_START"), QString(), QString());
@@ -77,7 +77,7 @@ void OverlayWindow::paintEvent(QPaintEvent *event)
 
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(QColor(255, 0, 0, 220), 2));
+    painter.setPen(QPen(QColor(100, 100, 0, 50), 2, Qt::DashLine));
     painter.setBrush(Qt::NoBrush);
     painter.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 8, 8);
 

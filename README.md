@@ -346,7 +346,8 @@ screen_sub_translate/
 ├── main.cpp
 ├── README.md
 ├── models/
-│   └── paddle/
+│   ├── paddle/
+│   └── translate/
 └── src/
     ├── capture_worker.h
     ├── capture_worker.cpp
