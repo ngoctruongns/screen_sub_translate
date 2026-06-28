@@ -82,7 +82,7 @@ void OverlayWindow::paintEvent(QPaintEvent *event)
     painter.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 8, 8);
 
     const QRect scanZone = localScanZoneRect();
-    painter.setPen(QPen(QColor(255, 180, 0, 180), 1, Qt::DashLine));
+    painter.setPen(QPen(QColor(255, 180, 0, 50), 1, Qt::DashLine));
     painter.drawRect(scanZone);
 }
 
@@ -178,12 +178,16 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
     ocrBusy_ = false;
 
     if (ocrText.isEmpty()) {
-        ++emptyOcrStreak_;
-        if (emptyOcrStreak_ >= tuning::kSubtitleDisappearEmptyFrames) {
+        if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
             subtitleVisible_ = false;
+            recentSubtitleKeys_.clear();
+            lastCandidateOcr_.clear();
+            candidateRepeatCount_ = 0;
+            qDebug() << "Subtitle disappeared due to timeout after empty OCR result.";
         }
     } else {
-        emptyOcrStreak_ = 0;
+        appendSubtitleLog(QStringLiteral("OCR_CAP-->"), ocrText, QString());
+        lastNonEmptySubtitleTimer_.restart();
 
         if (ocrText == lastCandidateOcr_) {
             ++candidateRepeatCount_;
@@ -220,9 +224,12 @@ void OverlayWindow::onOcrError(const QString &error, int requestId)
     appendSubtitleLog(QStringLiteral("OCR_ERROR"), QString::number(requestId), error);
     lastCandidateOcr_.clear();
     candidateRepeatCount_ = 0;
-    ++emptyOcrStreak_;
-    if (emptyOcrStreak_ >= tuning::kSubtitleDisappearEmptyFrames) {
+    if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
         subtitleVisible_ = false;
+        recentSubtitleKeys_.clear();
+        lastCandidateOcr_.clear();
+        candidateRepeatCount_ = 0;
+        qDebug() << "OCR_ERROR: Subtitle disappeared due to timeout after error.";
     }
 
     if (latestFrameRequestId_ > requestId) {
@@ -458,13 +465,70 @@ QString OverlayWindow::subtitleKey(const QString &text) const
     for (const QChar c : text) {
         const ushort u = c.unicode();
         const bool isHan = (u >= 0x3400 && u <= 0x9FFF) || (u >= 0xF900 && u <= 0xFAFF);
-        const bool isAsciiAlnum = (u >= '0' && u <= '9') || (u >= 'A' && u <= 'Z') ||
-                                  (u >= 'a' && u <= 'z');
+        const bool isAsciiAlnum = (u >= '0' && u <= '9'); // Only get digits
+        // const bool isAsciiAlnum = (u >= '0' && u <= '9') || (u >= 'A' && u <= 'Z') ||
+        //                           (u >= 'a' && u <= 'z'); // TODO: consider accented letters
         if (isHan || isAsciiAlnum) {
             key.append(c);
         }
     }
     return key;
+}
+
+static int longestCommonSubsequence(const QString &left, const QString &right)
+{
+    const int n = left.size();
+    const int m = right.size();
+
+    QVector<QVector<int>> dp(n + 1, QVector<int>(m + 1, 0));
+
+    for (int i = 1; i <= n; ++i) {
+        for (int j = 1; j <= m; ++j) {
+            if (left.at(i - 1) == right.at(j - 1)) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = std::max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+
+    return dp[n][m];
+}
+
+static int levenshteinDistance(const QString &left, const QString &right)
+{
+    const int n = left.size();
+    const int m = right.size();
+
+    if (n == 0)
+        return m;
+    if (m == 0)
+        return n;
+
+    QVector<int> prev(m + 1);
+    QVector<int> curr(m + 1);
+
+    for (int j = 0; j <= m; ++j) {
+        prev[j] = j;
+    }
+
+    for (int i = 1; i <= n; ++i) {
+        curr[0] = i;
+
+        for (int j = 1; j <= m; ++j) {
+            const int cost = (left.at(i - 1) == right.at(j - 1)) ? 0 : 1;
+
+            curr[j] = std::min({
+                prev[j] + 1,       // delete
+                curr[j - 1] + 1,   // insert
+                prev[j - 1] + cost // replace
+            });
+        }
+
+        std::swap(prev, curr);
+    }
+
+    return prev[m];
 }
 
 bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &right) const
@@ -482,20 +546,23 @@ bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &rig
     }
 
     const int minLen = std::min(left.size(), right.size());
-    if (minLen <= 1) {
+    const int lenDiff = std::abs(left.size() - right.size());
+
+    if (lenDiff > 4) {
         return false;
     }
 
-    int samePos = 0;
-    for (int i = 0; i < minLen; ++i) {
-        if (left.at(i) == right.at(i)) {
-            ++samePos;
-        }
+    if (minLen <= 4) {
+        return levenshteinDistance(left, right) <= 1;
     }
 
-    const double ratio = static_cast<double>(samePos) / static_cast<double>(minLen);
-    const int lenDiff = std::abs(left.size() - right.size());
-    return ratio >= 0.72 && lenDiff <= 2;
+    // For longer strings, use longest common subsequence to determine similarity.
+    const int lcs = longestCommonSubsequence(left, right);
+    const bool almostContained = lcs >= (minLen - 2);
+
+    if (almostContained) qDebug() << left << right << lcs << almostContained;
+
+    return almostContained;
 }
 
 bool OverlayWindow::shouldDispatchSubtitle(const QString &ocrText)
@@ -507,12 +574,18 @@ bool OverlayWindow::shouldDispatchSubtitle(const QString &ocrText)
 
     if (!subtitleVisible_) {
         subtitleVisible_ = true;
+
+        if (wasRecentlyDispatched(key)) {
+            return false;
+        }
+
         lastDispatchedSubtitleKey_ = key;
+        rememberDispatchedSubtitle(key);
         subtitleDispatchTimer_.restart();
         return true;
     }
 
-    if (isLikelySameSubtitle(key, lastDispatchedSubtitleKey_)) {
+    if (wasRecentlyDispatched(key)) {
         return false;
     }
 
@@ -527,9 +600,37 @@ bool OverlayWindow::shouldDispatchSubtitle(const QString &ocrText)
         return false;
     }
 
+    qDebug()
+    << "\nOCR =" << key
+    << "\nLAST =" << lastDispatchedSubtitleKey_
+    << "\nVISIBLE =" << subtitleVisible_;
+
     lastDispatchedSubtitleKey_ = key;
+    rememberDispatchedSubtitle(key);
     subtitleDispatchTimer_.restart();
+
     return true;
+}
+
+bool OverlayWindow::wasRecentlyDispatched(const QString &key) const
+{
+    for (const QString &oldKey : recentSubtitleKeys_) {
+        if (isLikelySameSubtitle(key, oldKey)) {
+            // qDebug() << "RECENT MATCH:" << key << "<->" << oldKey;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void OverlayWindow::rememberDispatchedSubtitle(const QString &key)
+{
+    recentSubtitleKeys_.enqueue(key);
+
+    while (recentSubtitleKeys_.size() > tuning::kRecentSubtitleWindowSize) {
+        recentSubtitleKeys_.dequeue();
+    }
 }
 
 Qt::Edges OverlayWindow::hitTestEdges(const QPoint &localPos) const

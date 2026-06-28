@@ -4,6 +4,7 @@
 #include <QPoint>
 #include <QThread>
 #include <QWidget>
+#include <QQueue>
 
 #include <opencv2/core.hpp>
 
@@ -66,6 +67,8 @@ private:
     void updateCursorForPosition(const QPoint &localPos);
     void applyResize(const QPoint &globalPos);
     QRect computeCaptureZone() const;
+    bool wasRecentlyDispatched(const QString& key) const;
+    void rememberDispatchedSubtitle(const QString& key);
 
     QLabel *subtitleLabel_ = nullptr;
     QThread captureThread_;
@@ -96,8 +99,9 @@ private:
     int minOcrLength_ = tuning::kDefaultProfile.minOcrLength;
     int requiredRepeatCount_ = tuning::kDefaultProfile.requiredRepeatCount;
     int minOcrAcceptGapMs_ = tuning::kDefaultProfile.minOcrAcceptGapMs;
-    int emptyOcrStreak_ = 0;
     QString lastDispatchedSubtitleKey_;
     QElapsedTimer subtitleDispatchTimer_;
     bool subtitleVisible_ = false;
+    QQueue<QString> recentSubtitleKeys_;
+    QElapsedTimer lastNonEmptySubtitleTimer_;
 };

@@ -4,12 +4,12 @@ namespace tuning
 {
 
     struct NoiseProfileConfig {
-        double changeThreshold;
-        double minChangedRatio;
-        double minStdDev;
-        int minOcrLength;
-        int requiredRepeatCount;
-        int minOcrAcceptGapMs;
+        double changeThreshold;  // Threshold for detecting changes in the image.
+        double minChangedRatio;  // Minimum ratio of changed pixels to consider as a change.
+        double minStdDev;        // Minimum standard deviation of pixel values to consider as a change.
+        int minOcrLength;        // Minimum length of OCR text to consider for dispatching
+        int requiredRepeatCount; // Number of consecutive identical OCR results required to consider it stable.
+        int minOcrAcceptGapMs;   // Minimum time in milliseconds between accepting the same OCR text again.
     };
 
     // PaddleOCR ONNX Runtime (C++) configuration.
@@ -36,28 +36,28 @@ namespace tuning
     inline constexpr NoiseProfileConfig kFastProfile = {
         1.55, // changeThreshold
         0.006,
-        9.0,
-        2,
+        8.0,
         1,
-        140,
+        1,
+        25,
     };
 
     inline constexpr NoiseProfileConfig kBalancedProfile = {
-        1.75, // changeThreshold
+        1.65, // changeThreshold
         0.009,
-        10.5,
-        3,
+        8.5,
         1,
-        170,
+        2,
+        30,
     };
 
     inline constexpr NoiseProfileConfig kCleanProfile = {
         2.20, // changeThreshold
         0.015,
         13.0,
-        4,
+        1,
         2,
-        260,
+        100,
     };
 
     // Default startup profile.
@@ -69,8 +69,11 @@ namespace tuning
     inline constexpr double kMinStdDev = kDefaultProfile.minStdDev;
 
     // Subtitle dispatch dedupe (avoid translating the same on-screen subtitle repeatedly).
-    inline constexpr int kSubtitleDisappearEmptyFrames = 4;
-    inline constexpr int kSubtitleSwitchCooldownMs = 320;
-    inline constexpr int kSubtitleResendCooldownMs = 2200;
+    inline constexpr int kSubtitleDisappearTimeoutMs = 800;  // Time after which an empty OCR result is considered a subtitle disappearance.
+    inline constexpr int kSubtitleSwitchCooldownMs = 300;    // Minimum time between dispatching different subtitles.
+    inline constexpr int kSubtitleResendCooldownMs = 2200;   // Minimum time before resending the same subtitle.
+
+    // Number of recent subtitles to track for deduplication.
+    inline constexpr int kRecentSubtitleWindowSize = 4;
 
 } // namespace tuning
