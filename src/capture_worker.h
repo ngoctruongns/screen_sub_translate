@@ -40,6 +40,4 @@ private:
     double changeThreshold_ = tuning::kChangeThreshold;
     double minChangedRatio_ = tuning::kMinChangedRatio;
     double minStdDev_ = tuning::kMinStdDev;
-    const int minIntervalMs_ = 28;
-    const int maxIntervalMs_ = 140;
 };

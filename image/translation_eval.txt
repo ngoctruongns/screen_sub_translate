@@ -24,6 +24,17 @@ image10
   vi_match_from_gt: NO
   prepared: ../image/debug_preprocessed/image10_prepared.png
 
+image11
+  zh_expected: 可是
+  zh_ocr: 可是橋
+  ocr_match: NO
+  vi_from_ocr: Nhưng cây cầu...
+  vi_from_gt: Nhưng...
+  vi_expected: Nhưng
+  vi_match_from_ocr: NO
+  vi_match_from_gt: NO
+  prepared: ../image/debug_preprocessed/image11_prepared.png
+
 image2
   zh_expected: 同志们当这个城市在进行着
   zh_ocr: 同志们当这个城市在进行着
@@ -113,6 +124,6 @@ image9
   prepared: ../image/debug_preprocessed/image9_prepared.png
 
 Summary
-  OCR exact: 10/10
-  VI exact (from OCR): 0/10
-  VI exact (from GT): 0/10
+  OCR exact: 10/11
+  VI exact (from OCR): 0/11
+  VI exact (from GT): 0/11

@@ -8,9 +8,15 @@ namespace tuning
         double minChangedRatio;  // Minimum ratio of changed pixels to consider as a change.
         double minStdDev;        // Minimum standard deviation of pixel values to consider as a change.
         int minOcrLength;        // Minimum length of OCR text to consider for dispatching
-        int requiredRepeatCount; // Number of consecutive identical OCR results required to consider it stable.
-        int minOcrAcceptGapMs;   // Minimum time in milliseconds between accepting the same OCR text again.
+        int minCandidateStableMs;// Minimum time in Ms that a candidate OCR text must remain stable
     };
+
+    // Candidate quality gate and dynamic stability.
+    inline constexpr int kMinHanCharsForCandidate = 1;
+    inline constexpr int kVeryShortCandidateStableMs = 520; // len <= 1
+    inline constexpr int kShortCandidateStableMs = 260;     // len <= 3
+    inline constexpr int kVeryShortCandidateMinFrames = 3;
+    inline constexpr int kShortCandidateMinFrames = 2;
 
     // PaddleOCR ONNX Runtime (C++) configuration.
     inline constexpr bool kUseCudaExecutionProvider = true;
@@ -38,8 +44,7 @@ namespace tuning
         0.006,
         8.0,
         1,
-        1,
-        25,
+        180,
     };
 
     inline constexpr NoiseProfileConfig kBalancedProfile = {
@@ -47,8 +52,7 @@ namespace tuning
         0.009,
         8.5,
         1,
-        2,
-        30,
+        190,
     };
 
     inline constexpr NoiseProfileConfig kCleanProfile = {
@@ -56,8 +60,7 @@ namespace tuning
         0.015,
         13.0,
         1,
-        2,
-        100,
+        230,
     };
 
     // Default startup profile.
@@ -70,10 +73,14 @@ namespace tuning
 
     // Subtitle dispatch dedupe (avoid translating the same on-screen subtitle repeatedly).
     inline constexpr int kSubtitleDisappearTimeoutMs = 800;  // Time after which an empty OCR result is considered a subtitle disappearance.
-    inline constexpr int kSubtitleSwitchCooldownMs = 300;    // Minimum time between dispatching different subtitles.
+    inline constexpr int kSubtitleSwitchCooldownMs = 200;    // Minimum time between dispatching different subtitles.
     inline constexpr int kSubtitleResendCooldownMs = 2200;   // Minimum time before resending the same subtitle.
 
     // Number of recent subtitles to track for deduplication.
     inline constexpr int kRecentSubtitleWindowSize = 4;
+
+    // Capture interval for the capture worker thread.
+    inline constexpr int kCaptureIntervalMs = 50;
+    inline constexpr int kOcrKeepaliveIntervalMs = 220;
 
 } // namespace tuning

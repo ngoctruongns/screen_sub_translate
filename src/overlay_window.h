@@ -79,9 +79,6 @@ private:
 
     QString lastOcrText_;
     QString lastTranslation_;
-    QString lastCandidateOcr_;
-    int candidateRepeatCount_ = 0;
-    QElapsedTimer ocrAcceptedTimer_;
     cv::Mat latestFrameForOcr_;
     int latestFrameRequestId_ = 0;
     int inFlightOcrRequestId_ = 0;
@@ -97,11 +94,13 @@ private:
     ResultPosition resultPosition_ = ResultPosition::AboveSource;
     const int resizeMarginPx_ = 10;
     int minOcrLength_ = tuning::kDefaultProfile.minOcrLength;
-    int requiredRepeatCount_ = tuning::kDefaultProfile.requiredRepeatCount;
-    int minOcrAcceptGapMs_ = tuning::kDefaultProfile.minOcrAcceptGapMs;
+    int minCandidateStableMs_ = tuning::kDefaultProfile.minCandidateStableMs;
     QString lastDispatchedSubtitleKey_;
     QElapsedTimer subtitleDispatchTimer_;
     bool subtitleVisible_ = false;
     QQueue<QString> recentSubtitleKeys_;
     QElapsedTimer lastNonEmptySubtitleTimer_;
+    QString candidateText_;
+    QElapsedTimer candidateTimer_;
+    int candidateSeenFrames_ = 0;
 };

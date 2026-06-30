@@ -1,0 +1,157 @@
+[2026-06-30 08:19:05.466] SESSION_START | source= | result=
+[2026-06-30 08:19:05.817] PROFILE_CHANGED | source=Balanced | result=len=1 repeat=190
+[2026-06-30 08:19:08.296] OCR_CAP--> | source=物成 | result=
+[2026-06-30 08:19:08.337] OCR_CAP--> | source=成 | result=
+[2026-06-30 08:19:08.550] OCR_CAP--> | source=我是材成武 | result=
+[2026-06-30 08:19:08.595] OCR_CAP--> | source=我是杨成武 | result=
+[2026-06-30 08:19:08.654] OCR_CAP--> | source=我是杨成武 | result=
+[2026-06-30 08:19:08.700] OCR_CAP--> | source=我是杨成武 | result=
+[2026-06-30 08:19:08.948] OCR_CAP--> | source=我是杨成式 | result=
+[2026-06-30 08:19:09.145] OCR_CAP--> | source=成武 | result=
+[2026-06-30 08:19:09.402] OCR_CAP--> | source=广成 | result=
+[2026-06-30 08:19:09.499] OCR_CAP--> | source=成武 | result=
+[2026-06-30 08:19:09.588] OCR_CAP--> | source=成 | result=
+[2026-06-30 08:19:09.652] OCR_CAP--> | source=成 | result=
+[2026-06-30 08:19:09.689] OCR_CAP--> | source=成武 | result=
+[2026-06-30 08:19:11.262] OCR_CAP--> | source=求恩到你观里有公 | result=
+[2026-06-30 08:19:11.306] OCR_CAP--> | source=自求思到你那里发有 | result=
+[2026-06-30 08:19:11.362] OCR_CAP--> | source=自求思到你那里粵有 | result=
+[2026-06-30 08:19:11.393] OCR_CAP--> | source=求恩到你观里有公 | result=
+[2026-06-30 08:19:11.445] OCR_CAP--> | source=自求思到你那里有 | result=
+[2026-06-30 08:19:11.498] OCR_CAP--> | source=自求思到你那里爱有 | result=
+[2026-06-30 08:19:11.547] OCR_CAP--> | source=东恩到你郊手有公 | result=
+[2026-06-30 08:19:11.596] OCR_CAP--> | source=日东恩到你郊手有公 | result=
+[2026-06-30 08:19:11.665] OCR_CAP--> | source=日东恩到你郊手没有公 | result=
+[2026-06-30 08:19:11.697] OCR_CAP--> | source=自求展到你那里没有 | result=
+[2026-06-30 08:19:11.749] OCR_CAP--> | source=自表恩到你那里没有 | result=
+[2026-06-30 08:19:11.798] OCR_CAP--> | source=自衣层到你那里没有 | result=
+[2026-06-30 08:19:11.850] OCR_CAP--> | source=日东恩到你郊事股有公 | result=
+[2026-06-30 08:19:11.895] OCR_CAP--> | source=自表恩到你那里没有 | result=
+[2026-06-30 08:19:11.953] OCR_CAP--> | source=自求恩到你那里没有 | result=
+[2026-06-30 08:19:12.051] OCR_CAP--> | source=自求思到你那里没有 | result=
+[2026-06-30 08:19:12.415] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:12.461] OCR_CAP--> | source=是他们经者到了 | result=
+[2026-06-30 08:19:12.510] OCR_CAP--> | source=基他们图了 | result=
+[2026-06-30 08:19:12.564] OCR_CAP--> | source=基他们到了 | result=
+[2026-06-30 08:19:12.598] OCR_CAP--> | source=是他们都到了 | result=
+[2026-06-30 08:19:12.671] OCR_CAP--> | source=他们已都到了 | result=
+[2026-06-30 08:19:12.697] OCR_CAP--> | source=是何们已都到了 | result=
+[2026-06-30 08:19:12.749] OCR_CAP--> | source=是他们经都到了 | result=
+[2026-06-30 08:19:12.817] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:12.847] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:12.897] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:12.966] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:12.967] OCR_DETECTED | source=是他们已经都到了 | result=stable=217ms frames=5
+[2026-06-30 08:19:13.014] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.050] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.148] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.199] OCR_CAP--> | source=是他们同经都到了 | result=
+[2026-06-30 08:19:13.249] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.298] OCR_CAP--> | source=是他们已都到了 | result=
+[2026-06-30 08:19:13.349] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.399] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.448] OCR_CAP--> | source=是他们经都到了 | result=
+[2026-06-30 08:19:13.499] OCR_CAP--> | source=是他们经都到了 | result=
+[2026-06-30 08:19:13.537] TRANSLATED | source=是他们已经都到了 | result=Là tất cả chúng ta.
+[2026-06-30 08:19:13.549] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.597] OCR_CAP--> | source=是他们巴都到了 | result=
+[2026-06-30 08:19:13.648] OCR_CAP--> | source=是他们吧经都到了 | result=
+[2026-06-30 08:19:13.698] OCR_CAP--> | source=是他们吧经都到了 | result=
+[2026-06-30 08:19:13.749] OCR_CAP--> | source=是他们吧经都到了 | result=
+[2026-06-30 08:19:13.800] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.848] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:13.898] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-06-30 08:19:14.003] OCR_CAP--> | source=是要照好他习 | result=
+[2026-06-30 08:19:14.048] OCR_CAP--> | source=定要照好他 | result=
+[2026-06-30 08:19:14.113] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-06-30 08:19:14.152] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-06-30 08:19:14.209] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-06-30 08:19:14.250] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-06-30 08:19:14.250] OCR_DETECTED | source=定要照顾好他 | result=stable=202ms frames=5
+[2026-06-30 08:19:14.300] OCR_CAP--> | source=一定要照顾好他 | result=
+[2026-06-30 08:19:14.350] OCR_CAP--> | source=一定要照顾好他 | result=
+[2026-06-30 08:19:14.399] OCR_CAP--> | source=定要照好他 | result=
+[2026-06-30 08:19:14.450] OCR_CAP--> | source=定要照好他 | result=
+[2026-06-30 08:19:14.500] OCR_CAP--> | source=定要照颜好他 | result=
+[2026-06-30 08:19:14.552] OCR_CAP--> | source=定要照好他 | result=
+[2026-06-30 08:19:14.601] OCR_CAP--> | source=定要照颜好他 | result=
+[2026-06-30 08:19:14.652] OCR_CAP--> | source=定要照好他 | result=
+[2026-06-30 08:19:14.702] OCR_CAP--> | source=定要照颜好他 | result=
+[2026-06-30 08:19:14.733] TRANSLATED | source=定要照顾好他 | result=Hãy chăm sóc nó nhé.
+[2026-06-30 08:19:15.209] OCR_CAP--> | source=护好 | result=
+[2026-06-30 08:19:15.467] OCR_CAP--> | source=你护好他一习 | result=
+[2026-06-30 08:19:15.649] OCR_CAP--> | source=保护好他 | result=
+[2026-06-30 08:19:15.851] OCR_CAP--> | source=保护好他 | result=
+[2026-06-30 08:19:15.851] OCR_DETECTED | source=保护好他 | result=stable=201ms frames=2
+[2026-06-30 08:19:16.152] OCR_CAP--> | source=好明自 | result=
+[2026-06-30 08:19:16.170] TRANSLATED | source=保护好他 | result=Bảo vệ hắn.
+[2026-06-30 08:19:16.201] OCR_CAP--> | source=好明自一 | result=
+[2026-06-30 08:19:16.250] OCR_CAP--> | source=好明白一 | result=
+[2026-06-30 08:19:16.303] OCR_CAP--> | source=好明白 | result=
+[2026-06-30 08:19:16.353] OCR_CAP--> | source=好明白 | result=
+[2026-06-30 08:19:16.403] OCR_CAP--> | source=好明自子 | result=
+[2026-06-30 08:19:16.456] OCR_CAP--> | source=好明自 | result=
+[2026-06-30 08:19:16.505] OCR_CAP--> | source=好明白 | result=
+[2026-06-30 08:19:16.554] OCR_CAP--> | source=好明自 | result=
+[2026-06-30 08:19:16.622] OCR_CAP--> | source=好明 | result=
+[2026-06-30 08:19:16.671] OCR_CAP--> | source=好明 | result=
+[2026-06-30 08:19:16.718] OCR_CAP--> | source=好明 | result=
+[2026-06-30 08:19:16.756] OCR_CAP--> | source=好明 | result=
+[2026-06-30 08:19:16.821] OCR_CAP--> | source=好明 | result=
+[2026-06-30 08:19:16.871] OCR_CAP--> | source=好明自 | result=
+[2026-06-30 08:19:16.925] OCR_CAP--> | source=好明白 | result=
+[2026-06-30 08:19:16.952] OCR_CAP--> | source=好明 | result=
+[2026-06-30 08:19:17.019] OCR_CAP--> | source=好明智 | result=
+[2026-06-30 08:19:17.053] OCR_CAP--> | source=好明 | result=
+[2026-06-30 08:19:17.763] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:18.022] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:18.269] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:18.513] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:18.513] OCR_DETECTED | source=江 | result=stable=749ms frames=4
+[2026-06-30 08:19:18.513] TRANSLATE_ERROR | source=保护好他 | result=Skipped non-Chinese OCR candidate
+[2026-06-30 08:19:18.772] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:19.016] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:19.263] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:19.510] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:19.760] OCR_CAP--> | source=江 | result=
+[2026-06-30 08:19:20.018] OCR_CAP--> | source=江 | result=
+
+
+"自求思到你那里粵有" "自求思到你那里发有" 8 true
+"自求思到你那里爱有" "自求思到你那里有" 8 true
+"日东恩到你郊手没有公" "日东恩到你郊手有公" 9 true
+"自求恩到你那里没有" "自表恩到你那里没有" 8 true
+"自求思到你那里没有" "自求恩到你那里没有" 8 true
+"是他们已经都到了" "是他们经都到了" 7 true
+"是他们同经都到了" "是他们已经都到了" 7 true
+"是他们同经都到了" "是他们已经都到了" 7 true
+"是他们已经都到了" "是他们同经都到了" 7 true
+"是他们已都到了" "是他们已经都到了" 7 true
+"是他们已都到了" "是他们已经都到了" 7 true
+"是他们已经都到了" "是他们已都到了" 7 true
+"是他们经都到了" "是他们已经都到了" 7 true
+"是他们经都到了" "是他们已经都到了" 7 true
+"是他们经都到了" "是他们已经都到了" 7 true
+"是他们已经都到了" "是他们经都到了" 7 true
+"是他们已经都到了" "是他们吧经都到了" 7 true
+"定要照顾好他" "定要照好他" 5 true
+
+OCR = "定要照顾好他"
+LAST = "是他们已经都到了"
+VISIBLE = true
+"定要照颜好他" "定要照好他" 5 true
+"定要照好他" "定要照颜好他" 5 true
+"定要照颜好他" "定要照好他" 5 true
+"定要照颜好他" "定要照顾好他" 5 true
+"定要照好他" "定要照颜好他" 5 true
+"定要照好他" "定要照顾好他" 5 true
+"定要照颜好他" "定要照好他" 5 true
+"定要照颜好他" "定要照顾好他" 5 true
+
+OCR = "保护好他"
+LAST = "定要照顾好他"
+VISIBLE = true
+
+OCR = "江"
+LAST = "保护好他"
+VISIBLE = true

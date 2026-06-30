@@ -17,6 +17,49 @@
 #include <QShortcut>
 #include <QTextStream>
 
+namespace
+{
+int countHanChars(const QString &text)
+{
+    int count = 0;
+    for (const QChar ch : text) {
+        const ushort u = ch.unicode();
+        const bool isHan =
+            (u >= 0x3400 && u <= 0x4DBF) || (u >= 0x4E00 && u <= 0x9FFF) || (u >= 0xF900 && u <= 0xFAFF);
+        if (isHan) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int requiredStableMsForCandidate(const QString &candidate, int baseStableMs)
+{
+    if (candidate.size() <= 1) {
+        return std::max(baseStableMs, tuning::kVeryShortCandidateStableMs);
+    }
+
+    if (candidate.size() <= 3) {
+        return std::max(baseStableMs, tuning::kShortCandidateStableMs);
+    }
+
+    return baseStableMs;
+}
+
+int requiredSeenFramesForCandidate(const QString &candidate)
+{
+    if (candidate.size() <= 1) {
+        return tuning::kVeryShortCandidateMinFrames;
+    }
+
+    if (candidate.size() <= 3) {
+        return tuning::kShortCandidateMinFrames;
+    }
+
+    return 1;
+}
+} // namespace
+
 OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
 {
     qRegisterMetaType<cv::Mat>("cv::Mat");
@@ -25,13 +68,12 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     setAttribute(Qt::WA_TranslucentBackground, true);
     setMouseTracking(true);
     setMinimumSize(500, 120);
-    resize(900, 200);
+    resize(1200, 200);
 
     setupUi();
     setupHotkeys();
     move(400, 780);
     logFilePath_ = QCoreApplication::applicationDirPath() + QStringLiteral("/subtitle_log.txt");
-    ocrAcceptedTimer_.start();
     appendSubtitleLog(QStringLiteral("SESSION_START"), QString(), QString());
 
     captureWorker_ = new CaptureWorker(frameGeometry());
@@ -178,33 +220,62 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
     ocrBusy_ = false;
 
     if (ocrText.isEmpty()) {
+
         if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
             subtitleVisible_ = false;
             recentSubtitleKeys_.clear();
-            lastCandidateOcr_.clear();
-            candidateRepeatCount_ = 0;
+            candidateText_.clear();
+            candidateTimer_.invalidate();
+            candidateSeenFrames_ = 0;
+
             qDebug() << "Subtitle disappeared due to timeout after empty OCR result.";
         }
     } else {
+        // OCR result is non-empty
         appendSubtitleLog(QStringLiteral("OCR_CAP-->"), ocrText, QString());
         lastNonEmptySubtitleTimer_.restart();
 
-        if (ocrText == lastCandidateOcr_) {
-            ++candidateRepeatCount_;
-        } else {
-            lastCandidateOcr_ = ocrText;
-            candidateRepeatCount_ = 1;
+        if (countHanChars(ocrText) < tuning::kMinHanCharsForCandidate) {
+            candidateText_.clear();
+            candidateTimer_.invalidate();
+            candidateSeenFrames_ = 0;
+            appendSubtitleLog(QStringLiteral("OCR_REJECTED"), ocrText,
+                              QStringLiteral("reason=han_quality"));
+
+            if (latestFrameRequestId_ > requestId) {
+                dispatchLatestOcr();
+            }
+            return;
         }
 
-        const bool enoughLength = ocrText.size() >= minOcrLength_;
-        const bool stableEnough = candidateRepeatCount_ >= requiredRepeatCount_;
-        const bool enoughGap = ocrAcceptedTimer_.elapsed() >= minOcrAcceptGapMs_;
+        if (!isLikelySameSubtitle(ocrText, candidateText_)) {
+            // New candidate text detected, reset the timer
+            candidateText_ = ocrText;
+            candidateTimer_.restart();
+            candidateSeenFrames_ = 1;
+        } else {
+            // Candidate text is stable, check if it meets the criteria for dispatching
+            if (!candidateTimer_.isValid()) {
+                candidateTimer_.restart();
+            }
+            candidateText_ = ocrText;
+            ++candidateSeenFrames_;
+        }
 
-        if (enoughLength && stableEnough && enoughGap && shouldDispatchSubtitle(ocrText)) {
-            lastOcrText_ = ocrText;
-            ocrAcceptedTimer_.restart();
-            appendSubtitleLog(QStringLiteral("OCR_DETECTED"), ocrText, QString());
-            translateClient_.requestTranslation(ocrText);
+        const bool enoughLength = candidateText_.size() >= minOcrLength_;
+        const int requiredStableMs = requiredStableMsForCandidate(candidateText_, minCandidateStableMs_);
+        const int requiredFrames = requiredSeenFramesForCandidate(candidateText_);
+        const bool stableEnough =
+            candidateTimer_.isValid() && candidateTimer_.elapsed() >= requiredStableMs;
+        const bool seenEnoughFrames = candidateSeenFrames_ >= requiredFrames;
+
+        if (enoughLength && stableEnough && seenEnoughFrames &&
+            shouldDispatchSubtitle(candidateText_)) {
+            appendSubtitleLog(QStringLiteral("OCR_DETECTED"), candidateText_,
+                              QString("stable=%1ms frames=%2").arg(candidateTimer_.elapsed()).arg(candidateSeenFrames_));
+
+            translateClient_.requestTranslation(candidateText_);
+            lastOcrText_ = candidateText_;
         }
     }
 
@@ -222,13 +293,13 @@ void OverlayWindow::onOcrError(const QString &error, int requestId)
     ocrBusy_ = false;
     subtitleLabel_->setText(error);
     appendSubtitleLog(QStringLiteral("OCR_ERROR"), QString::number(requestId), error);
-    lastCandidateOcr_.clear();
-    candidateRepeatCount_ = 0;
     if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
         subtitleVisible_ = false;
+
         recentSubtitleKeys_.clear();
-        lastCandidateOcr_.clear();
-        candidateRepeatCount_ = 0;
+        candidateText_.clear();
+        candidateTimer_.invalidate();
+        candidateSeenFrames_ = 0;
         qDebug() << "OCR_ERROR: Subtitle disappeared due to timeout after error.";
     }
 
@@ -541,24 +612,33 @@ bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &rig
         return true;
     }
 
-    if (left.contains(right) || right.contains(left)) {
-        return true;
-    }
-
     const int minLen = std::min(left.size(), right.size());
+    const int maxLen = std::max(left.size(), right.size());
     const int lenDiff = std::abs(left.size() - right.size());
 
-    if (lenDiff > 4) {
+    if (lenDiff > 3) {
         return false;
     }
 
-    if (minLen <= 4) {
-        return levenshteinDistance(left, right) <= 1;
+    // Allow containment only for sufficiently long strings with very small length difference.
+    if ((left.contains(right) || right.contains(left)) && minLen >= 6 && lenDiff <= 1) {
+        return true;
     }
 
-    // For longer strings, use longest common subsequence to determine similarity.
+    const int lev = levenshteinDistance(left, right);
+    if (minLen <= 2) {
+        return lev == 0;
+    }
+
+    if (minLen <= 4) {
+        return lev <= 1;
+    }
+
     const int lcs = longestCommonSubsequence(left, right);
-    const bool almostContained = lcs >= (minLen - 2);
+    const double lcsRatio = static_cast<double>(lcs) / static_cast<double>(std::max(1, maxLen));
+    const double levRatio = static_cast<double>(lev) / static_cast<double>(std::max(1, maxLen));
+
+    const bool almostContained = (lcsRatio >= 0.82) && (levRatio <= 0.24);
 
     if (almostContained) qDebug() << left << right << lcs << almostContained;
 
@@ -575,9 +655,9 @@ bool OverlayWindow::shouldDispatchSubtitle(const QString &ocrText)
     if (!subtitleVisible_) {
         subtitleVisible_ = true;
 
-        if (wasRecentlyDispatched(key)) {
-            return false;
-        }
+        // if (wasRecentlyDispatched(key)) {
+        //     return false;
+        // }
 
         lastDispatchedSubtitleKey_ = key;
         rememberDispatchedSubtitle(key);
@@ -763,11 +843,8 @@ void OverlayWindow::applyNoiseProfile(NoiseProfile profile)
     const double minChangedRatio = config.minChangedRatio;
     const double minStdDev = config.minStdDev;
     minOcrLength_ = config.minOcrLength;
-    requiredRepeatCount_ = config.requiredRepeatCount;
-    minOcrAcceptGapMs_ = config.minOcrAcceptGapMs;
-
-    candidateRepeatCount_ = 0;
-    lastCandidateOcr_.clear();
+    minCandidateStableMs_ = config.minCandidateStableMs;
+    candidateText_.clear();
 
     if (captureWorker_) {
         QMetaObject::invokeMethod(captureWorker_, "setNoiseParams", Qt::QueuedConnection,
@@ -776,10 +853,9 @@ void OverlayWindow::applyNoiseProfile(NoiseProfile profile)
     }
 
     appendSubtitleLog(QStringLiteral("PROFILE_CHANGED"), noiseProfileName(profile),
-                      QStringLiteral("len=%1 repeat=%2 gap=%3ms")
+                      QStringLiteral("len=%1 repeat=%2")
                           .arg(minOcrLength_)
-                          .arg(requiredRepeatCount_)
-                          .arg(minOcrAcceptGapMs_));
+                          .arg(minCandidateStableMs_));
 }
 
 QString OverlayWindow::noiseProfileName(NoiseProfile profile) const

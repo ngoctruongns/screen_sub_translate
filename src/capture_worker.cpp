@@ -6,6 +6,7 @@
 #include <QPixmap>
 #include <QScreen>
 #include <QThread>
+#include <QDateTime>
 
 #include <opencv2/imgproc.hpp>
 
@@ -17,11 +18,12 @@ CaptureWorker::CaptureWorker(const QRect &scanZone, QObject *parent)
 void CaptureWorker::start()
 {
     running_.store(true);
-    int sleepMs = minIntervalMs_;
+    qint64 lastOcrDispatchMs = 0;
 
     while (running_.load()) {
-        double changeThreshold = changeThreshold_;
-        double minChangedRatio = minChangedRatio_;
+        const qint64 cycleStart = QDateTime::currentMSecsSinceEpoch();
+        double changeThreshold;
+        double minChangedRatio;
         {
             QMutexLocker locker(&zoneMutex_);
             changeThreshold = changeThreshold_;
@@ -29,54 +31,70 @@ void CaptureWorker::start()
         }
 
         const cv::Mat gray = grabGrayFrame();
-        if (gray.empty()) {
-            QThread::msleep(maxIntervalMs_);
-            continue;
-        }
 
-        cv::Mat small;
-        cv::resize(gray, small, cv::Size(), 0.25, 0.25, cv::INTER_AREA);
+        if (!gray.empty()) {
 
-        cv::Mat previousSmallCopy;
-        {
-            QMutexLocker locker(&zoneMutex_);
-            previousSmallCopy = previousSmallGray_.clone();
-        }
+            cv::Mat small;
+            cv::resize(gray, small, cv::Size(), 0.25, 0.25, cv::INTER_AREA);
 
-        if (previousSmallCopy.empty()) {
+            cv::Mat previousSmallCopy;
             {
                 QMutexLocker locker(&zoneMutex_);
+                previousSmallCopy = previousSmallGray_.clone();
                 previousSmallGray_ = small.clone();
             }
-            sleepMs = std::min(maxIntervalMs_, minIntervalMs_ + 24);
-            QThread::msleep(static_cast<unsigned long>(sleepMs));
-            continue;
+
+            bool shouldRunOcr = false;
+
+            if (previousSmallCopy.empty()) {
+                // Frame first time
+                shouldRunOcr = true;
+            } else {
+
+                cv::Mat diff;
+                cv::absdiff(previousSmallCopy, small, diff);
+
+                const double diffMean = cv::mean(diff)[0];
+
+                cv::Mat diffMask;
+                cv::threshold(diff, diffMask, 12, 255, cv::THRESH_BINARY);
+
+                const double changedRatio = static_cast<double>(cv::countNonZero(diffMask)) /
+                                            static_cast<double>(diffMask.total());
+
+                shouldRunOcr = (diffMean >= changeThreshold) && (changedRatio >= minChangedRatio);
+
+                // qDebug()
+                //     << "diffMean =" << diffMean
+                //     << "changedRatio =" << changedRatio
+                //     << "OCR =" << shouldRunOcr;
+            }
+
+            if (!shouldRunOcr) {
+                const bool keepaliveDue =
+                    (lastOcrDispatchMs == 0) ||
+                    ((cycleStart - lastOcrDispatchMs) >= tuning::kOcrKeepaliveIntervalMs);
+                shouldRunOcr = keepaliveDue;
+            }
+
+            if (shouldRunOcr) {
+
+                const cv::Mat processed = preprocessForOcr(gray);
+
+                if (!processed.empty()) {
+                    emit imageProcessed(processed);
+                    lastOcrDispatchMs = cycleStart;
+                }
+            }
         }
 
-        cv::Mat diff;
-        cv::absdiff(previousSmallCopy, small, diff);
-        const double diffMean = cv::mean(diff)[0];
-        cv::Mat diffMask;
-        cv::threshold(diff, diffMask, 12, 255, cv::THRESH_BINARY);
-        const double changedRatio =
-            static_cast<double>(cv::countNonZero(diffMask)) / static_cast<double>(diffMask.total());
-        {
-            QMutexLocker locker(&zoneMutex_);
-            previousSmallGray_ = small.clone();
-        }
+        const qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - cycleStart;
 
-        if (diffMean < changeThreshold || changedRatio < minChangedRatio) {
-            sleepMs = std::min(maxIntervalMs_, sleepMs + 12);
-            QThread::msleep(static_cast<unsigned long>(sleepMs));
-            continue;
-        }
+        const int remain = tuning::kCaptureIntervalMs - static_cast<int>(elapsed);
 
-        const cv::Mat processed = preprocessForOcr(gray);
-        if (!processed.empty()) {
-            emit imageProcessed(processed);
+        if (remain > 0) {
+            QThread::msleep(remain);
         }
-        sleepMs = minIntervalMs_;
-        QThread::msleep(static_cast<unsigned long>(sleepMs));
     }
 
     {

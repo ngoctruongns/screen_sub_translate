@@ -275,7 +275,7 @@ QString OcrEngine::normalizeHanText(const QString &text)
     {
         const ushort u = c.unicode();
         const bool isHan = (u >= 0x3400 && u <= 0x9FFF) || (u >= 0xF900 && u <= 0xFAFF);
-        const bool isAsciiPunct = (u >= 33 && u <= 126);
+        const bool isAsciiPunct = (u >= 0x30 && u <= 0x39);
         if (isHan || isAsciiPunct)
         {
             out.append(c);
