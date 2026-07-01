@@ -7,8 +7,11 @@
 #include <QScreen>
 #include <QThread>
 #include <QDateTime>
+#include <QDir>
+#include <QDebug>
 
 #include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 CaptureWorker::CaptureWorker(const QRect &scanZone, QObject *parent)
     : QObject(parent), scanZone_(scanZone)
@@ -159,25 +162,59 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame) const
         return {};
     }
 
+    // Step 1: Gaussian blur for noise reduction
     cv::Mat denoised;
     cv::GaussianBlur(grayFrame, denoised, cv::Size(3, 3), 0.0);
 
+    // Step 2: Resize to OCR input size
     cv::Mat enlarged;
     cv::resize(denoised, enlarged, cv::Size(), 2.6, 2.6, cv::INTER_CUBIC);
 
-    cv::Mat normalized;
-    cv::normalize(enlarged, normalized, 0, 255, cv::NORM_MINMAX);
+    // Step 3: Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
+    // to improve text contrast and visibility
+    cv::Mat claheResult = enlarged.clone();
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+    clahe->apply(enlarged, claheResult);
 
-    cv::Scalar meanVal;
-    cv::Scalar stdDev;
-    cv::meanStdDev(normalized, meanVal, stdDev);
+    // Step 4: Unsharp masking to sharpen text edges
+    cv::Mat blurred;
+    cv::GaussianBlur(claheResult, blurred, cv::Size(5, 5), 1.0);
+    cv::Mat sharpened = claheResult.clone();
+    cv::addWeighted(claheResult, 1.5, blurred, -0.5, 0, sharpened);
+
+    // Step 5: Normalize to standard OCR input range
+    cv::Mat normalized;
+    cv::normalize(sharpened, normalized, 0, 255, cv::NORM_MINMAX);
+
+    // Step 6: Check standard deviation threshold
     double minStdDev = minStdDev_;
     {
         QMutexLocker locker(&zoneMutex_);
         minStdDev = minStdDev_;
     }
+    
+    cv::Scalar meanVal;
+    cv::Scalar stdDev;
+    cv::meanStdDev(normalized, meanVal, stdDev);
+    
     if (stdDev[0] < minStdDev) {
         return {};
+    }
+
+    // Debug: Save preprocessed images for analysis (every 50th frame)
+    static int frameCounter = 0;
+    if (++frameCounter % 50 == 0) {
+        QString debugDir = QString::fromUtf8("test/image/debug_preprocessed");
+        QDir dir;
+        if (!dir.exists(debugDir)) {
+            dir.mkpath(debugDir);
+        }
+        
+        QString filename = QString::fromUtf8("%1/frame_%2_preprocessed.png")
+            .arg(debugDir).arg(frameCounter, 6, 10, QChar('0'));
+        
+        cv::imwrite(filename.toStdString(), normalized);
+        qDebug() << "[PREPROCESS DEBUG]" << filename << "stdDev=" << stdDev[0];
     }
 
     return normalized.clone();
