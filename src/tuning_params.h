@@ -12,11 +12,12 @@ namespace tuning
     };
 
     // Candidate quality gate and dynamic stability.
+    // Tuned P1: Allow shorter text with lower frame/time requirements for better detection
     inline constexpr int kMinHanCharsForCandidate = 1;
-    inline constexpr int kVeryShortCandidateStableMs = 520; // len <= 1
-    inline constexpr int kShortCandidateStableMs = 260;     // len <= 3
-    inline constexpr int kVeryShortCandidateMinFrames = 3;
-    inline constexpr int kShortCandidateMinFrames = 2;
+    inline constexpr int kVeryShortCandidateStableMs = 350; // len <= 1: reduced from 520ms for faster detection
+    inline constexpr int kShortCandidateStableMs = 150;     // len <= 3: reduced from 260ms for faster detection
+    inline constexpr int kVeryShortCandidateMinFrames = 2;  // len <= 1: reduced from 3 for shorter text
+    inline constexpr int kShortCandidateMinFrames = 1;      // len <= 3: reduced from 2 for shorter text
 
     // PaddleOCR ONNX Runtime (C++) configuration.
     inline constexpr bool kUseCudaExecutionProvider = true;
@@ -39,12 +40,13 @@ namespace tuning
     inline constexpr int kPaddleInputWidth = 320;
 
     // Preset profile values.
+    // P1 Tuning: Reduced minCandidateStableMs for faster subtitle detection
     inline constexpr NoiseProfileConfig kFastProfile = {
         1.55, // changeThreshold
         0.006,
         8.0,
         1,
-        180,
+        140,  // minCandidateStableMs: reduced from 180
     };
 
     inline constexpr NoiseProfileConfig kBalancedProfile = {
@@ -52,7 +54,7 @@ namespace tuning
         0.009,
         8.5,
         1,
-        190,
+        150,  // minCandidateStableMs: reduced from 190
     };
 
     inline constexpr NoiseProfileConfig kCleanProfile = {
@@ -60,7 +62,7 @@ namespace tuning
         0.015,
         13.0,
         1,
-        230,
+        180,  // minCandidateStableMs: reduced from 230
     };
 
     // Default startup profile.

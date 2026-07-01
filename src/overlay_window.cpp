@@ -227,6 +227,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
             candidateText_.clear();
             candidateTimer_.invalidate();
             candidateSeenFrames_ = 0;
+            candidateFrequency_.clear();
 
             qDebug() << "Subtitle disappeared due to timeout after empty OCR result.";
         }
@@ -239,6 +240,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
             candidateText_.clear();
             candidateTimer_.invalidate();
             candidateSeenFrames_ = 0;
+            candidateFrequency_.clear();
             appendSubtitleLog(QStringLiteral("OCR_REJECTED"), ocrText,
                               QStringLiteral("reason=han_quality"));
 
@@ -249,17 +251,34 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
         }
 
         if (!isLikelySameSubtitle(ocrText, candidateText_)) {
-            // New candidate text detected, reset the timer
-            candidateText_ = ocrText;
-            candidateTimer_.restart();
-            candidateSeenFrames_ = 1;
+            // Derive most frequent string seen so far in the current candidate group
+            const QString bestText = mostFrequentCandidate();
+
+            // Substring relation with bestText means partial/corrupted OCR read — likely noise
+            const bool isPartialRead = !bestText.isEmpty() &&
+                                       (ocrText.contains(bestText) || bestText.contains(ocrText));
+            if (isPartialRead) {
+                // Rollback: new result is a subset/superset of best known — likely OCR noise
+                candidateText_ = bestText;
+                appendSubtitleLog(QStringLiteral("OCR_ROLLBACK"), ocrText,
+                                  QStringLiteral("best=") + bestText);
+            } else {
+                // No substring relation — treat as a genuinely new subtitle
+                candidateFrequency_.clear();
+                candidateFrequency_[ocrText] = 1;
+                candidateText_ = ocrText;
+                candidateTimer_.restart();
+                candidateSeenFrames_ = 1;
+            }
         } else {
-            // Candidate text is stable, check if it meets the criteria for dispatching
+            // Same subtitle group — accumulate frequency for each OCR variant
             if (!candidateTimer_.isValid()) {
                 candidateTimer_.restart();
             }
-            candidateText_ = ocrText;
+            candidateFrequency_[ocrText]++;
             ++candidateSeenFrames_;
+            // Pick the most frequently seen variant as the representative candidate
+            candidateText_ = mostFrequentCandidate();
         }
 
         const bool enoughLength = candidateText_.size() >= minOcrLength_;
@@ -300,6 +319,7 @@ void OverlayWindow::onOcrError(const QString &error, int requestId)
         candidateText_.clear();
         candidateTimer_.invalidate();
         candidateSeenFrames_ = 0;
+        candidateFrequency_.clear();
         qDebug() << "OCR_ERROR: Subtitle disappeared due to timeout after error.";
     }
 
@@ -620,17 +640,42 @@ bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &rig
         return false;
     }
 
+    // P2: Improved substring detection for fuzzy matching
+    // For short strings, allow substring containment more aggressively
+    if (minLen >= 2 && lenDiff <= 2) {
+        // Check if shorter string is contained in longer string
+        const QString &shorter = (left.size() < right.size()) ? left : right;
+        const QString &longer = (left.size() < right.size()) ? right : left;
+
+        if (longer.contains(shorter)) {
+            qDebug() << "[FUZZY MATCH] Substring detected:" << shorter << "in" << longer;
+            return true;
+        }
+    }
+
     // Allow containment only for sufficiently long strings with very small length difference.
     if ((left.contains(right) || right.contains(left)) && minLen >= 6 && lenDiff <= 1) {
         return true;
     }
 
     const int lev = levenshteinDistance(left, right);
-    if (minLen <= 2) {
-        return lev == 0;
+
+    // P2: Improved levenshtein matching for short text
+    if (minLen <= 1) {
+        return lev == 0;  // Perfect match only for single char
+    }
+
+    if (minLen <= 3) {
+        // For 2-3 chars: allow 1 edit (more lenient than before which required 0)
+        const bool matched = lev <= 1;
+        if (matched && lev > 0) {
+            qDebug() << "[FUZZY MATCH] Levenshtein distance 1 accepted:" << left << "|" << right;
+        }
+        return matched;
     }
 
     if (minLen <= 4) {
+        // For 4 chars: allow 1 edit
         return lev <= 1;
     }
 
@@ -711,6 +756,19 @@ void OverlayWindow::rememberDispatchedSubtitle(const QString &key)
     while (recentSubtitleKeys_.size() > tuning::kRecentSubtitleWindowSize) {
         recentSubtitleKeys_.dequeue();
     }
+}
+
+QString OverlayWindow::mostFrequentCandidate() const
+{
+    QString best = candidateText_;
+    int bestCount = 0;
+    for (auto it = candidateFrequency_.cbegin(); it != candidateFrequency_.cend(); ++it) {
+        if (it.value() > bestCount) {
+            bestCount = it.value();
+            best = it.key();
+        }
+    }
+    return best;
 }
 
 Qt::Edges OverlayWindow::hitTestEdges(const QPoint &localPos) const
@@ -845,6 +903,7 @@ void OverlayWindow::applyNoiseProfile(NoiseProfile profile)
     minOcrLength_ = config.minOcrLength;
     minCandidateStableMs_ = config.minCandidateStableMs;
     candidateText_.clear();
+    candidateFrequency_.clear();
 
     if (captureWorker_) {
         QMetaObject::invokeMethod(captureWorker_, "setNoiseParams", Qt::QueuedConnection,

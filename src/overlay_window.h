@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QElapsedTimer>
+#include <QHash>
 #include <QPoint>
 #include <QThread>
 #include <QWidget>
@@ -69,7 +70,7 @@ private:
     QRect computeCaptureZone() const;
     bool wasRecentlyDispatched(const QString& key) const;
     void rememberDispatchedSubtitle(const QString& key);
-
+    QString mostFrequentCandidate() const;
     QLabel *subtitleLabel_ = nullptr;
     QThread captureThread_;
     CaptureWorker *captureWorker_ = nullptr;
@@ -103,4 +104,5 @@ private:
     QString candidateText_;
     QElapsedTimer candidateTimer_;
     int candidateSeenFrames_ = 0;
+    QHash<QString, int> candidateFrequency_;
 };
