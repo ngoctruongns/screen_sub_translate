@@ -449,10 +449,10 @@ private:
 
 int main()
 {
-    const std::string imageDir = "../image";
+    const std::string imageDir = "../test/image";
     const std::string expectedFileZh = imageDir + "/image_sub.txt";
     const std::string expectedFileVi = imageDir + "/image_sub_vi.txt";
-    const std::string outputDir = "../image/debug_preprocessed";
+    const std::string outputDir = "../test/image/debug_preprocessed";
     const std::string translationReport = imageDir + "/translation_eval.txt";
 
     std::filesystem::create_directories(outputDir);
