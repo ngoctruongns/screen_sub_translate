@@ -136,30 +136,33 @@ models/paddle/
 
 Current engine uses recognizer model + charset file. Paths are configured in `src/tuning_params.h`.
 
-## Prepare Local Llama/Ollama Translation Backend (zh -> vi)
+## Prepare Local llama.cpp Translation Backend (zh -> vi)
 
-Install and run Ollama (or any OpenAI-compatible local Llama server exposing Ollama `/api/generate` format).
-
-1. Pull model:
+Run `llama-server` with your GGUF Qwen model.
 
 ```bash
-ollama pull qwen2.5:7b-instruct-q4_K_M
+# Example path, change to your actual model file.
+~/llama.cpp/build/bin/llama-server \
+  -m /path/to/Qwen2.5-7B-Instruct-Q4_K_M.gguf \
+  --host 127.0.0.1 --port 8080 \
+  -ngl 99
 ```
 
-1. Verify local service:
+Quick endpoint check (`llama.cpp` native completion API):
 
 ```bash
-curl http://127.0.0.1:11434/api/tags
+curl http://127.0.0.1:8080/health
 ```
 
-1. Optional runtime overrides:
+Optional runtime overrides:
 
 ```bash
-export SST_LLAMA_BASE_URL=http://127.0.0.1:11434
+export SST_LLAMA_BASE_URL=http://127.0.0.1:8080
 export SST_LLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M
+export SST_LLM_API=llamacpp   # auto | llamacpp | openai | ollama
 ```
 
-Current defaults in `src/tuning_params.h` use this Qwen2.5 local model.
+Current defaults in `src/tuning_params.h` target llama.cpp server.
 
 ## Translation Backend Switch
 
@@ -175,7 +178,7 @@ You can also choose startup backend by env var:
 export SST_TRANSLATE_BACKEND=google   # or local
 ```
 
-If you keep `local` backend (default), the app calls Ollama/Llama endpoint configured by `SST_LLAMA_BASE_URL` and `SST_LLAMA_MODEL`.
+If you keep `local` backend (default), the app calls the local LLM endpoint configured by `SST_LLAMA_BASE_URL`, `SST_LLAMA_MODEL`, and `SST_LLM_API`.
 
 ## Translation Display Queue
 

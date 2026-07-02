@@ -3,7 +3,9 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QQueue>
 #include <QVector>
+#include <QHash>
 
 #include <optional>
 
@@ -63,7 +65,10 @@ private:
 
     QString llamaBaseUrl_;
     QString llamaModel_;
+    QString llmApiMode_;
     QString promptContextFilePath_;
     QVector<TranslationContextEntry> recentTranslationHistory_;
+    QHash<QString, QString> translationCache_;
+    QQueue<QString> translationCacheOrder_;
 
 };

@@ -58,6 +58,13 @@ int requiredSeenFramesForCandidate(const QString &candidate)
 
     return 1;
 }
+
+int candidateQualityScore(const QString &text)
+{
+    // Prefer candidates with more Han chars and then longer length.
+    // This avoids locking onto overly short partial OCR fragments.
+    return countHanChars(text) * 4 + text.size();
+}
 } // namespace
 
 OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
@@ -262,14 +269,21 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
             // Derive most frequent string seen so far in the current candidate group
             const QString bestText = mostFrequentCandidate();
 
-            // Substring relation with bestText means partial/corrupted OCR read — likely noise
-            const bool isPartialRead = !bestText.isEmpty() &&
-                                       (ocrText.contains(bestText) || bestText.contains(ocrText));
+            // Substring relation can indicate partial/corrupted OCR reads, but we avoid collapsing
+            // richer text into a single-character fragment.
+            const int minLen = std::min(ocrText.size(), bestText.size());
+            const int maxLen = std::max(ocrText.size(), bestText.size());
+            const bool hasContainment = !bestText.isEmpty() &&
+                                        (ocrText.contains(bestText) || bestText.contains(ocrText));
+            const bool isPartialRead = hasContainment && minLen >= 2 && (maxLen - minLen) <= 2;
             if (isPartialRead) {
-                // Rollback: new result is a subset/superset of best known — likely OCR noise
-                candidateText_ = bestText;
+                // Keep the higher-quality candidate to recover from short noisy fragments.
+                candidateFrequency_[ocrText]++;
+                candidateText_ = (candidateQualityScore(ocrText) >= candidateQualityScore(bestText))
+                                     ? ocrText
+                                     : bestText;
                 appendSubtitleLog(QStringLiteral("OCR_ROLLBACK"), ocrText,
-                                  QStringLiteral("best=") + bestText);
+                                  QStringLiteral("best=") + candidateText_);
             } else {
                 // No substring relation — treat as a genuinely new subtitle
                 candidateFrequency_.clear();
@@ -803,11 +817,18 @@ void OverlayWindow::rememberDispatchedSubtitle(const QString &key)
 QString OverlayWindow::mostFrequentCandidate() const
 {
     QString best = candidateText_;
-    int bestCount = 0;
+    int bestCount = -1;
+    int bestQuality = candidateQualityScore(best);
     for (auto it = candidateFrequency_.cbegin(); it != candidateFrequency_.cend(); ++it) {
-        if (it.value() > bestCount) {
+        const QString candidate = it.key();
+        const int count = it.value();
+        const int quality = candidateQualityScore(candidate);
+        if (count > bestCount ||
+            (count == bestCount && quality > bestQuality) ||
+            (count == bestCount && quality == bestQuality && candidate.size() > best.size())) {
+            best = candidate;
             bestCount = it.value();
-            best = it.key();
+            bestQuality = quality;
         }
     }
     return best;

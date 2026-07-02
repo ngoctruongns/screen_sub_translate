@@ -192,11 +192,11 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame) const
         QMutexLocker locker(&zoneMutex_);
         minStdDev = minStdDev_;
     }
-    
+
     cv::Scalar meanVal;
     cv::Scalar stdDev;
     cv::meanStdDev(normalized, meanVal, stdDev);
-    
+
     if (stdDev[0] < minStdDev) {
         return {};
     }
@@ -209,10 +209,10 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame) const
         if (!dir.exists(debugDir)) {
             dir.mkpath(debugDir);
         }
-        
+
         QString filename = QString::fromUtf8("%1/frame_%2_preprocessed.png")
             .arg(debugDir).arg(frameCounter, 6, 10, QChar('0'));
-        
+
         cv::imwrite(filename.toStdString(), normalized);
         qDebug() << "[PREPROCESS DEBUG]" << filename << "stdDev=" << stdDev[0];
     }

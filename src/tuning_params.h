@@ -24,12 +24,18 @@ namespace tuning
     inline constexpr const char *kPaddleRecOnnxPath = "../models/paddle/ch_PP-OCRv4_rec_infer.onnx";
     inline constexpr const char *kPaddleCharsetPath = "../models/paddle/ppocr_keys_v1.txt";
 
-    // Local translation backend defaults via Llama/Ollama.
-    inline constexpr const char *kLlamaBaseUrl = "http://127.0.0.1:11434";
+    // Local translation backend defaults via llama.cpp server.
+    inline constexpr const char *kLlamaBaseUrl = "http://127.0.0.1:8080";
     inline constexpr const char *kLlamaModel = "qwen2.5:7b-instruct-q4_K_M";
+    inline constexpr const char *kLlamaApiMode = "llamacpp"; // auto | llamacpp | openai | ollama
     inline constexpr const char *kLlamaContextFilePath = "../translate/movie_context.txt";
-    inline constexpr double kLlamaTemperature = 0.15;
-    inline constexpr int kLlamaNumPredict = 128;
+    inline constexpr double kLlamaTemperature = 0.05;
+    inline constexpr int kLlamaNumPredict = 48;
+    inline constexpr int kLlamaPromptContextMaxChars = 900;
+    inline constexpr int kLlamaHistoryWindowSize = 2;
+    inline constexpr int kLlamaHistoryEntryMaxChars = 42;
+    inline constexpr int kTranslationCacheSize = 96;
+    inline constexpr bool kEnableRetryPasses = false;
 
     // Backward-compatibility constants kept for evaluation tools still using legacy ONNX translator.
     inline constexpr const char *kTranslateModelDir = "../models/translate";
