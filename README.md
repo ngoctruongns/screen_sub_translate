@@ -8,7 +8,7 @@ ScreenSubTranslator is a Qt6 desktop overlay tool that captures subtitle area on
 - Capture worker in dedicated thread
 - OCR worker in dedicated thread
 - OCR engine: ONNX Runtime C++ API (no Python, no Tesseract)
-- Translation client: switchable backend (local lightweight ONNX model or Google Translate API)
+- Translation client: switchable backend (local Llama/Ollama model or Google Translate API)
 - Runtime subtitle logs: `subtitle_log.txt`
 
 ### End-to-End Pipeline (Capture -> OCR -> Translate -> Render)
@@ -136,52 +136,37 @@ models/paddle/
 
 Current engine uses recognizer model + charset file. Paths are configured in `src/tuning_params.h`.
 
-## Prepare Lightweight Local Translation ONNX Models (zh -> vi)
+## Prepare Local Llama/Ollama Translation Backend (zh -> vi)
 
-Translation runtime expects files in `models/translate/`:
+Install and run Ollama (or any OpenAI-compatible local Llama server exposing Ollama `/api/generate` format).
 
-```text
-models/translate/
-├── encoder_model.onnx
-├── decoder_model.onnx
-├── source.spm
-├── target.spm
-└── vocab.json
-```
-
-Recommended lightweight model: `Helsinki-NLP/opus-mt-zh-vi`.
-
-1. Export ONNX from HuggingFace model:
+1. Pull model:
 
 ```bash
-cd tools/python_tools
-python3 -m pip install "optimum[onnxruntime]"
-optimum-cli export onnx --model Helsinki-NLP/opus-mt-zh-vi ../../models/translate
+ollama pull qwen2.5:7b-instruct-q4_K_M
 ```
 
-1. Download tokenizer assets:
+1. Verify local service:
 
 ```bash
-python3 - <<'PY'
-from huggingface_hub import hf_hub_download
-import os, shutil
-repo='Helsinki-NLP/opus-mt-zh-vi'
-out='models/translate'
-os.makedirs(out, exist_ok=True)
-for fn in ['source.spm','target.spm','vocab.json','config.json','generation_config.json']:
-  p=hf_hub_download(repo_id=repo, filename=fn)
-  shutil.copy2(p, os.path.join(out, fn))
-print('done')
-PY
+curl http://127.0.0.1:11434/api/tags
 ```
 
-Current defaults in `src/tuning_params.h` use this local lightweight model.
+1. Optional runtime overrides:
+
+```bash
+export SST_LLAMA_BASE_URL=http://127.0.0.1:11434
+export SST_LLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M
+```
+
+Current defaults in `src/tuning_params.h` use this Qwen2.5 local model.
 
 ## Translation Backend Switch
 
 You can switch translation backend at runtime from right-click menu:
+You can switch translation backend at runtime from right-click menu:
 
-- `Translation Backend -> Local Light Model (OPUS)`
+- `Translation Backend -> Local Llama (Qwen2.5 7B)`
 - `Translation Backend -> Google Translate API`
 
 You can also choose startup backend by env var:
@@ -189,6 +174,8 @@ You can also choose startup backend by env var:
 ```bash
 export SST_TRANSLATE_BACKEND=google   # or local
 ```
+
+If you keep `local` backend (default), the app calls Ollama/Llama endpoint configured by `SST_LLAMA_BASE_URL` and `SST_LLAMA_MODEL`.
 
 ## Translation Display Queue
 

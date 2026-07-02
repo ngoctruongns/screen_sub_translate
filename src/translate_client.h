@@ -1,16 +1,11 @@
 #pragma once
 
-#include <QFutureWatcher>
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QVector>
 
-#include <memory>
-#include <string>
-#include <unordered_map>
-
-#include <onnxruntime_cxx_api.h>
-#include <sentencepiece_processor.h>
+#include <optional>
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -41,31 +36,33 @@ private slots:
     void onReplyFinished(QNetworkReply *reply);
 
 private:
+    struct TranslationContextEntry {
+        QString sourceText;
+        QString translatedText;
+    };
+
     void initializeLocalBackend();
+    void startLlamaRequest(const QString &sourceText);
     void startGoogleRequest(const QString &sourceText);
-    void startInference(const QString &sourceText);
+    void startLlamaPromptRequest(const QString &sourceText,
+                                 const QString &prompt,
+                                 const std::optional<QString> &draftTranslation,
+                                 bool isRepairPass);
+    QString recentDialogueContext() const;
+    void rememberTranslationContext(const QString &sourceText, const QString &translatedText);
 
     Backend backend_ = Backend::Local;
 
     QNetworkAccessManager *networkManager_ = nullptr;
     QPointer<QNetworkReply> activeReply_;
 
-    Ort::Env env_;
-    Ort::SessionOptions sessionOptions_;
-    std::unique_ptr<Ort::Session> encoderSession_;
-    std::unique_ptr<Ort::Session> decoderSession_;
-
-    std::unique_ptr<sentencepiece::SentencePieceProcessor> srcSP_;
-    std::unique_ptr<sentencepiece::SentencePieceProcessor> tgtSP_;
-
-    // vocab.json: piece string <-> model token ID (shared vocab, 65001 entries)
-    std::unordered_map<std::string, int64_t> vocabMap_;
-    std::unordered_map<int64_t, std::string> idToVocab_;
-
     bool localInitialized_ = false;
-    bool busy_ = false;
     QString inFlightText_;
     QString pendingText_;
 
-    QFutureWatcher<QString> *watcher_ = nullptr;
+    QString llamaBaseUrl_;
+    QString llamaModel_;
+    QString promptContextFilePath_;
+    QVector<TranslationContextEntry> recentTranslationHistory_;
+
 };

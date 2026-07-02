@@ -241,7 +241,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
         }
     } else {
         // OCR result is non-empty
-        appendSubtitleLog(QStringLiteral("OCR_CAP-->"), ocrText, QString());
+        // appendSubtitleLog(QStringLiteral("OCR_CAP-->"), ocrText, QString());
         lastNonEmptySubtitleTimer_.restart();
 
         if (countHanChars(ocrText) < tuning::kMinHanCharsForCandidate) {
@@ -249,8 +249,8 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
             candidateTimer_.invalidate();
             candidateSeenFrames_ = 0;
             candidateFrequency_.clear();
-            appendSubtitleLog(QStringLiteral("OCR_REJECTED"), ocrText,
-                              QStringLiteral("reason=han_quality"));
+            // appendSubtitleLog(QStringLiteral("OCR_REJECTED"), ocrText,
+            //                   QStringLiteral("reason=han_quality"));
 
             if (latestFrameRequestId_ > requestId) {
                 dispatchLatestOcr();
@@ -341,10 +341,6 @@ void OverlayWindow::onTranslationReady(const QString &translatedText, const QStr
 {
     if (translatedText.isEmpty() || translatedText == lastTranslation_) {
         return;
-    }
-
-    if (sourceText != lastOcrText_) {
-        appendSubtitleLog(QStringLiteral("TRANSLATED_STALE"), sourceText, translatedText);
     }
 
     appendSubtitleLog(QStringLiteral("TRANSLATED"), sourceText, translatedText);
@@ -501,7 +497,7 @@ void OverlayWindow::showPositionMenu(const QPoint &globalPos)
 
     QMenu *backendMenu = menu.addMenu(QStringLiteral("Translation Backend"));
     QAction *localBackendAction =
-        backendMenu->addAction(QStringLiteral("Local Light Model (OPUS)"));
+        backendMenu->addAction(QStringLiteral("Local Llama (Qwen2.5 7B)"));
     localBackendAction->setCheckable(true);
     localBackendAction->setChecked(translateClient_.backend() == TranslateClient::Backend::Local);
 
@@ -548,7 +544,7 @@ void OverlayWindow::showPositionMenu(const QPoint &globalPos)
     } else if (picked == localBackendAction) {
         translateClient_.setBackend(TranslateClient::Backend::Local);
         appendSubtitleLog(QStringLiteral("TRANSLATE_BACKEND_CHANGED"), QStringLiteral("menu"),
-                          QStringLiteral("local"));
+                          QStringLiteral("local-llama"));
     } else if (picked == googleBackendAction) {
         translateClient_.setBackend(TranslateClient::Backend::GoogleApi);
         appendSubtitleLog(QStringLiteral("TRANSLATE_BACKEND_CHANGED"), QStringLiteral("menu"),
@@ -1001,8 +997,8 @@ void OverlayWindow::enqueueTranslation(const QString &translatedText, const QStr
     entry.enqueuedAtMs   = now;
     translationQueue_.enqueue(entry);
 
-    appendSubtitleLog(QStringLiteral("DISPLAY_ENQUEUED"), sourceText,
-                      QString("queue_depth=%1").arg(translationQueue_.size()));
+    // appendSubtitleLog(QStringLiteral("DISPLAY_ENQUEUED"), sourceText,
+    //                   QString("queue_depth=%1").arg(translationQueue_.size()));
 }
 
 void OverlayWindow::tickDisplayQueue()

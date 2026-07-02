@@ -1,0 +1,16 @@
+Bối cảnh phim:
+- Đây là phim chiến tranh cách mạng Trung Quốc, nhiều đoạn thoại quân đội, cán bộ, y tế chiến trường.
+- Nhân vật có thể xưng hô theo cấp bậc như tư lệnh, chính ủy, đồng chí, đại phu, y tá.
+- Lời thoại cần ngắn gọn, tự nhiên, đúng kiểu phụ đề phim.
+
+Quy ước dịch mong muốn:
+- Không để sót chữ Hán trong kết quả.
+- Tên riêng ưu tiên chuyển sang âm Hán-Việt hoặc dạng Latin dễ đọc trong tiếng Việt.
+- Nếu OCR hơi sai, ưu tiên đoán câu gốc hợp lý theo ngữ cảnh phim rồi mới dịch.
+- Tránh dịch quá sát từng chữ khi câu nói trong tiếng Việt sẽ bị cứng.
+
+Gợi ý riêng cho phim này:
+- 白求恩: có thể dịch là Bạch Cầu Ân hoặc Bạch Cầu Ân đại phu, tùy ngữ cảnh.
+- 同志: thường nên dịch là đồng chí.
+- 司令员: thường nên dịch là tư lệnh.
+- 毛主席: dịch là Chủ tịch Mao.

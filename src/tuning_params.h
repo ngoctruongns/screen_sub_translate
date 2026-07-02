@@ -24,18 +24,25 @@ namespace tuning
     inline constexpr const char *kPaddleRecOnnxPath = "../models/paddle/ch_PP-OCRv4_rec_infer.onnx";
     inline constexpr const char *kPaddleCharsetPath = "../models/paddle/ppocr_keys_v1.txt";
 
-    // Local translation model defaults (fast realtime): Helsinki-NLP/opus-mt-zh-vi.
-    inline constexpr const char *kTranslateModelDir    = "../models/translate";
-    inline constexpr int64_t     kTranslateDecoderStartId = 65000;
-    inline constexpr int64_t     kTranslateEosId           = 0;
-    inline constexpr int64_t     kTranslateSourceLangId    = -1; // no forced source lang token
-    inline constexpr int64_t     kTranslateTargetLangId    = -1; // no forced target lang token
-    inline constexpr int         kTranslateRuntimeMaxDecodeSteps = 120;
-    inline constexpr int         kTranslateRuntimeNumBeams = 6;
-    inline constexpr int         kTranslateRuntimeMaxInputTokens = 64;
-    inline constexpr int         kTranslateMaxDecodeSteps  = 120;
-    inline constexpr int         kTranslateNumBeams        = 6;
-    inline constexpr double      kTranslateLengthPenalty   = 1.0;
+    // Local translation backend defaults via Llama/Ollama.
+    inline constexpr const char *kLlamaBaseUrl = "http://127.0.0.1:11434";
+    inline constexpr const char *kLlamaModel = "qwen2.5:7b-instruct-q4_K_M";
+    inline constexpr const char *kLlamaContextFilePath = "../translate/movie_context.txt";
+    inline constexpr double kLlamaTemperature = 0.15;
+    inline constexpr int kLlamaNumPredict = 128;
+
+    // Backward-compatibility constants kept for evaluation tools still using legacy ONNX translator.
+    inline constexpr const char *kTranslateModelDir = "../models/translate";
+    inline constexpr int64_t kTranslateDecoderStartId = 65000;
+    inline constexpr int64_t kTranslateEosId = 0;
+    inline constexpr int64_t kTranslateSourceLangId = -1;
+    inline constexpr int64_t kTranslateTargetLangId = -1;
+    inline constexpr int kTranslateRuntimeMaxDecodeSteps = 120;
+    inline constexpr int kTranslateRuntimeNumBeams = 6;
+    inline constexpr int kTranslateRuntimeMaxInputTokens = 64;
+    inline constexpr int kTranslateMaxDecodeSteps = 120;
+    inline constexpr int kTranslateNumBeams = 6;
+    inline constexpr double kTranslateLengthPenalty = 1.0;
     inline constexpr int kPaddleInputHeight = 48;
     inline constexpr int kPaddleInputWidth = 320;
 
@@ -86,8 +93,8 @@ namespace tuning
     // Formula: clamp(kDisplayBaseMs + charCount * kDisplayMsPerChar, min, max)
     inline constexpr int kDisplayMinMs        = 200;   // Minimum display time per entry (ms)
     inline constexpr int kDisplayMaxMs        = 3000;  // Maximum display time per entry (ms)
-    inline constexpr int kDisplayBaseMs       = 300;   // Base display time before per-char contribution (ms)
-    inline constexpr int kDisplayMsPerChar    = 75;    // Additional ms per displayed character
+    inline constexpr int kDisplayBaseMs       = 200;   // Base display time before per-char contribution (ms)
+    inline constexpr int kDisplayMsPerChar    = 50;    // Additional ms per displayed character
     inline constexpr int kDisplayMaxLatencyMs = 2500;  // Drop entry if it has been queued longer than this (ms)
     inline constexpr int kDisplayQueueMaxSize = 5;     // Max queue depth before overflow handling
     inline constexpr int kDisplayTickMs       = 60;    // Timer interval for advancing the display queue (ms)
