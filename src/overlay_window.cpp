@@ -76,7 +76,7 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     logFilePath_ = QCoreApplication::applicationDirPath() + QStringLiteral("/subtitle_log.txt");
     appendSubtitleLog(QStringLiteral("SESSION_START"), QString(), QString());
 
-    captureWorker_ = new CaptureWorker(frameGeometry());
+    captureWorker_ = new CaptureWorker(computeCaptureZone());
     captureWorker_->moveToThread(&captureThread_);
     ocrWorker_ = new OcrWorker();
     ocrWorker_->moveToThread(&ocrThread_);
@@ -100,6 +100,7 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     applyNoiseProfile(noiseProfile_);
     captureThread_.start();
     ocrThread_.start();
+    updateWorkerScanZone();
 }
 
 OverlayWindow::~OverlayWindow()
@@ -341,6 +342,7 @@ void OverlayWindow::onTranslationReady(const QString &translatedText, const QStr
     lastTranslation_ = translatedText;
     subtitleLabel_->setText(translatedText);
     updateSubtitleLayout();
+    updateWorkerScanZone();
     appendSubtitleLog(QStringLiteral("TRANSLATED"), sourceText, translatedText);
 }
 

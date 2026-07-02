@@ -1,117 +1,162 @@
-[2026-06-30 08:19:05.466] SESSION_START | source= | result=
-[2026-06-30 08:19:05.817] PROFILE_CHANGED | source=Balanced | result=len=1 repeat=190
-[2026-06-30 08:19:08.296] OCR_CAP--> | source=物成 | result=
-[2026-06-30 08:19:08.337] OCR_CAP--> | source=成 | result=
-[2026-06-30 08:19:08.550] OCR_CAP--> | source=我是材成武 | result=
-[2026-06-30 08:19:08.595] OCR_CAP--> | source=我是杨成武 | result=
-[2026-06-30 08:19:08.654] OCR_CAP--> | source=我是杨成武 | result=
-[2026-06-30 08:19:08.700] OCR_CAP--> | source=我是杨成武 | result=
-[2026-06-30 08:19:08.948] OCR_CAP--> | source=我是杨成式 | result=
-[2026-06-30 08:19:09.145] OCR_CAP--> | source=成武 | result=
-[2026-06-30 08:19:09.402] OCR_CAP--> | source=广成 | result=
-[2026-06-30 08:19:09.499] OCR_CAP--> | source=成武 | result=
-[2026-06-30 08:19:09.588] OCR_CAP--> | source=成 | result=
-[2026-06-30 08:19:09.652] OCR_CAP--> | source=成 | result=
-[2026-06-30 08:19:09.689] OCR_CAP--> | source=成武 | result=
-[2026-06-30 08:19:11.262] OCR_CAP--> | source=求恩到你观里有公 | result=
-[2026-06-30 08:19:11.306] OCR_CAP--> | source=自求思到你那里发有 | result=
-[2026-06-30 08:19:11.362] OCR_CAP--> | source=自求思到你那里粵有 | result=
-[2026-06-30 08:19:11.393] OCR_CAP--> | source=求恩到你观里有公 | result=
-[2026-06-30 08:19:11.445] OCR_CAP--> | source=自求思到你那里有 | result=
-[2026-06-30 08:19:11.498] OCR_CAP--> | source=自求思到你那里爱有 | result=
-[2026-06-30 08:19:11.547] OCR_CAP--> | source=东恩到你郊手有公 | result=
-[2026-06-30 08:19:11.596] OCR_CAP--> | source=日东恩到你郊手有公 | result=
-[2026-06-30 08:19:11.665] OCR_CAP--> | source=日东恩到你郊手没有公 | result=
-[2026-06-30 08:19:11.697] OCR_CAP--> | source=自求展到你那里没有 | result=
-[2026-06-30 08:19:11.749] OCR_CAP--> | source=自表恩到你那里没有 | result=
-[2026-06-30 08:19:11.798] OCR_CAP--> | source=自衣层到你那里没有 | result=
-[2026-06-30 08:19:11.850] OCR_CAP--> | source=日东恩到你郊事股有公 | result=
-[2026-06-30 08:19:11.895] OCR_CAP--> | source=自表恩到你那里没有 | result=
-[2026-06-30 08:19:11.953] OCR_CAP--> | source=自求恩到你那里没有 | result=
-[2026-06-30 08:19:12.051] OCR_CAP--> | source=自求思到你那里没有 | result=
-[2026-06-30 08:19:12.415] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:12.461] OCR_CAP--> | source=是他们经者到了 | result=
-[2026-06-30 08:19:12.510] OCR_CAP--> | source=基他们图了 | result=
-[2026-06-30 08:19:12.564] OCR_CAP--> | source=基他们到了 | result=
-[2026-06-30 08:19:12.598] OCR_CAP--> | source=是他们都到了 | result=
-[2026-06-30 08:19:12.671] OCR_CAP--> | source=他们已都到了 | result=
-[2026-06-30 08:19:12.697] OCR_CAP--> | source=是何们已都到了 | result=
-[2026-06-30 08:19:12.749] OCR_CAP--> | source=是他们经都到了 | result=
-[2026-06-30 08:19:12.817] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:12.847] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:12.897] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:12.966] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:12.967] OCR_DETECTED | source=是他们已经都到了 | result=stable=217ms frames=5
-[2026-06-30 08:19:13.014] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.050] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.148] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.199] OCR_CAP--> | source=是他们同经都到了 | result=
-[2026-06-30 08:19:13.249] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.298] OCR_CAP--> | source=是他们已都到了 | result=
-[2026-06-30 08:19:13.349] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.399] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.448] OCR_CAP--> | source=是他们经都到了 | result=
-[2026-06-30 08:19:13.499] OCR_CAP--> | source=是他们经都到了 | result=
-[2026-06-30 08:19:13.537] TRANSLATED | source=是他们已经都到了 | result=Là tất cả chúng ta.
-[2026-06-30 08:19:13.549] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.597] OCR_CAP--> | source=是他们巴都到了 | result=
-[2026-06-30 08:19:13.648] OCR_CAP--> | source=是他们吧经都到了 | result=
-[2026-06-30 08:19:13.698] OCR_CAP--> | source=是他们吧经都到了 | result=
-[2026-06-30 08:19:13.749] OCR_CAP--> | source=是他们吧经都到了 | result=
-[2026-06-30 08:19:13.800] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.848] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:13.898] OCR_CAP--> | source=是他们已经都到了 | result=
-[2026-06-30 08:19:14.003] OCR_CAP--> | source=是要照好他习 | result=
-[2026-06-30 08:19:14.048] OCR_CAP--> | source=定要照好他 | result=
-[2026-06-30 08:19:14.113] OCR_CAP--> | source=定要照顾好他 | result=
-[2026-06-30 08:19:14.152] OCR_CAP--> | source=定要照顾好他 | result=
-[2026-06-30 08:19:14.209] OCR_CAP--> | source=定要照顾好他 | result=
-[2026-06-30 08:19:14.250] OCR_CAP--> | source=定要照顾好他 | result=
-[2026-06-30 08:19:14.250] OCR_DETECTED | source=定要照顾好他 | result=stable=202ms frames=5
-[2026-06-30 08:19:14.300] OCR_CAP--> | source=一定要照顾好他 | result=
-[2026-06-30 08:19:14.350] OCR_CAP--> | source=一定要照顾好他 | result=
-[2026-06-30 08:19:14.399] OCR_CAP--> | source=定要照好他 | result=
-[2026-06-30 08:19:14.450] OCR_CAP--> | source=定要照好他 | result=
-[2026-06-30 08:19:14.500] OCR_CAP--> | source=定要照颜好他 | result=
-[2026-06-30 08:19:14.552] OCR_CAP--> | source=定要照好他 | result=
-[2026-06-30 08:19:14.601] OCR_CAP--> | source=定要照颜好他 | result=
-[2026-06-30 08:19:14.652] OCR_CAP--> | source=定要照好他 | result=
-[2026-06-30 08:19:14.702] OCR_CAP--> | source=定要照颜好他 | result=
-[2026-06-30 08:19:14.733] TRANSLATED | source=定要照顾好他 | result=Hãy chăm sóc nó nhé.
-[2026-06-30 08:19:15.209] OCR_CAP--> | source=护好 | result=
-[2026-06-30 08:19:15.467] OCR_CAP--> | source=你护好他一习 | result=
-[2026-06-30 08:19:15.649] OCR_CAP--> | source=保护好他 | result=
-[2026-06-30 08:19:15.851] OCR_CAP--> | source=保护好他 | result=
-[2026-06-30 08:19:15.851] OCR_DETECTED | source=保护好他 | result=stable=201ms frames=2
-[2026-06-30 08:19:16.152] OCR_CAP--> | source=好明自 | result=
-[2026-06-30 08:19:16.170] TRANSLATED | source=保护好他 | result=Bảo vệ hắn.
-[2026-06-30 08:19:16.201] OCR_CAP--> | source=好明自一 | result=
-[2026-06-30 08:19:16.250] OCR_CAP--> | source=好明白一 | result=
-[2026-06-30 08:19:16.303] OCR_CAP--> | source=好明白 | result=
-[2026-06-30 08:19:16.353] OCR_CAP--> | source=好明白 | result=
-[2026-06-30 08:19:16.403] OCR_CAP--> | source=好明自子 | result=
-[2026-06-30 08:19:16.456] OCR_CAP--> | source=好明自 | result=
-[2026-06-30 08:19:16.505] OCR_CAP--> | source=好明白 | result=
-[2026-06-30 08:19:16.554] OCR_CAP--> | source=好明自 | result=
-[2026-06-30 08:19:16.622] OCR_CAP--> | source=好明 | result=
-[2026-06-30 08:19:16.671] OCR_CAP--> | source=好明 | result=
-[2026-06-30 08:19:16.718] OCR_CAP--> | source=好明 | result=
-[2026-06-30 08:19:16.756] OCR_CAP--> | source=好明 | result=
-[2026-06-30 08:19:16.821] OCR_CAP--> | source=好明 | result=
-[2026-06-30 08:19:16.871] OCR_CAP--> | source=好明自 | result=
-[2026-06-30 08:19:16.925] OCR_CAP--> | source=好明白 | result=
-[2026-06-30 08:19:16.952] OCR_CAP--> | source=好明 | result=
-[2026-06-30 08:19:17.019] OCR_CAP--> | source=好明智 | result=
-[2026-06-30 08:19:17.053] OCR_CAP--> | source=好明 | result=
-[2026-06-30 08:19:17.763] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:18.022] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:18.269] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:18.513] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:18.513] OCR_DETECTED | source=江 | result=stable=749ms frames=4
-[2026-06-30 08:19:18.513] TRANSLATE_ERROR | source=保护好他 | result=Skipped non-Chinese OCR candidate
-[2026-06-30 08:19:18.772] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:19.016] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:19.263] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:19.510] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:19.760] OCR_CAP--> | source=江 | result=
-[2026-06-30 08:19:20.018] OCR_CAP--> | source=江 | result=
+[2026-07-02 08:14:49.576] SESSION_START | source= | result=
+[2026-07-02 08:14:49.918] PROFILE_CHANGED | source=Balanced | result=len=1 repeat=150
+[2026-07-02 08:14:50.392] OCR_CAP--> | source=早 | result=
+[2026-07-02 08:14:50.443] OCR_CAP--> | source=早 | result=
+[2026-07-02 08:14:50.495] OCR_CAP--> | source=早 | result=
+[2026-07-02 08:14:51.594] OCR_CAP--> | source=彩 | result=
+[2026-07-02 08:14:51.648] OCR_CAP--> | source=彩保 | result=
+[2026-07-02 08:14:51.648] OCR_ROLLBACK | source=彩保 | result=best=彩
+[2026-07-02 08:14:51.698] OCR_CAP--> | source=不禁 | result=
+[2026-07-02 08:14:51.743] OCR_CAP--> | source=养 | result=
+[2026-07-02 08:14:53.149] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.196] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.245] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.297] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.350] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.350] OCR_DETECTED | source=我是杨成武 | result=stable=200ms frames=5
+[2026-07-02 08:14:53.382] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.433] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.482] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.532] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.584] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.720] TRANSLATED | source=我是杨成武 | result=Tôi là Dương Thành.
+[2026-07-02 08:14:53.783] OCR_CAP--> | source=我是杨成武 | result=
+[2026-07-02 08:14:53.931] OCR_CAP--> | source=上 | result=
+[2026-07-02 08:14:54.032] OCR_CAP--> | source=成武购 | result=
+[2026-07-02 08:14:54.292] OCR_CAP--> | source=成武啊 | result=
+[2026-07-02 08:14:54.292] OCR_DETECTED | source=成武啊 | result=stable=260ms frames=2
+[2026-07-02 08:14:54.436] OCR_CAP--> | source=成武啊 | result=
+[2026-07-02 08:14:54.485] OCR_CAP--> | source=成武 | result=
+[2026-07-02 08:14:54.533] OCR_CAP--> | source=成武 | result=
+[2026-07-02 08:14:54.553] TRANSLATED | source=成武啊 | result=Thành công rồi!
+[2026-07-02 08:14:54.582] OCR_CAP--> | source=成武 | result=
+[2026-07-02 08:14:54.633] OCR_CAP--> | source=成武啊 | result=
+[2026-07-02 08:14:55.401] OCR_CAP--> | source=产进夏司令员 | result=
+[2026-07-02 08:14:55.441] OCR_CAP--> | source=夏司令员 | result=
+[2026-07-02 08:14:55.501] OCR_CAP--> | source=豪司令员业 | result=
+[2026-07-02 08:14:55.556] OCR_CAP--> | source=广夏司令员 | result=
+[2026-07-02 08:14:55.602] OCR_CAP--> | source=产夏司令员 | result=
+[2026-07-02 08:14:55.648] OCR_CAP--> | source=产夏司令员 | result=
+[2026-07-02 08:14:55.701] OCR_CAP--> | source=最司令员山 | result=
+[2026-07-02 08:14:55.750] OCR_CAP--> | source=产惠司令员 | result=
+[2026-07-02 08:14:55.803] OCR_CAP--> | source=司令员 | result=
+[2026-07-02 08:14:55.899] OCR_CAP--> | source=产惠同令员 | result=
+[2026-07-02 08:14:56.115] OCR_CAP--> | source=广白求恩到你邪里没有山 | result=
+[2026-07-02 08:14:56.151] OCR_CAP--> | source=广白求恩到你邪里没有业 | result=
+[2026-07-02 08:14:56.204] OCR_CAP--> | source=广自求恩到你那里没有业 | result=
+[2026-07-02 08:14:56.254] OCR_CAP--> | source=广白求恩到你那里没有山 | result=
+[2026-07-02 08:14:56.299] OCR_CAP--> | source=上白求思到你那里没有业 | result=
+[2026-07-02 08:14:56.352] OCR_CAP--> | source=上自求思到你那里没有 | result=
+[2026-07-02 08:14:56.401] OCR_CAP--> | source=上自求恩到你邪里没有 | result=
+[2026-07-02 08:14:56.450] OCR_CAP--> | source=上自求恩到你邪里没有 | result=
+[2026-07-02 08:14:56.501] OCR_CAP--> | source=上自求恩到你邪里没有业 | result=
+[2026-07-02 08:14:56.552] OCR_CAP--> | source=上自求恩到你那里没有业 | result=
+[2026-07-02 08:14:56.603] OCR_CAP--> | source=上自求恩到你邪里没有业 | result=
+[2026-07-02 08:14:56.655] OCR_CAP--> | source=上自求恩到你那里没有 | result=
+[2026-07-02 08:14:56.704] OCR_CAP--> | source=自求恩到你那里没有 | result=
+[2026-07-02 08:14:56.755] OCR_CAP--> | source=上自求恩到你那里没有 | result=
+[2026-07-02 08:14:56.807] OCR_CAP--> | source=自求恩到你那里没有 | result=
+[2026-07-02 08:14:56.807] OCR_DETECTED | source=自求恩到你那里没有 | result=stable=152ms frames=4
+[2026-07-02 08:14:56.844] OCR_CAP--> | source=广自求恩到你那里没有 | result=
+[2026-07-02 08:14:56.891] OCR_CAP--> | source=自求恩到你那里没有 | result=
+[2026-07-02 08:14:56.941] OCR_CAP--> | source=自求恩到你邪里没有 | result=
+[2026-07-02 08:14:57.045] OCR_CAP--> | source=白求恩到你邪里没有 | result=
+[2026-07-02 08:14:57.242] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.295] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.342] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.393] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.393] OCR_DETECTED | source=是他们已经都到了 | result=stable=150ms frames=4
+[2026-07-02 08:14:57.443] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.495] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.528] TRANSLATED_STALE | source=自求恩到你那里没有 | result=Sự ân hận đã không xảy ra với anh.
+[2026-07-02 08:14:57.529] TRANSLATED | source=自求恩到你那里没有 | result=Sự ân hận đã không xảy ra với anh.
+[2026-07-02 08:14:57.544] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.597] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.643] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.693] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.743] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.794] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.844] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.891] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:57.945] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.036] TRANSLATED | source=是他们已经都到了 | result=Là tất cả chúng ta.
+[2026-07-02 08:14:58.042] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.092] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.143] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.194] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.241] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.291] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.341] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.391] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.447] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.503] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.554] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.607] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.656] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.714] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.753] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.807] OCR_CAP--> | source=是他们已经都到了 | result=
+[2026-07-02 08:14:58.908] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:58.958] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.006] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.057] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.104] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.105] OCR_DETECTED | source=定要照顾好他 | result=stable=196ms frames=5
+[2026-07-02 08:14:59.147] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.195] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.249] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.295] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.346] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.397] OCR_CAP--> | source=定要照顾好他 | result=
+[2026-07-02 08:14:59.446] OCR_CAP--> | source=定要照顾好他业 | result=
+[2026-07-02 08:14:59.545] OCR_CAP--> | source=一定要照顾好他 | result=
+[2026-07-02 08:14:59.569] TRANSLATED | source=定要照顾好他 | result=Hãy chăm sóc nó nhé.
+[2026-07-02 08:14:59.597] OCR_CAP--> | source=一定要照顾好他业 | result=
+[2026-07-02 08:14:59.694] OCR_CAP--> | source=好啦 | result=
+[2026-07-02 08:14:59.746] OCR_CAP--> | source=好啦 | result=
+[2026-07-02 08:14:59.795] OCR_CAP--> | source=好 | result=
+[2026-07-02 08:14:59.795] OCR_ROLLBACK | source=好 | result=best=好啦
+[2026-07-02 08:14:59.844] OCR_CAP--> | source=好 | result=
+[2026-07-02 08:14:59.844] OCR_ROLLBACK | source=好 | result=best=好啦
+[2026-07-02 08:14:59.845] OCR_DETECTED | source=好啦 | result=stable=150ms frames=2
+[2026-07-02 08:14:59.896] OCR_CAP--> | source=好 | result=
+[2026-07-02 08:14:59.896] OCR_ROLLBACK | source=好 | result=best=好啦
+[2026-07-02 08:15:00.049] OCR_CAP--> | source=保护好他位 | result=
+[2026-07-02 08:15:00.096] OCR_CAP--> | source=保护好他 | result=
+[2026-07-02 08:15:00.125] TRANSLATED | source=好啦 | result=Được rồi.
+[2026-07-02 08:15:00.145] OCR_CAP--> | source=保护好他 | result=
+[2026-07-02 08:15:00.246] OCR_CAP--> | source=保护好他 | result=
+[2026-07-02 08:15:00.246] OCR_DETECTED | source=保护好他 | result=stable=196ms frames=4
+[2026-07-02 08:15:00.345] OCR_CAP--> | source=保护好他 | result=
+[2026-07-02 08:15:00.497] OCR_CAP--> | source=保护好他 | result=
+[2026-07-02 08:15:00.549] TRANSLATED | source=保护好他 | result=Bảo vệ hắn.
+[2026-07-02 08:15:00.646] OCR_CAP--> | source=保护好他一 | result=
+[2026-07-02 08:15:00.747] OCR_CAP--> | source=保护好他 | result=
+[2026-07-02 08:15:00.898] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:00.949] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.007] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.065] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.066] OCR_DETECTED | source=好明白 | result=stable=167ms frames=4
+[2026-07-02 08:15:01.099] OCR_CAP--> | source=好明白一 | result=
+[2026-07-02 08:15:01.154] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.204] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.251] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.304] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.352] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.368] TRANSLATED | source=好明白 | result=Tôi hiểu rồi.
+[2026-07-02 08:15:01.402] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.454] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.504] OCR_CAP--> | source=好明白厂 | result=
+[2026-07-02 08:15:01.556] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.602] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.665] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.702] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.754] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.820] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.863] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.914] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:01.966] OCR_CAP--> | source=好明白 | result=
+[2026-07-02 08:15:02.016] OCR_CAP--> | source=64 | result=
+[2026-07-02 08:15:02.016] OCR_REJECTED | source=64 | result=reason=han_quality
+[2026-07-02 08:15:02.320] OCR_CAP--> | source=1 | result=
+[2026-07-02 08:15:02.320] OCR_REJECTED | source=1 | result=reason=han_quality
