@@ -81,6 +81,17 @@ namespace tuning
     // Number of recent subtitles to track for deduplication.
     inline constexpr int kRecentSubtitleWindowSize = 4;
 
+    // Translation display queue parameters.
+    // Display duration is clamped to [kDisplayMinMs, kDisplayMaxMs].
+    // Formula: clamp(kDisplayBaseMs + charCount * kDisplayMsPerChar, min, max)
+    inline constexpr int kDisplayMinMs        = 200;   // Minimum display time per entry (ms)
+    inline constexpr int kDisplayMaxMs        = 3000;  // Maximum display time per entry (ms)
+    inline constexpr int kDisplayBaseMs       = 300;   // Base display time before per-char contribution (ms)
+    inline constexpr int kDisplayMsPerChar    = 75;    // Additional ms per displayed character
+    inline constexpr int kDisplayMaxLatencyMs = 2500;  // Drop entry if it has been queued longer than this (ms)
+    inline constexpr int kDisplayQueueMaxSize = 5;     // Max queue depth before overflow handling
+    inline constexpr int kDisplayTickMs       = 60;    // Timer interval for advancing the display queue (ms)
+
     // Capture interval for the capture worker thread.
     inline constexpr int kCaptureIntervalMs = 50;
     inline constexpr int kOcrKeepaliveIntervalMs = 220;

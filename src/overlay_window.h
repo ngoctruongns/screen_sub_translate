@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QPoint>
 #include <QThread>
+#include <QTimer>
 #include <QWidget>
 #include <QQueue>
 
@@ -71,6 +72,17 @@ private:
     bool wasRecentlyDispatched(const QString& key) const;
     void rememberDispatchedSubtitle(const QString& key);
     QString mostFrequentCandidate() const;
+
+    // Translation display queue
+    struct TranslationEntry {
+        QString translatedText;
+        QString sourceText;
+        qint64  enqueuedAtMs = 0;  // QDateTime::currentMSecsSinceEpoch()
+    };
+    void enqueueTranslation(const QString &translatedText, const QString &sourceText);
+    void tickDisplayQueue();
+    void showTranslationEntry(const TranslationEntry &entry);
+    int  computeDisplayDurationMs(const QString &text) const;
     QLabel *subtitleLabel_ = nullptr;
     QThread captureThread_;
     CaptureWorker *captureWorker_ = nullptr;
@@ -105,4 +117,11 @@ private:
     QElapsedTimer candidateTimer_;
     int candidateSeenFrames_ = 0;
     QHash<QString, int> candidateFrequency_;
+
+    // Translation display queue state
+    QQueue<TranslationEntry> translationQueue_;
+    QTimer                  *displayTimer_             = nullptr;
+    QElapsedTimer            currentDisplayTimer_;
+    int                      currentDisplayDurationMs_ = 0;
+    bool                     displayingTranslation_    = false;
 };

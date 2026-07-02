@@ -98,6 +98,12 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
             });
 
     applyNoiseProfile(noiseProfile_);
+
+    displayTimer_ = new QTimer(this);
+    displayTimer_->setInterval(tuning::kDisplayTickMs);
+    connect(displayTimer_, &QTimer::timeout, this, &OverlayWindow::tickDisplayQueue);
+    displayTimer_->start();
+
     captureThread_.start();
     ocrThread_.start();
     updateWorkerScanZone();
@@ -231,6 +237,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
             candidateFrequency_.clear();
 
             qDebug() << "Subtitle disappeared due to timeout after empty OCR result.";
+            tickDisplayQueue(); // Clears display immediately if queue is also empty
         }
     } else {
         // OCR result is non-empty
@@ -322,6 +329,7 @@ void OverlayWindow::onOcrError(const QString &error, int requestId)
         candidateSeenFrames_ = 0;
         candidateFrequency_.clear();
         qDebug() << "OCR_ERROR: Subtitle disappeared due to timeout after error.";
+        tickDisplayQueue(); // Clears display immediately if queue is also empty
     }
 
     if (latestFrameRequestId_ > requestId) {
@@ -339,11 +347,8 @@ void OverlayWindow::onTranslationReady(const QString &translatedText, const QStr
         appendSubtitleLog(QStringLiteral("TRANSLATED_STALE"), sourceText, translatedText);
     }
 
-    lastTranslation_ = translatedText;
-    subtitleLabel_->setText(translatedText);
-    updateSubtitleLayout();
-    updateWorkerScanZone();
     appendSubtitleLog(QStringLiteral("TRANSLATED"), sourceText, translatedText);
+    enqueueTranslation(translatedText, sourceText);
 }
 
 void OverlayWindow::onTranslationError(const QString &error)
@@ -928,4 +933,88 @@ QString OverlayWindow::noiseProfileName(NoiseProfile profile) const
         return QStringLiteral("Balanced");
     }
     return QStringLiteral("Clean");
+}
+
+void OverlayWindow::enqueueTranslation(const QString &translatedText, const QString &sourceText)
+{
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+    // Drop stale entries from the front to reclaim queue space before inserting.
+    while (!translationQueue_.isEmpty() &&
+           now - translationQueue_.head().enqueuedAtMs > tuning::kDisplayMaxLatencyMs) {
+        const TranslationEntry dropped = translationQueue_.dequeue();
+        appendSubtitleLog(QStringLiteral("DISPLAY_DROPPED_STALE"), dropped.sourceText,
+                          dropped.translatedText);
+    }
+
+    // Overflow: queue is still full after stale removal — clear it entirely and show the latest
+    // immediately on the next tick, preventing unbounded latency build-up.
+    if (translationQueue_.size() >= tuning::kDisplayQueueMaxSize) {
+        appendSubtitleLog(QStringLiteral("DISPLAY_QUEUE_OVERFLOW"), sourceText,
+                          QString("size=%1 cleared").arg(translationQueue_.size()));
+        translationQueue_.clear();
+        displayingTranslation_ = false; // Interrupt current display to prioritize latest entry
+    }
+
+    TranslationEntry entry;
+    entry.translatedText = translatedText;
+    entry.sourceText     = sourceText;
+    entry.enqueuedAtMs   = now;
+    translationQueue_.enqueue(entry);
+
+    appendSubtitleLog(QStringLiteral("DISPLAY_ENQUEUED"), sourceText,
+                      QString("queue_depth=%1").arg(translationQueue_.size()));
+}
+
+void OverlayWindow::tickDisplayQueue()
+{
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+    // Purge entries at the front of the queue that are too old to be relevant.
+    while (!translationQueue_.isEmpty() &&
+           now - translationQueue_.head().enqueuedAtMs > tuning::kDisplayMaxLatencyMs) {
+        const TranslationEntry dropped = translationQueue_.dequeue();
+        appendSubtitleLog(QStringLiteral("DISPLAY_DROPPED_STALE"), dropped.sourceText,
+                          dropped.translatedText);
+    }
+
+    if (displayingTranslation_) {
+        if (currentDisplayTimer_.elapsed() < currentDisplayDurationMs_) {
+            return; // Still within the allocated display window for the current entry
+        }
+        displayingTranslation_ = false;
+    }
+
+    if (!translationQueue_.isEmpty()) {
+        showTranslationEntry(translationQueue_.dequeue());
+    } else if (!subtitleVisible_) {
+        // Queue is drained and the source subtitle has disappeared — clear the overlay.
+        if (!subtitleLabel_->text().isEmpty()) {
+            subtitleLabel_->clear();
+            appendSubtitleLog(QStringLiteral("DISPLAY_CLEARED"), QString(), QString());
+        }
+    }
+}
+
+void OverlayWindow::showTranslationEntry(const TranslationEntry &entry)
+{
+    lastTranslation_          = entry.translatedText;
+    currentDisplayDurationMs_ = computeDisplayDurationMs(entry.sourceText);
+    currentDisplayTimer_.restart();
+    displayingTranslation_    = true;
+
+    subtitleLabel_->setText(entry.translatedText);
+    updateSubtitleLayout();
+    updateWorkerScanZone();
+
+    appendSubtitleLog(QStringLiteral("DISPLAY_SHOW"), entry.sourceText,
+                      entry.translatedText + QString(" dur=%1ms").arg(currentDisplayDurationMs_));
+}
+
+int OverlayWindow::computeDisplayDurationMs(const QString &text) const
+{
+    // Base duration + per-character contribution, clamped to configured bounds.
+    const int charCount = text.size();
+    const int duration  = tuning::kDisplayBaseMs + charCount * tuning::kDisplayMsPerChar;
+    return std::clamp(duration, tuning::kDisplayMinMs, tuning::kDisplayMaxMs);
 }

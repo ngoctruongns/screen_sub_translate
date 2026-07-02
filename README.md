@@ -30,6 +30,7 @@ Pipeline notes:
 - Noise profile parameters (`Fast`, `Balanced`, `Clean`) are centralized in `src/tuning_params.h`.
 - Subtitle dedupe gate suppresses repeated dispatch while the same subtitle is still on screen.
 - Translation is async and stale/error events are logged to keep overlay responsive.
+- Translations are buffered in a **display queue** and shown sequentially with per-entry timing. Stale or overflowing entries are dropped automatically.
 
 ## Features
 
@@ -189,6 +190,34 @@ You can also choose startup backend by env var:
 export SST_TRANSLATE_BACKEND=google   # or local
 ```
 
+## Translation Display Queue
+
+Translated subtitles are buffered in an internal queue and rendered sequentially to keep display timing close to the original source subtitle appearance.
+
+### How it works
+
+1. Each completed translation is **enqueued** with an arrival timestamp.
+2. A `QTimer` fires every `kDisplayTickMs` ms and calls `tickDisplayQueue()`.
+3. Each entry is shown for a duration computed as:
+
+$$\text{duration} = \text{clamp}\!\left(\text{kDisplayBaseMs} + \text{charCount} \times \text{kDisplayMsPerChar},\ \text{kDisplayMinMs},\ \text{kDisplayMaxMs}\right)$$
+
+4. When an entry has been in the queue longer than `kDisplayMaxLatencyMs`, it is **dropped** to avoid showing stale translations.
+5. If the queue overflows (`≥ kDisplayQueueMaxSize`), it is **cleared entirely** so that the latest translation is shown immediately.
+6. When both the queue is empty and the source Chinese subtitle has disappeared, the overlay is **cleared**.
+
+### Config parameters (`src/tuning_params.h`)
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `kDisplayMinMs` | 600 ms | Minimum display duration per entry |
+| `kDisplayMaxMs` | 4000 ms | Maximum display duration per entry |
+| `kDisplayBaseMs` | 300 ms | Base duration before per-character contribution |
+| `kDisplayMsPerChar` | 75 ms | Added ms per displayed character |
+| `kDisplayMaxLatencyMs` | 2500 ms | Drop entry if queued longer than this |
+| `kDisplayQueueMaxSize` | 5 | Max queue depth before overflow flush |
+| `kDisplayTickMs` | 60 ms | Display timer interval |
+
 ## Configure Model Paths
 
 Edit `src/tuning_params.h`:
@@ -295,8 +324,11 @@ flowchart TD
   M --> N[TranslateClient request\nSelected backend: Local or Google API]
   N --> O{Translation ready?}
   O -->|No| P[Log TRANSLATE_ERROR]
-  O -->|Yes| Q[Update subtitle bubble and log TRANSLATED]
-  Q --> D
+  O -->|Yes| Q[Enqueue to translation display queue]
+  Q --> R{Display timer tick 60ms}
+  R -->|Entry expired or queue empty + source gone| S[Clear overlay]
+  R -->|Next entry ready| T[Show entry for computed duration\nclamp to Min/Max display time]
+  T --> D
 ```
 
 Batch evaluator flow (`OcrBatchEval`): load Chinese labels -> read each labeled image -> preprocess -> OCR -> normalize/compare -> run local zh->vi translation -> print per-image OCR and translation output -> print summary and write translation report.
@@ -321,7 +353,7 @@ When `image/image_sub_vi.txt` exists (format identical to `image/image_sub.txt`)
 | `src/ocr_worker.h/.cpp` | Worker-thread bridge: receive preprocessed frame, call OCR engine, emit result/error |
 | `src/ocr_engine.h/.cpp` | ONNX Runtime session, Paddle charset loading, OCR infer, text normalization |
 | `src/translate_client.h/.cpp` | Async Chinese->Vietnamese translation with runtime switch between local ONNX and Google API |
-| `src/tuning_params.h` | Central tuning constants (model paths, OCR input size, per-profile thresholds, debounce values, subtitle dedupe timing) |
+| `src/tuning_params.h` | Central tuning constants (model paths, OCR input size, per-profile thresholds, debounce values, subtitle dedupe timing, translation display queue parameters) |
 | `tools/ocr_batch_eval.cpp` | Offline evaluator for labeled samples in `image/`, prints per-image match and summary |
 | `image/image_sub.txt` | Ground-truth subtitle labels for batch OCR evaluation |
 | `image/debug_preprocessed/` | Saved preprocessed images for debugging OCR input quality |
@@ -334,9 +366,22 @@ Runtime logs are written to:
 
 Log event types:
 
-- `OCR_DETECTED`
-- `TRANSLATED`
-- `TRANSLATE_ERROR`
+| Event | Description |
+| --- | --- |
+| `SESSION_START` | Application started |
+| `PROFILE_CHANGED` | Noise profile switched |
+| `OCR_CAP-->` | Raw OCR frame captured |
+| `OCR_REJECTED` | OCR result rejected (insufficient Han chars) |
+| `OCR_ROLLBACK` | Candidate rolled back to previous best |
+| `OCR_DETECTED` | OCR text accepted and dispatched for translation |
+| `TRANSLATED` | Translation received from backend |
+| `TRANSLATED_STALE` | Translation arrived for a source that is no longer current |
+| `TRANSLATE_ERROR` | Translation backend error |
+| `DISPLAY_ENQUEUED` | Translation added to display queue |
+| `DISPLAY_SHOW` | Translation dequeued and shown on overlay |
+| `DISPLAY_DROPPED_STALE` | Entry removed from queue (exceeded max latency) |
+| `DISPLAY_QUEUE_OVERFLOW` | Queue was full; cleared to prioritize latest entry |
+| `DISPLAY_CLEARED` | Overlay cleared after source subtitle disappeared and queue is empty |
 
 ## Project Structure
 
