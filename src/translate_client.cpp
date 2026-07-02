@@ -14,6 +14,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -123,6 +124,36 @@ QString normalizeTranslation(QString text)
     return text;
 }
 
+QString sanitizeFinalTranslation(QString text)
+{
+    text = normalizeTranslation(text);
+
+    const int asciiColon = text.lastIndexOf(':');
+    const int fullWidthColon = text.lastIndexOf(QChar(0xFF1A));
+    const int splitAt = std::max(asciiColon, fullWidthColon);
+    if (splitAt >= 0 && splitAt + 1 < text.size()) {
+        const QString tail = text.mid(splitAt + 1).trimmed();
+        if (!tail.isEmpty()) {
+            text = tail;
+        }
+    }
+
+    static const QRegularExpression kHanRegex(
+        QStringLiteral("[\\x{3400}-\\x{4DBF}\\x{4E00}-\\x{9FFF}\\x{F900}-\\x{FAFF}]+"));
+    text.remove(kHanRegex);
+
+    static const QRegularExpression kMultiSpace(QStringLiteral("\\s{2,}"));
+    text.replace(kMultiSpace, QStringLiteral(" "));
+
+    text = text.trimmed();
+    while (!text.isEmpty() && (text.front() == ':' || text.front() == '-' || text.front() == '"')) {
+        text.remove(0, 1);
+        text = text.trimmed();
+    }
+
+    return text;
+}
+
 QString normalizedBaseUrl(QString url)
 {
     while (url.endsWith('/')) {
@@ -190,6 +221,35 @@ QString repairPrompt(const QString &sourceText,
     prompt += QStringLiteral("\nOriginal Chinese:\n") + sourceText +
               QStringLiteral("\n\nBad draft:\n") + draftTranslation +
               QStringLiteral("\n\nClean Vietnamese:");
+    return prompt;
+}
+
+QString rescuePrompt(const QString &sourceText,
+                    const QString &draftTranslation,
+                    const QString &contextBlock,
+                    const QString &recentDialogueContext)
+{
+    QString prompt = QStringLiteral(
+        "FINAL RETRY. Output exactly one clean Vietnamese subtitle line.\n"
+        "Hard constraints:\n"
+        "- Do not include any Chinese characters.\n"
+        "- Do not include labels like 'translation', 'dịch', '已被译为'.\n"
+        "- Do not include explanations.\n"
+        "- Keep it short and natural for subtitle display.\n");
+
+    if (!contextBlock.isEmpty()) {
+        prompt += QStringLiteral("\nMovie context provided by user:\n") + contextBlock + QStringLiteral("\n");
+    }
+
+    if (!recentDialogueContext.isEmpty()) {
+        prompt += QStringLiteral("\nRecent subtitle context:\n") + recentDialogueContext + QStringLiteral("\n");
+    }
+
+    if (!draftTranslation.trimmed().isEmpty()) {
+        prompt += QStringLiteral("\nBad draft to fix:\n") + draftTranslation + QStringLiteral("\n");
+    }
+
+    prompt += QStringLiteral("\nChinese OCR subtitle:\n") + sourceText + QStringLiteral("\n\nVietnamese:");
     return prompt;
 }
 
@@ -340,13 +400,15 @@ void TranslateClient::startLlamaRequest(const QString &sourceText)
     startLlamaPromptRequest(sourceText,
                             translationPrompt(sourceText, contextBlock, dialogueContext),
                             std::nullopt,
+                            false,
                             false);
 }
 
 void TranslateClient::startLlamaPromptRequest(const QString &sourceText,
                                               const QString &prompt,
                                               const std::optional<QString> &draftTranslation,
-                                              bool isRepairPass)
+                                              bool isRepairPass,
+                                              bool isRescuePass)
 {
     inFlightText_ = sourceText;
 
@@ -371,6 +433,7 @@ void TranslateClient::startLlamaPromptRequest(const QString &sourceText,
     reply->setProperty("sourceText", sourceText);
     reply->setProperty("backend", QStringLiteral("local"));
     reply->setProperty("repairPass", isRepairPass);
+    reply->setProperty("rescuePass", isRescuePass);
     if (draftTranslation.has_value()) {
         reply->setProperty("draftTranslation", *draftTranslation);
     }
@@ -404,6 +467,7 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
     const QString replyBackend = reply->property("backend").toString();
     const QString sourceText = reply->property("sourceText").toString();
     const bool isRepairPass = reply->property("repairPass").toBool();
+    const bool isRescuePass = reply->property("rescuePass").toBool();
 
     if (activeReply_ == reply) {
         activeReply_.clear();
@@ -445,6 +509,12 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 if (translated.isEmpty()) {
                     emit translationError(QStringLiteral("Translation is empty"));
                 } else {
+                    translated = sanitizeFinalTranslation(translated);
+                    if (translated.isEmpty()) {
+                        emit translationError(QStringLiteral("Translation is empty after sanitization"));
+                        reply->deleteLater();
+                        return;
+                    }
                     rememberTranslationContext(sourceText, translated);
                     emit translationReady(translated, sourceText);
                 }
@@ -461,16 +531,30 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
             reply->deleteLater();
         } else {
             const QJsonObject root = document.object();
-            QString translated = root.value(QStringLiteral("response")).toString().trimmed();
+            QString rawTranslated = root.value(QStringLiteral("response")).toString().trimmed();
 
-            if (translated.isEmpty()) {
+            if (rawTranslated.isEmpty()) {
                 const QJsonObject messageObj = root.value(QStringLiteral("message")).toObject();
-                translated = messageObj.value(QStringLiteral("content")).toString().trimmed();
+                rawTranslated = messageObj.value(QStringLiteral("content")).toString().trimmed();
             }
 
-            translated = normalizeTranslation(translated);
+            QString translated = sanitizeFinalTranslation(rawTranslated);
 
             if (translated.isEmpty()) {
+                if (!isRescuePass) {
+                    const QString contextBlock = loadPromptContext(promptContextFilePath_);
+                    const QString dialogueContext = recentDialogueContext();
+                    reply->deleteLater();
+                    startLlamaPromptRequest(sourceText,
+                                            rescuePrompt(sourceText,
+                                                         rawTranslated,
+                                                         contextBlock,
+                                                         dialogueContext),
+                                            rawTranslated,
+                                            false,
+                                            true);
+                    return;
+                }
                 emit translationError(QStringLiteral("Local Llama translation is empty"));
             } else if (containsHanCharacters(translated) && !isRepairPass) {
                 const QString contextBlock = loadPromptContext(promptContextFilePath_);
@@ -478,8 +562,25 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 startLlamaPromptRequest(sourceText,
                                         repairPrompt(sourceText, translated, contextBlock),
                                         translated,
-                                        true);
+                                        true,
+                                        false);
                 return;
+            } else if (containsHanCharacters(translated)) {
+                if (!isRescuePass) {
+                    const QString contextBlock = loadPromptContext(promptContextFilePath_);
+                    const QString dialogueContext = recentDialogueContext();
+                    reply->deleteLater();
+                    startLlamaPromptRequest(sourceText,
+                                            rescuePrompt(sourceText,
+                                                         translated,
+                                                         contextBlock,
+                                                         dialogueContext),
+                                            translated,
+                                            false,
+                                            true);
+                    return;
+                }
+                emit translationError(QStringLiteral("Local Llama output still contains Han after repair"));
             } else {
                 rememberTranslationContext(sourceText, translated);
                 emit translationReady(translated, sourceText);

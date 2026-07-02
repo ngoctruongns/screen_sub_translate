@@ -10,7 +10,8 @@ Quy ước dịch mong muốn:
 - Tránh dịch quá sát từng chữ khi câu nói trong tiếng Việt sẽ bị cứng.
 
 Gợi ý riêng cho phim này:
-- 白求恩: có thể dịch là Bạch Cầu Ân hoặc Bạch Cầu Ân đại phu, tùy ngữ cảnh.
+- 白求恩: có thể dịch là Bạch Cầu Ân hoặc Bạch đại phu, tùy ngữ cảnh.
 - 同志: thường nên dịch là đồng chí.
 - 司令员: thường nên dịch là tư lệnh.
 - 毛主席: dịch là Chủ tịch Mao.
+- 八路: dịch là Bát lộ quân.

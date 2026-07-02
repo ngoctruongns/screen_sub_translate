@@ -676,7 +676,7 @@ bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &rig
         const QString &longer = (left.size() < right.size()) ? right : left;
 
         if (longer.contains(shorter)) {
-            qDebug() << "[FUZZY MATCH] Substring detected:" << shorter << "in" << longer;
+            // qDebug() << "[FUZZY MATCH] Substring detected:" << shorter << "in" << longer;
             return true;
         }
     }
@@ -696,9 +696,9 @@ bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &rig
     if (minLen <= 3) {
         // For 2-3 chars: allow 1 edit (more lenient than before which required 0)
         const bool matched = lev <= 1;
-        if (matched && lev > 0) {
-            qDebug() << "[FUZZY MATCH] Levenshtein distance 1 accepted:" << left << "|" << right;
-        }
+        // if (matched && lev > 0) {
+        //     qDebug() << "[FUZZY MATCH] Levenshtein distance 1 accepted:" << left << "|" << right;
+        // }
         return matched;
     }
 
@@ -713,7 +713,7 @@ bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &rig
 
     const int lcs_sub = longestCommonSubstring(left, right);
     if (lcs_sub >= 3 && static_cast<double>(lcs_sub) / minLen >= 0.60) {
-        qDebug() << "[FUZZY MATCH] Common substring" << lcs_sub << "chars:" << left << "|" << right;
+        // qDebug() << "[FUZZY MATCH] Common substring" << lcs_sub << "chars:" << left << "|" << right;
         return true;
     }
 
@@ -727,7 +727,7 @@ bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &rig
 
     const bool almostContained = (lcsRatio >= 0.82) && (levRatio <= 0.24);
 
-    if (almostContained) qDebug() << left << right << lcs << almostContained;
+    // if (almostContained) qDebug() << left << right << lcs << almostContained;
 
     return almostContained;
 }
@@ -767,10 +767,10 @@ bool OverlayWindow::shouldDispatchSubtitle(const QString &ocrText)
         return false;
     }
 
-    qDebug()
-    << "\nOCR =" << key
-    << "\nLAST =" << lastDispatchedSubtitleKey_
-    << "\nVISIBLE =" << subtitleVisible_;
+    // qDebug()
+    // << "\nOCR =" << key
+    // << "\nLAST =" << lastDispatchedSubtitleKey_
+    // << "\nVISIBLE =" << subtitleVisible_;
 
     lastDispatchedSubtitleKey_ = key;
     rememberDispatchedSubtitle(key);

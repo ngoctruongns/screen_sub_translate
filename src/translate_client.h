@@ -47,7 +47,8 @@ private:
     void startLlamaPromptRequest(const QString &sourceText,
                                  const QString &prompt,
                                  const std::optional<QString> &draftTranslation,
-                                 bool isRepairPass);
+                                 bool isRepairPass,
+                                 bool isRescuePass);
     QString recentDialogueContext() const;
     void rememberTranslationContext(const QString &sourceText, const QString &translatedText);
 
