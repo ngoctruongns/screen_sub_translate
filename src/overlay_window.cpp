@@ -573,6 +573,31 @@ QString OverlayWindow::subtitleKey(const QString &text) const
     return key;
 }
 
+static int longestCommonSubstring(const QString &left, const QString &right)
+{
+    const int n = left.size();
+    const int m = right.size();
+
+    int maxLen = 0;
+    QVector<int> prev(m + 1, 0);
+    QVector<int> curr(m + 1, 0);
+
+    for (int i = 1; i <= n; ++i) {
+        for (int j = 1; j <= m; ++j) {
+            if (left.at(i - 1) == right.at(j - 1)) {
+                curr[j] = prev[j - 1] + 1;
+                maxLen = std::max(maxLen, curr[j]);
+            } else {
+                curr[j] = 0;
+            }
+        }
+        std::swap(prev, curr);
+        std::fill(curr.begin(), curr.end(), 0);
+    }
+
+    return maxLen;
+}
+
 static int longestCommonSubsequence(const QString &left, const QString &right)
 {
     const int n = left.size();
@@ -681,9 +706,23 @@ bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &rig
         return matched;
     }
 
+    // For 4+ chars: single-edit distance is unambiguously the same subtitle.
+    // Also check for shared contiguous core: OCR noise often corrupts only the prefix/suffix
+    // while leaving a central block intact (e.g. "豪司令员业" vs "夏司令员" share "司令员").
+    // If the longest common substring covers >= 60% of the shorter string and is >= 3 chars,
+    // treat the two readings as the same subtitle.
+    if (lev <= 1) {
+        return true;
+    }
+
+    const int lcs_sub = longestCommonSubstring(left, right);
+    if (lcs_sub >= 3 && static_cast<double>(lcs_sub) / minLen >= 0.60) {
+        qDebug() << "[FUZZY MATCH] Common substring" << lcs_sub << "chars:" << left << "|" << right;
+        return true;
+    }
+
     if (minLen <= 4) {
-        // For 4 chars: allow 1 edit
-        return lev <= 1;
+        return false;  // No further heuristics for very short strings
     }
 
     const int lcs = longestCommonSubsequence(left, right);
