@@ -29,11 +29,13 @@ namespace tuning
     inline constexpr const char *kLlamaModel = "qwen2.5:7b-instruct-q4_K_M";
     inline constexpr const char *kLlamaApiMode = "llamacpp"; // auto | llamacpp | openai | ollama
     inline constexpr const char *kLlamaContextFilePath = "../translate/movie_context.txt";
+    inline constexpr const char *kLlamaGlossaryFilePath = "../translate/glossary.json";
     inline constexpr double kLlamaTemperature = 0.05;
     inline constexpr int kLlamaNumPredict = 48;
     inline constexpr int kLlamaPromptContextMaxChars = 900;
     inline constexpr int kLlamaHistoryWindowSize = 2;
-    inline constexpr int kLlamaHistoryEntryMaxChars = 42;
+    inline constexpr int kLlamaHistoryEntryMaxCharsHan = 42;
+    inline constexpr int kLlamaHistoryEntryMaxCharsVie = 82;
     inline constexpr int kTranslationCacheSize = 96;
     inline constexpr bool kEnableRetryPasses = false;
 

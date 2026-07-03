@@ -100,6 +100,34 @@ QString loadPromptContext(const QString &path)
     return text;
 }
 
+// Loads glossary.json and formats entries as "Chinese → Vietnamese" lines.
+QString loadGlossary(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return {};
+    }
+
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+        qWarning() << "TranslateClient: failed to parse glossary JSON:" << err.errorString();
+        return {};
+    }
+
+    const QJsonObject glossary = doc.object().value(QStringLiteral("glossary")).toObject();
+    if (glossary.isEmpty()) {
+        return {};
+    }
+
+    QStringList lines;
+    lines.reserve(glossary.size());
+    for (auto it = glossary.constBegin(); it != glossary.constEnd(); ++it) {
+        lines.append(it.key() + QStringLiteral(" → ") + it.value().toString());
+    }
+    return lines.join('\n');
+}
+
 QString shortText(const QString &text, int maxChars)
 {
     QString cleaned = text.trimmed();
@@ -691,14 +719,28 @@ void TranslateClient::initializeLocalBackend()
         promptContextFilePath_ = resolveRuntimePath(QString::fromUtf8(tuning::kLlamaContextFilePath));
     }
 
+    glossaryFilePath_ = QString::fromUtf8(qgetenv("SST_TRANSLATE_GLOSSARY_FILE")).trimmed();
+    if (glossaryFilePath_.isEmpty()) {
+        glossaryFilePath_ = resolveRuntimePath(QString::fromUtf8(tuning::kLlamaGlossaryFilePath));
+    }
+
     const LocalApiMode mode = resolvedLocalApiMode(llmApiMode_, llamaBaseUrl_);
     localInitialized_ = !llamaModel_.isEmpty() && localEndpointUrl(llamaBaseUrl_, mode).isValid();
     if (localInitialized_) {
         cachedContextBlock_ = loadPromptContext(promptContextFilePath_);
+        const QString glossaryBlock = loadGlossary(glossaryFilePath_);
+        if (!glossaryBlock.isEmpty()) {
+            if (!cachedContextBlock_.isEmpty()) {
+                cachedContextBlock_ += QStringLiteral("\n\nTerm glossary (apply when relevant):\n") + glossaryBlock;
+            } else {
+                cachedContextBlock_ = QStringLiteral("Term glossary (apply when relevant):\n") + glossaryBlock;
+            }
+        }
         qDebug() << "TranslateClient: local Llama backend ready"
                  << "model=" << llamaModel_ << "mode=" << localApiModeName(mode)
                  << "url=" << localEndpointUrl(llamaBaseUrl_, mode).toString()
-                 << "context=" << promptContextFilePath_;
+                 << "context=" << promptContextFilePath_
+                 << "glossary=" << glossaryFilePath_;
     } else {
         qWarning() << "TranslateClient: local Llama backend config invalid"
                    << "model=" << llamaModel_ << "baseUrl=" << llamaBaseUrl_ << "mode=" << llmApiMode_;
@@ -780,9 +822,9 @@ QString TranslateClient::recentDialogueContext() const
     for (int i = startIndex; i < historySize; ++i) {
         const TranslationContextEntry &entry = recentTranslationHistory_.at(i);
         lines.append(QStringLiteral("Chinese: ") +
-                     shortText(entry.sourceText, tuning::kLlamaHistoryEntryMaxChars));
+                     shortText(entry.sourceText, tuning::kLlamaHistoryEntryMaxCharsHan));
         lines.append(QStringLiteral("Vietnamese: ") +
-                     shortText(entry.translatedText, tuning::kLlamaHistoryEntryMaxChars));
+                     shortText(entry.translatedText, tuning::kLlamaHistoryEntryMaxCharsVie));
     }
 
     return lines.join('\n');
