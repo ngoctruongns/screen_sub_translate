@@ -37,6 +37,10 @@ namespace tuning
     inline constexpr int kTranslationCacheSize = 96;
     inline constexpr bool kEnableRetryPasses = false;
 
+    inline constexpr double kLlamaRepeatPenalty = 1.1;
+    inline constexpr double kLlamaFrequencyPenalty = 1.05;
+    inline constexpr int kLlamaRepeatLastN = 64;
+
     // Backward-compatibility constants kept for evaluation tools still using legacy ONNX translator.
     inline constexpr const char *kTranslateModelDir = "../models/translate";
     inline constexpr int64_t kTranslateDecoderStartId = 65000;

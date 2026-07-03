@@ -67,6 +67,7 @@ private:
     QString llamaModel_;
     QString llmApiMode_;
     QString promptContextFilePath_;
+    QString cachedContextBlock_;  // Loaded once at init, reused for prefix cache hit
     QVector<TranslationContextEntry> recentTranslationHistory_;
     QHash<QString, QString> translationCache_;
     QQueue<QString> translationCacheOrder_;

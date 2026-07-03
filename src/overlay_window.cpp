@@ -94,15 +94,11 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     connect(captureWorker_, &CaptureWorker::imageProcessed, this, &OverlayWindow::onImageProcessed);
     connect(ocrWorker_, &OcrWorker::ocrReady, this, &OverlayWindow::onOcrReady);
     connect(ocrWorker_, &OcrWorker::ocrError, this, &OverlayWindow::onOcrError);
-    connect(&translateClient_, &TranslateClient::translationReady, this,
-            &OverlayWindow::onTranslationReady);
-    connect(&translateClient_, &TranslateClient::translationError, this,
-            &OverlayWindow::onTranslationError);
-        connect(&translateClient_, &TranslateClient::backendChanged, this,
-            [this](const QString &backendName) {
-            appendSubtitleLog(QStringLiteral("TRANSLATE_BACKEND_CHANGED"),
-                      QStringLiteral("runtime"), backendName);
-            });
+    connect(&translateClient_, &TranslateClient::translationReady, this, &OverlayWindow::onTranslationReady);
+    connect(&translateClient_, &TranslateClient::translationError, this, &OverlayWindow::onTranslationError);
+    connect(&translateClient_, &TranslateClient::backendChanged, this, [this](const QString &backendName) {
+        appendSubtitleLog(QStringLiteral("TRANSLATE_BACKEND_CHANGED"), QStringLiteral("runtime"), backendName);
+    });
 
     applyNoiseProfile(noiseProfile_);
 

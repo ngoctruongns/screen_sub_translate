@@ -459,12 +459,15 @@ QString translationPrompt(const QString &sourceText,
     QString prompt = QStringLiteral(
         "You are translating OCR subtitles for a Chinese historical war film into natural Vietnamese subtitle style.\n"
         "Rules:\n"
-        "- Output exactly one Vietnamese subtitle line.\n"
+        "- Output exactly one single Vietnamese subtitle line.\n"
         "- Never copy any Chinese Han characters into the answer.\n"
-        "- If the source contains person names, place names, or military titles, render them in Vietnamese-friendly Latin script.\n"
+        "- If the source contains person names, place names, or military titles, render them in Vietnamese-friendly Latin script (Sino-Vietnamese readings).\n"
         "- If OCR is noisy, infer the intended Chinese sentence before translating.\n"
         "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n"
-        "- No explanations, no notes, no quotes, no extra labels.\n");
+        "- Absolutely NO explanations, NO notes, NO labels, and NO quotation marks (\").\n"
+        "- Start your translation immediately on the very first line without any blank lines or prefixes.\n"
+        "- Avoid repeating words or phrases within the same sentence unless grammatically required. Do not reuse rigid phrasing from previous lines if a more natural synonym exists.\n"
+    );
 
     if (!contextBlock.isEmpty()) {
         prompt += QStringLiteral("\nMovie context provided by user:\n") + contextBlock + QStringLiteral("\n");
@@ -691,6 +694,7 @@ void TranslateClient::initializeLocalBackend()
     const LocalApiMode mode = resolvedLocalApiMode(llmApiMode_, llamaBaseUrl_);
     localInitialized_ = !llamaModel_.isEmpty() && localEndpointUrl(llamaBaseUrl_, mode).isValid();
     if (localInitialized_) {
+        cachedContextBlock_ = loadPromptContext(promptContextFilePath_);
         qDebug() << "TranslateClient: local Llama backend ready"
                  << "model=" << llamaModel_ << "mode=" << localApiModeName(mode)
                  << "url=" << localEndpointUrl(llamaBaseUrl_, mode).toString()
@@ -825,10 +829,9 @@ void TranslateClient::startLlamaRequest(const QString &sourceText)
         return;
     }
 
-    const QString contextBlock = loadPromptContext(promptContextFilePath_);
     const QString dialogueContext = recentDialogueContext();
     startLlamaPromptRequest(sourceText,
-                            translationPrompt(sourceText, contextBlock, dialogueContext),
+                            translationPrompt(sourceText, cachedContextBlock_, dialogueContext),
                             std::nullopt,
                             false,
                             false);
@@ -876,10 +879,22 @@ void TranslateClient::startLlamaPromptRequest(const QString &sourceText,
     } else {
         payload.insert(QStringLiteral("prompt"), prompt);
         payload.insert(QStringLiteral("temperature"), tuning::kLlamaTemperature);
-        payload.insert(QStringLiteral("n_predict"), tuning::kLlamaNumPredict);
-        payload.insert(QStringLiteral("stream"), false);
-        payload.insert(QStringLiteral("cache_prompt"), true);
-        payload.insert(QStringLiteral("stop"), QJsonArray{QStringLiteral("\n\n"), QStringLiteral("###")});
+        payload.insert(QStringLiteral("n_predict"), tuning::kLlamaNumPredict); // max token output
+        payload.insert(QStringLiteral("stream"), false);    // Disable streaming for simplicity
+        payload.insert(QStringLiteral("cache_prompt"), true); // Allow model to cache prompt for faster subsequent calls
+
+        // Add Llama-specific tuning parameters for better subtitle translation quality.
+        payload.insert(QStringLiteral("repeat_penalty"), tuning::kLlamaRepeatPenalty);
+        payload.insert(QStringLiteral("frequency_penalty"), tuning::kLlamaFrequencyPenalty);
+        payload.insert(QStringLiteral("repeat_last_n"), tuning::kLlamaRepeatLastN);
+
+        payload.insert(QStringLiteral("stop"),
+                       QJsonArray{
+                           QStringLiteral("\n"), // End of line for LlamaCpp
+                           QStringLiteral("<|im_end|>"),    // Token end of chat for Qwen
+                           QStringLiteral("<|endoftext|>"), // Token end of text for Qwen
+                           QStringLiteral("###")            // End of chat for Ollama
+                       });
     }
 
     QNetworkReply *reply =
@@ -1009,13 +1024,12 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
             }
 
             if (isSuspiciouslyShortTranslation(sourceText, translated) && !isRescuePass) {
-                const QString contextBlock = loadPromptContext(promptContextFilePath_);
                 const QString dialogueContext = recentDialogueContext();
                 reply->deleteLater();
                 startLlamaPromptRequest(sourceText,
                                         completeLinePrompt(sourceText,
                                                            translated,
-                                                           contextBlock,
+                                                           cachedContextBlock_,
                                                            dialogueContext),
                                         translated,
                                         false,
@@ -1025,13 +1039,12 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
 
             if (translated.isEmpty()) {
                 if (tuning::kEnableRetryPasses && !isRescuePass) {
-                    const QString contextBlock = loadPromptContext(promptContextFilePath_);
                     const QString dialogueContext = recentDialogueContext();
                     reply->deleteLater();
                     startLlamaPromptRequest(sourceText,
                                             rescuePrompt(sourceText,
                                                          rawTranslated,
-                                                         contextBlock,
+                                                         cachedContextBlock_,
                                                          dialogueContext),
                                             rawTranslated,
                                             false,
@@ -1041,10 +1054,9 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 emit translationError(QStringLiteral("Local Llama translation is empty"));
             } else if (containsHanCharacters(translated) && !isRepairPass) {
                 if (tuning::kEnableRetryPasses) {
-                    const QString contextBlock = loadPromptContext(promptContextFilePath_);
                     reply->deleteLater();
                     startLlamaPromptRequest(sourceText,
-                                            repairPrompt(sourceText, translated, contextBlock),
+                                            repairPrompt(sourceText, translated, cachedContextBlock_),
                                             translated,
                                             true,
                                             false);
@@ -1053,13 +1065,12 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 emit translationError(QStringLiteral("Local Llama output contains Han"));
             } else if (containsHanCharacters(translated)) {
                 if (tuning::kEnableRetryPasses && !isRescuePass) {
-                    const QString contextBlock = loadPromptContext(promptContextFilePath_);
                     const QString dialogueContext = recentDialogueContext();
                     reply->deleteLater();
                     startLlamaPromptRequest(sourceText,
                                             rescuePrompt(sourceText,
                                                          translated,
-                                                         contextBlock,
+                                                         cachedContextBlock_,
                                                          dialogueContext),
                                             translated,
                                             false,
