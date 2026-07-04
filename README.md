@@ -164,6 +164,13 @@ export SST_LLM_API=llamacpp   # auto | llamacpp | openai | ollama
 
 Current defaults in `src/tuning_params.h` target llama.cpp server.
 
+Local translation guardrails:
+
+- The llama.cpp request avoids single-newline stop tokens to reduce empty first-token outputs.
+- Retry passes are enabled by default (`kEnableRetryPasses = true`) to rescue empty or suspicious drafts.
+- When a local output becomes empty after sanitization, runtime log now includes source/raw snippets for faster diagnosis.
+- Trailing punctuation artifacts from model output (for example `。 ：`) are trimmed before display/logging.
+
 ## Translation Backend Switch
 
 You can switch translation backend at runtime from right-click menu:

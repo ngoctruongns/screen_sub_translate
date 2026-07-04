@@ -203,18 +203,29 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame) const
 
     // Debug: Save preprocessed images for analysis (every 50th frame)
     static int frameCounter = 0;
-    if (++frameCounter % 50 == 0) {
-        QString debugDir = QString::fromUtf8("test/image/debug_preprocessed");
-        QDir dir;
-        if (!dir.exists(debugDir)) {
-            dir.mkpath(debugDir);
-        }
+    static int savedCounter = 0;
+    QString debugDir = QString::fromUtf8("test/image/debug_preprocessed");
+    QDir dir;
+    if (!dir.exists(debugDir)) {
+        dir.mkpath(debugDir);
+    }
+    dir.setPath(debugDir);
 
+    // Remove all old files in the debug directory
+    if (savedCounter % 10 == 0) {
+        const QStringList oldFiles = dir.entryList(QStringList() << "*.png", QDir::Files);
+        for (const QString &file : oldFiles) {
+            dir.remove(file);
+        }
+    }
+
+    if (++frameCounter % 10 == 0) {
+        ++savedCounter;
         QString filename = QString::fromUtf8("%1/frame_%2_preprocessed.png")
             .arg(debugDir).arg(frameCounter, 6, 10, QChar('0'));
 
         cv::imwrite(filename.toStdString(), normalized);
-        qDebug() << "[PREPROCESS DEBUG]" << filename << "stdDev=" << stdDev[0];
+        // qDebug() << "[PREPROCESS DEBUG]" << filename << "stdDev=" << stdDev[0];
     }
 
     return normalized.clone();

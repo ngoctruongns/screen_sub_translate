@@ -104,7 +104,7 @@ private:
     QPoint dragOffset_;
     QString logFilePath_;
     NoiseProfile noiseProfile_ = NoiseProfile::Balanced;
-    ResultPosition resultPosition_ = ResultPosition::AboveSource;
+    ResultPosition resultPosition_ = ResultPosition::BelowSource;
     const int resizeMarginPx_ = 10;
     int minOcrLength_ = tuning::kDefaultProfile.minOcrLength;
     int minCandidateStableMs_ = tuning::kDefaultProfile.minCandidateStableMs;

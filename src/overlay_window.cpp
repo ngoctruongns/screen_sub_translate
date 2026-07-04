@@ -6,6 +6,7 @@
 #include <QAction>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QFontMetrics>
 #include <QKeySequence>
@@ -79,8 +80,9 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
 
     setupUi();
     setupHotkeys();
-    move(400, 780);
-    logFilePath_ = QCoreApplication::applicationDirPath() + QStringLiteral("/subtitle_log.txt");
+    move(400, 850);
+    logFilePath_ = QDir::cleanPath(
+        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("../test/subtitle_log.txt")));
     appendSubtitleLog(QStringLiteral("SESSION_START"), QString(), QString());
 
     captureWorker_ = new CaptureWorker(computeCaptureZone());
