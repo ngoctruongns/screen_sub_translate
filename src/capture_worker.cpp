@@ -1,5 +1,6 @@
 #include "capture_worker.h"
 
+#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QImage>
 #include <QMutexLocker>
@@ -96,7 +97,8 @@ void CaptureWorker::start()
         const int remain = tuning::kCaptureIntervalMs - static_cast<int>(elapsed);
 
         if (remain > 0) {
-            QThread::msleep(remain);
+            // Process any pending queued-connection calls (e.g. setScanZone) while waiting.
+            QCoreApplication::processEvents(QEventLoop::AllEvents, remain);
         }
     }
 
@@ -115,6 +117,8 @@ void CaptureWorker::setScanZone(const QRect &scanZone)
     QMutexLocker locker(&zoneMutex_);
     scanZone_ = scanZone;
     previousSmallGray_.release();
+    // Log to debug that the scan zone has been updated
+    // qDebug() << "[CaptureWorker] Scan zone updated to:" << scanZone_;
 }
 
 void CaptureWorker::setNoiseParams(double changeThreshold, double minChangedRatio, double minStdDev)

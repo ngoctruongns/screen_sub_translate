@@ -31,6 +31,11 @@ enum class LocalApiMode {
     Ollama,
 };
 
+struct GlossaryLoadResult {
+    QString promptLines;
+    QVector<QPair<QString, QString>> aliasPairs;
+};
+
 QString resolveRuntimePath(const QString &relative)
 {
     const QFileInfo direct(relative);
@@ -100,32 +105,160 @@ QString loadPromptContext(const QString &path)
     return text;
 }
 
-// Loads glossary.json and formats entries as "Chinese → Vietnamese" lines.
-QString loadGlossary(const QString &path)
+bool hasLatinLetter(const QString &text)
 {
+    for (const QChar ch : text) {
+        const ushort u = ch.unicode();
+        if ((u >= 'A' && u <= 'Z') || (u >= 'a' && u <= 'z')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isWordBoundaryChar(const QChar ch)
+{
+    return !ch.isLetterOrNumber() && ch != QChar('_');
+}
+
+void replaceLatinAliasWholeWord(QString &text,
+                                const QString &alias,
+                                const QString &replacement)
+{
+    if (text.isEmpty() || alias.isEmpty()) {
+        return;
+    }
+
+    QString loweredText = text.toLower();
+    const QString loweredAlias = alias.toLower();
+    int searchFrom = 0;
+
+    while (searchFrom < loweredText.size()) {
+        const int idx = loweredText.indexOf(loweredAlias, searchFrom);
+        if (idx < 0) {
+            break;
+        }
+
+        const int end = idx + loweredAlias.size();
+        const bool leftOk = idx == 0 || isWordBoundaryChar(text.at(idx - 1));
+        const bool rightOk = end >= text.size() || isWordBoundaryChar(text.at(end));
+
+        if (leftOk && rightOk) {
+            text.replace(idx, alias.size(), replacement);
+            loweredText = text.toLower();
+            searchFrom = idx + replacement.size();
+        } else {
+            searchFrom = idx + alias.size();
+        }
+    }
+}
+
+void appendAliasRule(QVector<QPair<QString, QString>> &aliasPairs,
+                     QSet<QString> &dedupe,
+                     const QString &alias,
+                     const QString &target)
+{
+    const QString aliasTrimmed = alias.trimmed();
+    const QString targetTrimmed = target.trimmed();
+    if (aliasTrimmed.isEmpty() || targetTrimmed.isEmpty()) {
+        return;
+    }
+
+    const QString key = aliasTrimmed + QStringLiteral("\u001f") + targetTrimmed;
+    if (dedupe.contains(key)) {
+        return;
+    }
+
+    aliasPairs.push_back({aliasTrimmed, targetTrimmed});
+    dedupe.insert(key);
+}
+
+// Loads glossary.json and returns:
+// 1) prompt lines as "term -> canonical"
+// 2) alias replacement rules for post-translation normalization
+GlossaryLoadResult loadGlossary(const QString &path)
+{
+    GlossaryLoadResult result;
+
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return {};
+        return result;
     }
 
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &err);
     if (err.error != QJsonParseError::NoError || !doc.isObject()) {
         qWarning() << "TranslateClient: failed to parse glossary JSON:" << err.errorString();
-        return {};
+        return result;
     }
 
-    const QJsonObject glossary = doc.object().value(QStringLiteral("glossary")).toObject();
-    if (glossary.isEmpty()) {
-        return {};
-    }
+    const QJsonObject root = doc.object();
+    const QJsonObject glossary = root.value(QStringLiteral("glossary")).toObject();
+    const QJsonObject aliases = root.value(QStringLiteral("aliases")).toObject();
 
     QStringList lines;
-    lines.reserve(glossary.size());
+    QSet<QString> dedupe;
+
     for (auto it = glossary.constBegin(); it != glossary.constEnd(); ++it) {
-        lines.append(it.key() + QStringLiteral(" → ") + it.value().toString());
+        const QString key = it.key().trimmed();
+        if (key.isEmpty()) {
+            continue;
+        }
+
+        if (it.value().isString()) {
+            const QString target = it.value().toString().trimmed();
+            if (target.isEmpty()) {
+                continue;
+            }
+            lines.append(key + QStringLiteral(" -> ") + target);
+            appendAliasRule(result.aliasPairs, dedupe, key, target);
+            continue;
+        }
+
+        if (it.value().isObject()) {
+            const QJsonObject item = it.value().toObject();
+            QString target = item.value(QStringLiteral("target")).toString().trimmed();
+            if (target.isEmpty()) {
+                target = item.value(QStringLiteral("value")).toString().trimmed();
+            }
+            if (target.isEmpty()) {
+                continue;
+            }
+
+            lines.append(key + QStringLiteral(" -> ") + target);
+            appendAliasRule(result.aliasPairs, dedupe, key, target);
+
+            const QJsonArray aliasArray = item.value(QStringLiteral("aliases")).toArray();
+            for (const QJsonValue &aliasVal : aliasArray) {
+                if (!aliasVal.isString()) {
+                    continue;
+                }
+                appendAliasRule(result.aliasPairs, dedupe, aliasVal.toString(), target);
+            }
+        }
     }
-    return lines.join('\n');
+
+    for (auto it = aliases.constBegin(); it != aliases.constEnd(); ++it) {
+        const QString alias = it.key().trimmed();
+        const QString target = it.value().toString().trimmed();
+        if (alias.isEmpty() || target.isEmpty()) {
+            continue;
+        }
+        appendAliasRule(result.aliasPairs, dedupe, alias, target);
+    }
+
+    // Longer aliases first to avoid partial replacements before full names.
+    std::sort(result.aliasPairs.begin(), result.aliasPairs.end(),
+              [](const QPair<QString, QString> &left, const QPair<QString, QString> &right) {
+                  return left.first.size() > right.first.size();
+              });
+
+    if (!lines.isEmpty()) {
+        lines.removeDuplicates();
+        result.promptLines = lines.join('\n');
+    }
+
+    return result;
 }
 
 QString shortText(const QString &text, int maxChars)
@@ -547,12 +680,12 @@ QString translationPrompt(const QString &sourceText,
     QString prompt = QStringLiteral(
         "You are translating OCR subtitles for a Chinese historical war film into natural Vietnamese subtitle style.\n"
         "Rules:\n"
-        "- Output exactly one single Vietnamese subtitle line.\n"
+        "- Return ONLY the Vietnamese subtitle.\n"
+        "- Absolutely NO explanations, NO notes, NO labels, No extra text, One line only.\n"
         "- Never copy any Chinese Han characters into the answer.\n"
         "- If the source contains person names, place names, or military titles, render them in Vietnamese-friendly Latin script (Sino-Vietnamese readings).\n"
         "- If OCR is noisy, infer the intended Chinese sentence before translating.\n"
         "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n"
-        "- Absolutely NO explanations, NO notes, NO labels, and NO quotation marks (\").\n"
         "- Start your translation immediately on the very first line without any blank lines or prefixes.\n"
         "- Never output words like 'Vietnamese', 'Output', 'Rules', or any instruction text.\n"
         "- Avoid repeating words or phrases within the same sentence unless grammatically required. Do not reuse rigid phrasing from previous lines if a more natural synonym exists.\n"
@@ -563,7 +696,7 @@ QString translationPrompt(const QString &sourceText,
     }
 
     if (!recentDialogueContext.isEmpty()) {
-        prompt += QStringLiteral("\nRecent subtitle context:\n") + recentDialogueContext + QStringLiteral("\n");
+        prompt += QStringLiteral("\nRecent Chinese subtitles (for narrative context only):\n") + recentDialogueContext + QStringLiteral("\n");
     }
 
     prompt += QStringLiteral("\nChinese OCR subtitle:\n") + sourceText + QStringLiteral("\n\nOutput:");
@@ -610,7 +743,7 @@ QString rescuePrompt(const QString &sourceText,
     }
 
     if (!recentDialogueContext.isEmpty()) {
-        prompt += QStringLiteral("\nRecent subtitle context:\n") + recentDialogueContext + QStringLiteral("\n");
+        prompt += QStringLiteral("\nRecent Chinese subtitles (for narrative context only):\n") + recentDialogueContext + QStringLiteral("\n");
     }
 
     if (!draftTranslation.trimmed().isEmpty()) {
@@ -640,27 +773,12 @@ QString completeLinePrompt(const QString &sourceText,
     }
 
     if (!recentDialogueContext.isEmpty()) {
-        prompt += QStringLiteral("\nRecent subtitle context:\n") + recentDialogueContext + QStringLiteral("\n");
+        prompt += QStringLiteral("\nRecent Chinese subtitles (for narrative context only):\n") + recentDialogueContext + QStringLiteral("\n");
     }
 
     if (!draftTranslation.trimmed().isEmpty()) {
         prompt += QStringLiteral("\nBad fragment to avoid:\n") + draftTranslation + QStringLiteral("\n");
     }
-
-    prompt += QStringLiteral("\nChinese OCR subtitle:\n") + sourceText + QStringLiteral("\n\nOutput:");
-    return prompt;
-}
-
-QString shortTermPrompt(const QString &sourceText)
-{
-    QString prompt = QStringLiteral(
-        "Translate this SHORT Chinese subtitle phrase into Vietnamese.\n"
-        "Hard constraints:\n"
-        "- Output exactly one short Vietnamese phrase (2-6 words).\n"
-        "- Do not expand into extra sentences.\n"
-        "- Keep only the direct meaning of the source phrase.\n"
-        "- No explanations, no notes, no labels.\n"
-        "- No Chinese Han characters in output.\n");
 
     prompt += QStringLiteral("\nChinese OCR subtitle:\n") + sourceText + QStringLiteral("\n\nOutput:");
     return prompt;
@@ -787,9 +905,12 @@ void TranslateClient::initializeLocalBackend()
 
     const LocalApiMode mode = resolvedLocalApiMode(llmApiMode_, llamaBaseUrl_);
     localInitialized_ = !llamaModel_.isEmpty() && localEndpointUrl(llamaBaseUrl_, mode).isValid();
+    glossaryAliasPairs_.clear();
     if (localInitialized_) {
         cachedContextBlock_ = loadPromptContext(promptContextFilePath_);
-        const QString glossaryBlock = loadGlossary(glossaryFilePath_);
+        const GlossaryLoadResult glossaryData = loadGlossary(glossaryFilePath_);
+        glossaryAliasPairs_ = glossaryData.aliasPairs;
+        const QString glossaryBlock = glossaryData.promptLines;
         if (!glossaryBlock.isEmpty()) {
             if (!cachedContextBlock_.isEmpty()) {
                 cachedContextBlock_ += QStringLiteral("\n\nTerm glossary (apply when relevant):\n") + glossaryBlock;
@@ -801,11 +922,37 @@ void TranslateClient::initializeLocalBackend()
                  << "model=" << llamaModel_ << "mode=" << localApiModeName(mode)
                  << "url=" << localEndpointUrl(llamaBaseUrl_, mode).toString()
                  << "context=" << promptContextFilePath_
-                 << "glossary=" << glossaryFilePath_;
+                 << "glossary=" << glossaryFilePath_
+                 << "aliasRules=" << glossaryAliasPairs_.size();
     } else {
         qWarning() << "TranslateClient: local Llama backend config invalid"
                    << "model=" << llamaModel_ << "baseUrl=" << llamaBaseUrl_ << "mode=" << llmApiMode_;
     }
+}
+
+QString TranslateClient::applyGlossaryAliasNormalization(const QString &translatedText) const
+{
+    if (translatedText.isEmpty() || glossaryAliasPairs_.isEmpty()) {
+        return translatedText;
+    }
+
+    QString out = translatedText;
+    for (const auto &pair : glossaryAliasPairs_) {
+        const QString &alias = pair.first;
+        const QString &target = pair.second;
+        if (alias.isEmpty() || target.isEmpty()) {
+            continue;
+        }
+
+        if (hasLatinLetter(alias)) {
+            replaceLatinAliasWholeWord(out, alias, target);
+        } else {
+            out.replace(alias, target);
+        }
+    }
+
+    out = out.simplified();
+    return out;
 }
 
 void TranslateClient::setBackend(Backend backend)
@@ -844,12 +991,6 @@ void TranslateClient::requestTranslation(const QString &sourceText)
         return;
     }
 
-    const auto cachedIt = translationCache_.constFind(normalized);
-    if (cachedIt != translationCache_.constEnd() && !cachedIt.value().isEmpty()) {
-        emit translationReady(cachedIt.value(), normalized);
-        return;
-    }
-
     if (activeReply_) {
         if (normalized != inFlightText_) {
             pendingText_ = normalized;
@@ -879,16 +1020,16 @@ QString TranslateClient::recentDialogueContext() const
     const int historySize = static_cast<int>(recentTranslationHistory_.size());
     QStringList lines;
     const int startIndex = std::max(0, historySize - tuning::kLlamaHistoryWindowSize);
-    lines.reserve((historySize - startIndex) * 2);
+    lines.reserve(historySize - startIndex);
     for (int i = startIndex; i < historySize; ++i) {
         const TranslationContextEntry &entry = recentTranslationHistory_.at(i);
-        lines.append(QStringLiteral("Chinese: ") +
-                     shortText(entry.sourceText, tuning::kLlamaHistoryEntryMaxCharsHan));
-        lines.append(QStringLiteral("Vietnamese: ") +
-                     shortText(entry.translatedText, tuning::kLlamaHistoryEntryMaxCharsVie));
+        // Only include the Chinese source lines, NOT the Vietnamese translations.
+        // Feeding translated text back risks propagating any dirty/garbage output
+        // from a previous pass as a "correct" example, creating a feedback loop.
+        lines.append(shortText(entry.sourceText, tuning::kLlamaHistoryEntryMaxCharsHan));
     }
 
-    return lines.join('\n');
+    return lines.join(QStringLiteral(", "));
 }
 
 void TranslateClient::rememberTranslationContext(const QString &sourceText,
@@ -909,29 +1050,10 @@ void TranslateClient::rememberTranslationContext(const QString &sourceText,
     while (recentTranslationHistory_.size() > tuning::kRecentSubtitleWindowSize) {
         recentTranslationHistory_.removeFirst();
     }
-
-    if (!translationCache_.contains(sourceText)) {
-        translationCacheOrder_.enqueue(sourceText);
-    }
-    translationCache_.insert(sourceText, translatedText);
-
-    while (translationCacheOrder_.size() > tuning::kTranslationCacheSize) {
-        const QString oldest = translationCacheOrder_.dequeue();
-        translationCache_.remove(oldest);
-    }
 }
 
 void TranslateClient::startLlamaRequest(const QString &sourceText)
 {
-    if (isShortSourcePhrase(sourceText)) {
-        startLlamaPromptRequest(sourceText,
-                                shortTermPrompt(sourceText),
-                                std::nullopt,
-                                false,
-                                false);
-        return;
-    }
-
     const QString dialogueContext = recentDialogueContext();
     startLlamaPromptRequest(sourceText,
                             translationPrompt(sourceText, cachedContextBlock_, dialogueContext),
@@ -1087,6 +1209,7 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 } else {
                     translated = sanitizeFinalTranslation(translated);
                     translated = postProcessTranslation(translated);
+                    translated = applyGlossaryAliasNormalization(translated);
                     if (translated.isEmpty()) {
                         emit translationError(QStringLiteral("Translation is empty after sanitization"));
                         reply->deleteLater();
@@ -1117,16 +1240,7 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
 
             QString translated = sanitizeFinalTranslation(rawTranslated);
             translated = postProcessTranslation(translated);
-
-            if (isOverExpandedTranslation(sourceText, translated) && !isRescuePass) {
-                reply->deleteLater();
-                startLlamaPromptRequest(sourceText,
-                                        shortTermPrompt(sourceText),
-                                        translated,
-                                        false,
-                                        true);
-                return;
-            }
+            translated = applyGlossaryAliasNormalization(translated);
 
             if (isSuspiciouslyShortTranslation(sourceText, translated) && !isRescuePass) {
                 const QString dialogueContext = recentDialogueContext();

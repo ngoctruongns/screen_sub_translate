@@ -33,7 +33,7 @@ namespace tuning
     inline constexpr double kLlamaTemperature = 0.05;
     inline constexpr int kLlamaNumPredict = 48;
     inline constexpr int kLlamaPromptContextMaxChars = 900;
-    inline constexpr int kLlamaHistoryWindowSize = 2;
+    inline constexpr int kLlamaHistoryWindowSize = 3;
     inline constexpr int kLlamaHistoryEntryMaxCharsHan = 42;
     inline constexpr int kLlamaHistoryEntryMaxCharsVie = 82;
     inline constexpr int kTranslationCacheSize = 96;

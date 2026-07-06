@@ -83,6 +83,12 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     move(400, 850);
     logFilePath_ = QDir::cleanPath(
         QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("../test/subtitle_log.txt")));
+    // Clear the log file at startup
+    QFile logFile(logFilePath_);
+    if (logFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        logFile.resize(0);
+        logFile.close();
+    }
     appendSubtitleLog(QStringLiteral("SESSION_START"), QString(), QString());
 
     captureWorker_ = new CaptureWorker(computeCaptureZone());
@@ -415,8 +421,13 @@ void OverlayWindow::updateWorkerScanZone()
         return;
     }
 
+    const QRect newZone = computeCaptureZone();
+    if (newZone == lastSentScanZone_) {
+        return;
+    }
+    lastSentScanZone_ = newZone;
     QMetaObject::invokeMethod(captureWorker_, "setScanZone", Qt::QueuedConnection,
-                              Q_ARG(QRect, computeCaptureZone()));
+                              Q_ARG(QRect, newZone));
     update();
 }
 
@@ -1061,8 +1072,8 @@ void OverlayWindow::showTranslationEntry(const TranslationEntry &entry)
     updateSubtitleLayout();
     updateWorkerScanZone();
 
-    appendSubtitleLog(QStringLiteral("DISPLAY_SHOW"), entry.sourceText,
-                      entry.translatedText + QString(" dur=%1ms").arg(currentDisplayDurationMs_));
+    // appendSubtitleLog(QStringLiteral("DISPLAY_SHOW"), entry.sourceText,
+    //                   entry.translatedText + QString(" dur=%1ms").arg(currentDisplayDurationMs_));
 }
 
 int OverlayWindow::computeDisplayDurationMs(const QString &text) const

@@ -118,6 +118,8 @@ private:
     int candidateSeenFrames_ = 0;
     QHash<QString, int> candidateFrequency_;
 
+    QRect lastSentScanZone_;
+
     // Translation display queue state
     QQueue<TranslationEntry> translationQueue_;
     QTimer                  *displayTimer_             = nullptr;

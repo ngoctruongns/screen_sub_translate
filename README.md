@@ -187,6 +187,37 @@ export SST_TRANSLATE_BACKEND=google   # or local
 
 If you keep `local` backend (default), the app calls the local LLM endpoint configured by `SST_LLAMA_BASE_URL`, `SST_LLAMA_MODEL`, and `SST_LLM_API`.
 
+## Glossary For Proper Names (Han-Viet)
+
+To make person/place names more stable (for example `Guangxi -> Quảng Tây`, `Chongqing -> Trùng Khánh`, `田汉 -> Điền Hán`), use `translate/glossary.json` with canonical targets and aliases.
+
+Supported formats:
+
+```json
+{
+  "glossary": {
+    "田汉": {
+      "target": "Điền Hán",
+      "aliases": ["Tian Han", "Tan Han", "Tán Han"]
+    },
+    "广西": {
+      "target": "Quảng Tây",
+      "aliases": ["Guangxi"]
+    },
+    "重庆": "Trùng Khánh"
+  },
+  "aliases": {
+    "Chongqing": "Trùng Khánh"
+  }
+}
+```
+
+Behavior:
+
+- `glossary` entries are injected into the LLM prompt as term hints.
+- Alias rules are also applied after model output sanitization, so Latin/Pinyin variants in generated text are normalized before display.
+- You do not need to add every word. Focus on recurring proper nouns (people, places, military titles, organizations).
+
 ## Translation Display Queue
 
 Translated subtitles are buffered in an internal queue and rendered sequentially to keep display timing close to the original source subtitle appearance.

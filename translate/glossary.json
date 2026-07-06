@@ -6,8 +6,10 @@
         "毛主席": "Chủ tịch Mao",
         "八路": "Bát lộ quân",
         "中将阁下": "Trung tướng",
-        "广西": "Quảng Tây",
-        "重庆 ": "Trùng Khánh",
+        "广西": {
+            "target": "Quảng Tây",
+            "aliases": ["Guangxi"]
+        },
         "重庆": "Trùng Khánh",
         "武汉": "Vũ Hán",
         "南京": "Nam Kinh",
@@ -25,7 +27,6 @@
         "香港": "Hương Cảng",
         "澳门": "Macao",
         "台湾": "Đài Loan",
-        "日本": "Nhật Bản",
         "韩国": "Hàn Quốc",
         "朝鲜": "Triều Tiên",
         "俄罗斯": "Nga",
@@ -37,8 +38,24 @@
         "西班牙": "Tây Ban Nha",
         "葡萄牙": "Bồ Đào Nha",
         "荷兰": "Hà Lan",
+        "中国": {
+            "target": "Trung Quốc",
+            "aliases": ["China", "Zhongguo"]
+        },
+        "日本": {
+            "target": "Nhật Bản",
+            "aliases": ["Japan"]
+        },
         "毛泽东": "Mao Trạch Đông",
         "周恩来": "Chu Ân Lai",
-        "蒋介石": "Tưởng Giới Thạch"
+        "蒋介石": "Tưởng Giới Thạch",
+        "田汉": {
+            "target": "Điền Hán",
+            "aliases": ["Tian Han", "Tan Han", "Tán Han"]
+        }
+    },
+    "aliases": {
+        "Chongqing": "Trùng Khánh",
+        "Guangxi": "Quảng Tây"
     }
 }
