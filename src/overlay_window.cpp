@@ -123,7 +123,7 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
 OverlayWindow::~OverlayWindow()
 {
     if (captureWorker_) {
-        QMetaObject::invokeMethod(captureWorker_, "stop", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(captureWorker_, "stop", Qt::BlockingQueuedConnection);
     }
     captureThread_.quit();
     ocrThread_.quit();
@@ -336,7 +336,7 @@ void OverlayWindow::onOcrError(const QString &error, int requestId)
     }
 
     ocrBusy_ = false;
-    subtitleLabel_->setText(error);
+    qWarning() << "[OCR_ERROR]" << error;
     appendSubtitleLog(QStringLiteral("OCR_ERROR"), QString::number(requestId), error);
     if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
         subtitleVisible_ = false;
@@ -619,22 +619,29 @@ static int longestCommonSubstring(const QString &left, const QString &right)
 
 static int longestCommonSubsequence(const QString &left, const QString &right)
 {
+    if (left.size() < right.size()) {
+        return longestCommonSubsequence(right, left);
+    }
+
     const int n = left.size();
     const int m = right.size();
 
-    QVector<QVector<int>> dp(n + 1, QVector<int>(m + 1, 0));
+    QVector<int> dp(m + 1, 0);
 
     for (int i = 1; i <= n; ++i) {
+        int prev = 0;
         for (int j = 1; j <= m; ++j) {
+            int temp = dp[j]; // Save the current value before updating
             if (left.at(i - 1) == right.at(j - 1)) {
-                dp[i][j] = dp[i - 1][j - 1] + 1;
+                dp[j] = prev + 1;
             } else {
-                dp[i][j] = std::max(dp[i - 1][j], dp[i][j - 1]);
+                dp[j] = std::max(dp[j], dp[j - 1]);
             }
+            prev = temp; // Update prev to the saved value for the next iteration
         }
     }
 
-    return dp[n][m];
+    return dp[m];
 }
 
 static int levenshteinDistance(const QString &left, const QString &right)
@@ -1012,13 +1019,10 @@ void OverlayWindow::enqueueTranslation(const QString &translatedText, const QStr
                           dropped.translatedText);
     }
 
-    // Overflow: queue is still full after stale removal — clear it entirely and show the latest
     // immediately on the next tick, preventing unbounded latency build-up.
     if (translationQueue_.size() >= tuning::kDisplayQueueMaxSize) {
-        appendSubtitleLog(QStringLiteral("DISPLAY_QUEUE_OVERFLOW"), sourceText,
-                          QString("size=%1 cleared").arg(translationQueue_.size()));
-        translationQueue_.clear();
-        displayingTranslation_ = false; // Interrupt current display to prioritize latest entry
+        qDebug() << "Translation queue overflow: dropping oldest entry to make space.";
+        translationQueue_.dequeue(); // Remove the oldest entry to make space
     }
 
     TranslationEntry entry;
