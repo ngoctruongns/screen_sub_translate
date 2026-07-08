@@ -3,9 +3,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include <QQueue>
 #include <QVector>
-#include <QHash>
 #include <QPair>
 
 #include <optional>
@@ -18,22 +16,14 @@ class TranslateClient : public QObject
     Q_OBJECT
 
 public:
-    enum class Backend {
-        Local,
-        GoogleApi,
-    };
-
     explicit TranslateClient(QObject *parent = nullptr);
     ~TranslateClient() override;
 
-    void setBackend(Backend backend);
-    Backend backend() const;
     void requestTranslation(const QString &sourceText);
 
 signals:
     void translationReady(const QString &translatedText, const QString &sourceText);
     void translationError(const QString &error);
-    void backendChanged(const QString &backendName);
 
 private slots:
     void onReplyFinished(QNetworkReply *reply);
@@ -46,7 +36,6 @@ private:
 
     void initializeLocalBackend();
     void startLlamaRequest(const QString &sourceText);
-    void startGoogleRequest(const QString &sourceText);
     void startLlamaPromptRequest(const QString &sourceText,
                                  const QString &prompt,
                                  const std::optional<QString> &draftTranslation,
@@ -55,8 +44,6 @@ private:
     QString recentDialogueContext() const;
     void rememberTranslationContext(const QString &sourceText, const QString &translatedText);
     QString applyGlossaryAliasNormalization(const QString &translatedText) const;
-
-    Backend backend_ = Backend::Local;
 
     QNetworkAccessManager *networkManager_ = nullptr;
     QPointer<QNetworkReply> activeReply_;

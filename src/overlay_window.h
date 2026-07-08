@@ -26,8 +26,6 @@ class OverlayWindow : public QWidget
     Q_OBJECT
 
 private:
-    enum class NoiseProfile { Fast, Balanced, Clean };
-
     enum class ResultPosition { AboveSource, BelowSource };
 
 public:
@@ -60,8 +58,7 @@ private:
     void appendSubtitleLog(const QString &status, const QString &sourceText,
                            const QString &translatedText) const;
     void dispatchLatestOcr();
-    void applyNoiseProfile(NoiseProfile profile);
-    QString noiseProfileName(NoiseProfile profile) const;
+    void applyDefaultNoiseConfig();
     QString subtitleKey(const QString &text) const;
     bool isLikelySameSubtitle(const QString &left, const QString &right) const;
     bool shouldDispatchSubtitle(const QString &ocrText);
@@ -103,11 +100,10 @@ private:
     QPoint initialMouseGlobalPos_;
     QPoint dragOffset_;
     QString logFilePath_;
-    NoiseProfile noiseProfile_ = NoiseProfile::Balanced;
     ResultPosition resultPosition_ = ResultPosition::BelowSource;
     const int resizeMarginPx_ = 10;
-    int minOcrLength_ = tuning::kDefaultProfile.minOcrLength;
-    int minCandidateStableMs_ = tuning::kDefaultProfile.minCandidateStableMs;
+    int minOcrLength_ = tuning::kMinOcrLength;
+    int minCandidateStableMs_ = tuning::kMinCandidateStableMs;
     QString lastDispatchedSubtitleKey_;
     QElapsedTimer subtitleDispatchTimer_;
     bool subtitleVisible_ = false;

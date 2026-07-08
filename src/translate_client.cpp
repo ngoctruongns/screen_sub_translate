@@ -17,7 +17,6 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QUrl>
-#include <QUrlQuery>
 
 #include "tuning_params.h"
 
@@ -865,13 +864,6 @@ TranslateClient::TranslateClient(QObject *parent)
     connect(networkManager_, &QNetworkAccessManager::finished, this, &TranslateClient::onReplyFinished);
 
     initializeLocalBackend();
-
-    const QByteArray envBackend = qgetenv("SST_TRANSLATE_BACKEND").trimmed().toLower();
-    if (envBackend == "google") {
-        setBackend(Backend::GoogleApi);
-    } else {
-        setBackend(Backend::Local);
-    }
 }
 
 TranslateClient::~TranslateClient() = default;
@@ -955,30 +947,6 @@ QString TranslateClient::applyGlossaryAliasNormalization(const QString &translat
     return out;
 }
 
-void TranslateClient::setBackend(Backend backend)
-{
-    if (backend_ == backend) {
-        return;
-    }
-
-    if (activeReply_) {
-        activeReply_->abort();
-        activeReply_.clear();
-    }
-
-    pendingText_.clear();
-    inFlightText_.clear();
-
-    backend_ = backend;
-    emit backendChanged(backend_ == Backend::GoogleApi ? QStringLiteral("google")
-                                                       : QStringLiteral("local-llama"));
-}
-
-TranslateClient::Backend TranslateClient::backend() const
-{
-    return backend_;
-}
-
 void TranslateClient::requestTranslation(const QString &sourceText)
 {
     const QString normalized = sourceText.trimmed();
@@ -995,11 +963,6 @@ void TranslateClient::requestTranslation(const QString &sourceText)
         if (normalized != inFlightText_) {
             pendingText_ = normalized;
         }
-        return;
-    }
-
-    if (backend_ == Backend::GoogleApi) {
-        startGoogleRequest(normalized);
         return;
     }
 
@@ -1127,7 +1090,6 @@ void TranslateClient::startLlamaPromptRequest(const QString &sourceText,
     QNetworkReply *reply =
         networkManager_->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     reply->setProperty("sourceText", sourceText);
-    reply->setProperty("backend", QStringLiteral("local"));
     reply->setProperty("localApiMode", localApiModeName(mode));
     reply->setProperty("repairPass", isRepairPass);
     reply->setProperty("rescuePass", isRescuePass);
@@ -1137,31 +1099,8 @@ void TranslateClient::startLlamaPromptRequest(const QString &sourceText,
     activeReply_ = reply;
 }
 
-void TranslateClient::startGoogleRequest(const QString &sourceText)
-{
-    inFlightText_ = sourceText;
-
-    QUrl url(QStringLiteral("https://translate.googleapis.com/translate_a/single"));
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("client"), QStringLiteral("gtx"));
-    query.addQueryItem(QStringLiteral("sl"), QStringLiteral("auto"));
-    query.addQueryItem(QStringLiteral("tl"), QStringLiteral("vi"));
-    query.addQueryItem(QStringLiteral("dt"), QStringLiteral("t"));
-    query.addQueryItem(QStringLiteral("q"), sourceText);
-    url.setQuery(query);
-
-    QNetworkRequest request(url);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-    QNetworkReply *reply = networkManager_->get(request);
-    reply->setProperty("sourceText", sourceText);
-    reply->setProperty("backend", QStringLiteral("google"));
-    activeReply_ = reply;
-}
-
 void TranslateClient::onReplyFinished(QNetworkReply *reply)
 {
-    const QString replyBackend = reply->property("backend").toString();
     const LocalApiMode localMode = parseLocalApiMode(reply->property("localApiMode").toString());
     const QString sourceText = reply->property("sourceText").toString();
     const bool isRepairPass = reply->property("repairPass").toBool();
@@ -1177,56 +1116,7 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
     } else if (reply->error() != QNetworkReply::NoError) {
         emit translationError(reply->errorString());
         reply->deleteLater();
-    } else if (replyBackend == QStringLiteral("google")) {
-        QJsonParseError parseError;
-        const QByteArray responseData = reply->readAll();
-        const QJsonDocument document = QJsonDocument::fromJson(responseData, &parseError);
-
-        if (parseError.error != QJsonParseError::NoError || !document.isArray()) {
-            emit translationError(QStringLiteral("Failed to parse translation response"));
-            reply->deleteLater();
-        } else {
-            const QJsonArray root = document.array();
-            if (root.isEmpty() || !root.at(0).isArray()) {
-                emit translationError(QStringLiteral("Unexpected translation response format"));
-                reply->deleteLater();
-            } else {
-                const QJsonArray segments = root.at(0).toArray();
-                QString translated;
-                for (const QJsonValue &segment : segments) {
-                    if (!segment.isArray()) {
-                        continue;
-                    }
-                    const QJsonArray chunk = segment.toArray();
-                    if (!chunk.isEmpty() && chunk.at(0).isString()) {
-                        translated += chunk.at(0).toString();
-                    }
-                }
-
-                translated = translated.trimmed();
-                if (translated.isEmpty()) {
-                    emit translationError(QStringLiteral("Translation is empty"));
-                } else {
-                    translated = sanitizeFinalTranslation(translated);
-                    translated = postProcessTranslation(translated);
-                    translated = applyGlossaryAliasNormalization(translated);
-                    if (translated.isEmpty()) {
-                        emit translationError(QStringLiteral("Translation is empty after sanitization"));
-                        reply->deleteLater();
-                        return;
-                    }
-                    if (isEnglishHeavyOutput(translated)) {
-                        emit translationError(QStringLiteral("Translation rejected: English-heavy output"));
-                        reply->deleteLater();
-                        return;
-                    }
-                    rememberTranslationContext(sourceText, translated);
-                    emit translationReady(translated, sourceText);
-                }
-                reply->deleteLater();
-            }
-        }
-    } else { // local Llama backend
+    } else {
         QJsonParseError parseError;
         const QByteArray responseData = reply->readAll();
         const QJsonDocument document = QJsonDocument::fromJson(responseData, &parseError);

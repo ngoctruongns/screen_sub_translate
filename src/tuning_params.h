@@ -3,14 +3,6 @@
 namespace tuning
 {
 
-    struct NoiseProfileConfig {
-        double changeThreshold;  // Threshold for detecting changes in the image.
-        double minChangedRatio;  // Minimum ratio of changed pixels to consider as a change.
-        double minStdDev;        // Minimum standard deviation of pixel values to consider as a change.
-        int minOcrLength;        // Minimum length of OCR text to consider for dispatching
-        int minCandidateStableMs;// Minimum time in Ms that a candidate OCR text must remain stable
-    };
-
     // Candidate quality gate and dynamic stability.
     // Tuned P1: Allow shorter text with lower frame/time requirements for better detection
     inline constexpr int kMinHanCharsForCandidate = 1;
@@ -58,39 +50,12 @@ namespace tuning
     inline constexpr int kPaddleInputHeight = 48;
     inline constexpr int kPaddleInputWidth = 320;
 
-    // Preset profile values.
-    // P1 Tuning: Reduced minCandidateStableMs for faster subtitle detection
-    inline constexpr NoiseProfileConfig kFastProfile = {
-        1.55, // changeThreshold
-        0.006,
-        8.0,
-        1,
-        140,  // minCandidateStableMs: reduced from 180
-    };
-
-    inline constexpr NoiseProfileConfig kBalancedProfile = {
-        1.65, // changeThreshold
-        0.009,
-        8.5,
-        1,
-        150,  // minCandidateStableMs: reduced from 190
-    };
-
-    inline constexpr NoiseProfileConfig kCleanProfile = {
-        2.20, // changeThreshold
-        0.015,
-        13.0,
-        1,
-        180,  // minCandidateStableMs: reduced from 230
-    };
-
-    // Default startup profile.
-    inline constexpr NoiseProfileConfig kDefaultProfile = kBalancedProfile;
-
-    // Backward-compatible single-value defaults used by worker initialization.
-    inline constexpr double kChangeThreshold = kDefaultProfile.changeThreshold;
-    inline constexpr double kMinChangedRatio = kDefaultProfile.minChangedRatio;
-    inline constexpr double kMinStdDev = kDefaultProfile.minStdDev;
+    // Single fixed OCR noise gate configuration (equivalent to previous Balanced profile).
+    inline constexpr double kChangeThreshold = 1.65;
+    inline constexpr double kMinChangedRatio = 0.009;
+    inline constexpr double kMinStdDev = 8.5;
+    inline constexpr int kMinOcrLength = 1;
+    inline constexpr int kMinCandidateStableMs = 150;
 
     // Subtitle dispatch dedupe (avoid translating the same on-screen subtitle repeatedly).
     inline constexpr int kSubtitleDisappearTimeoutMs = 800;  // Time after which an empty OCR result is considered a subtitle disappearance.

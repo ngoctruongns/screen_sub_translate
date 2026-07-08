@@ -104,11 +104,8 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     connect(ocrWorker_, &OcrWorker::ocrError, this, &OverlayWindow::onOcrError);
     connect(&translateClient_, &TranslateClient::translationReady, this, &OverlayWindow::onTranslationReady);
     connect(&translateClient_, &TranslateClient::translationError, this, &OverlayWindow::onTranslationError);
-    connect(&translateClient_, &TranslateClient::backendChanged, this, [this](const QString &backendName) {
-        appendSubtitleLog(QStringLiteral("TRANSLATE_BACKEND_CHANGED"), QStringLiteral("runtime"), backendName);
-    });
 
-    applyNoiseProfile(noiseProfile_);
+    applyDefaultNoiseConfig();
 
     displayTimer_ = new QTimer(this);
     displayTimer_->setInterval(tuning::kDisplayTickMs);
@@ -374,7 +371,7 @@ void OverlayWindow::onTranslationError(const QString &error)
 void OverlayWindow::setupUi()
 {
     subtitleLabel_ = new QLabel(
-        QStringLiteral("Right-click: options | Alt+1 Fast Alt+2 Balanced Alt+3 Clean"),
+        QStringLiteral("Right-click: options | Alt+T Toggle position"),
         this);
     subtitleLabel_->setAlignment(Qt::AlignCenter);
     subtitleLabel_->setWordWrap(true);
@@ -392,17 +389,8 @@ void OverlayWindow::setupUi()
 
 void OverlayWindow::setupHotkeys()
 {
-    auto *fastShortcut = new QShortcut(QKeySequence(QStringLiteral("Alt+1")), this);
-    auto *balancedShortcut = new QShortcut(QKeySequence(QStringLiteral("Alt+2")), this);
-    auto *cleanShortcut = new QShortcut(QKeySequence(QStringLiteral("Alt+3")), this);
     auto *positionToggleShortcut = new QShortcut(QKeySequence(QStringLiteral("Alt+T")), this);
 
-    connect(fastShortcut, &QShortcut::activated, this,
-            [this]() { applyNoiseProfile(NoiseProfile::Fast); });
-    connect(balancedShortcut, &QShortcut::activated, this,
-            [this]() { applyNoiseProfile(NoiseProfile::Balanced); });
-    connect(cleanShortcut, &QShortcut::activated, this,
-            [this]() { applyNoiseProfile(NoiseProfile::Clean); });
     connect(positionToggleShortcut, &QShortcut::activated, this, [this]() {
         resultPosition_ = (resultPosition_ == ResultPosition::AboveSource)
                               ? ResultPosition::BelowSource
@@ -505,30 +493,6 @@ void OverlayWindow::showPositionMenu(const QPoint &globalPos)
     belowAction->setCheckable(true);
     belowAction->setChecked(resultPosition_ == ResultPosition::BelowSource);
 
-    QMenu *profileMenu = menu.addMenu(QStringLiteral("Noise Profile"));
-    QAction *fastAction = profileMenu->addAction(QStringLiteral("Fast  (Alt+1)"));
-    fastAction->setCheckable(true);
-    fastAction->setChecked(noiseProfile_ == NoiseProfile::Fast);
-
-    QAction *balancedAction = profileMenu->addAction(QStringLiteral("Balanced  (Alt+2)"));
-    balancedAction->setCheckable(true);
-    balancedAction->setChecked(noiseProfile_ == NoiseProfile::Balanced);
-
-    QAction *cleanAction = profileMenu->addAction(QStringLiteral("Clean  (Alt+3)"));
-    cleanAction->setCheckable(true);
-    cleanAction->setChecked(noiseProfile_ == NoiseProfile::Clean);
-
-    QMenu *backendMenu = menu.addMenu(QStringLiteral("Translation Backend"));
-    QAction *localBackendAction =
-        backendMenu->addAction(QStringLiteral("Local Llama (Qwen2.5 7B)"));
-    localBackendAction->setCheckable(true);
-    localBackendAction->setChecked(translateClient_.backend() == TranslateClient::Backend::Local);
-
-    QAction *googleBackendAction =
-        backendMenu->addAction(QStringLiteral("Google Translate API"));
-    googleBackendAction->setCheckable(true);
-    googleBackendAction->setChecked(translateClient_.backend() == TranslateClient::Backend::GoogleApi);
-
     menu.addSeparator();
     QAction *togglePositionAction = menu.addAction(QStringLiteral("Toggle Position (Alt+T)"));
 
@@ -558,20 +522,6 @@ void OverlayWindow::showPositionMenu(const QPoint &globalPos)
         appendSubtitleLog(QStringLiteral("POSITION_CHANGED"), QStringLiteral("menu-toggle"),
                           resultPosition_ == ResultPosition::AboveSource ? QStringLiteral("Above")
                                                                          : QStringLiteral("Below"));
-    } else if (picked == fastAction) {
-        applyNoiseProfile(NoiseProfile::Fast);
-    } else if (picked == balancedAction) {
-        applyNoiseProfile(NoiseProfile::Balanced);
-    } else if (picked == cleanAction) {
-        applyNoiseProfile(NoiseProfile::Clean);
-    } else if (picked == localBackendAction) {
-        translateClient_.setBackend(TranslateClient::Backend::Local);
-        appendSubtitleLog(QStringLiteral("TRANSLATE_BACKEND_CHANGED"), QStringLiteral("menu"),
-                          QStringLiteral("local-llama"));
-    } else if (picked == googleBackendAction) {
-        translateClient_.setBackend(TranslateClient::Backend::GoogleApi);
-        appendSubtitleLog(QStringLiteral("TRANSLATE_BACKEND_CHANGED"), QStringLiteral("menu"),
-                          QStringLiteral("google"));
     }
 }
 
@@ -966,45 +916,19 @@ void OverlayWindow::dispatchLatestOcr()
                               Q_ARG(int, inFlightOcrRequestId_));
 }
 
-void OverlayWindow::applyNoiseProfile(NoiseProfile profile)
+void OverlayWindow::applyDefaultNoiseConfig()
 {
-    noiseProfile_ = profile;
-
-    const tuning::NoiseProfileConfig config =
-        (profile == NoiseProfile::Fast)
-            ? tuning::kFastProfile
-            : ((profile == NoiseProfile::Balanced) ? tuning::kBalancedProfile
-                                                   : tuning::kCleanProfile);
-
-    const double changeThreshold = config.changeThreshold;
-    const double minChangedRatio = config.minChangedRatio;
-    const double minStdDev = config.minStdDev;
-    minOcrLength_ = config.minOcrLength;
-    minCandidateStableMs_ = config.minCandidateStableMs;
+    minOcrLength_ = tuning::kMinOcrLength;
+    minCandidateStableMs_ = tuning::kMinCandidateStableMs;
     candidateText_.clear();
     candidateFrequency_.clear();
 
     if (captureWorker_) {
         QMetaObject::invokeMethod(captureWorker_, "setNoiseParams", Qt::QueuedConnection,
-                                  Q_ARG(double, changeThreshold), Q_ARG(double, minChangedRatio),
-                                  Q_ARG(double, minStdDev));
+                                  Q_ARG(double, tuning::kChangeThreshold),
+                                  Q_ARG(double, tuning::kMinChangedRatio),
+                                  Q_ARG(double, tuning::kMinStdDev));
     }
-
-    appendSubtitleLog(QStringLiteral("PROFILE_CHANGED"), noiseProfileName(profile),
-                      QStringLiteral("len=%1 repeat=%2")
-                          .arg(minOcrLength_)
-                          .arg(minCandidateStableMs_));
-}
-
-QString OverlayWindow::noiseProfileName(NoiseProfile profile) const
-{
-    if (profile == NoiseProfile::Fast) {
-        return QStringLiteral("Fast");
-    }
-    if (profile == NoiseProfile::Balanced) {
-        return QStringLiteral("Balanced");
-    }
-    return QStringLiteral("Clean");
 }
 
 void OverlayWindow::enqueueTranslation(const QString &translatedText, const QString &sourceText)

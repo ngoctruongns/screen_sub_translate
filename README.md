@@ -1,15 +1,29 @@
 # ScreenSubTranslator
 
-ScreenSubTranslator is a Qt6 desktop overlay tool that captures subtitle area on screen, runs local Chinese OCR with Paddle-style ONNX model in C++, translates text to Vietnamese, and renders translation over the video.
+ScreenSubTranslator is a Qt6 desktop overlay tool that captures an on-screen subtitle zone, runs local Chinese OCR with Paddle-style ONNX models in C++, translates to Vietnamese using a local LLM endpoint (llama.cpp/Ollama/OpenAI-compatible local API), and renders the translation over video in near real time.
+
+## Demo (Placeholder - Add Media Later)
+
+Use this section as the fixed place to add your demo assets.
+
+### Screenshot
+
+<!-- Replace with your real screenshot path -->
+![Demo Screenshot Placeholder](test/image/README_DEMO_PLACEHOLDER.png)
+
+### Video
+
+<!-- Replace with your real video URL or local file link -->
+[Demo Video Placeholder](https://example.com/replace-with-your-demo-video)
 
 ## Architecture
 
-- Qt6 overlay window (transparent, always-on-top, draggable, resizable)
-- Capture worker in dedicated thread
-- OCR worker in dedicated thread
+- Qt6 transparent overlay window (always-on-top, draggable, resizable)
+- Capture worker in a dedicated thread
+- OCR worker in a dedicated thread
 - OCR engine: ONNX Runtime C++ API (no Python, no Tesseract)
-- Translation client: switchable backend (local Llama/Ollama model or Google Translate API)
-- Runtime subtitle logs: `subtitle_log.txt`
+- Translation client: local LLM HTTP API only
+- Runtime subtitle logs: `test/subtitle_log.txt`
 
 ### End-to-End Pipeline (Capture -> OCR -> Translate -> Render)
 
@@ -18,115 +32,82 @@ flowchart LR
   A[Capture subtitle zone from screen] --> B[Preprocess image]
   B --> C[OCR infer with ONNX Runtime]
   C --> D[Filter and stabilize OCR text]
-  D --> E[Translate Chinese -> Vietnamese]
+  D --> E[Translate Chinese -> Vietnamese via local LLM API]
   E --> F[Render translated subtitle in overlay]
   F --> G[Write runtime logs]
 ```
 
 Pipeline notes:
 
-- Image preprocessing now includes text-region crop + aspect-ratio-preserving resize + padding to OCR input size.
-- OCR text is accepted only when debounce/stability gates pass (minimum length, repeat count, time gap).
-- Noise profile parameters (`Fast`, `Balanced`, `Clean`) are centralized in `src/tuning_params.h`.
+- Image preprocessing includes text-region crop + aspect-ratio-preserving resize + padding to OCR input size.
+- OCR text is accepted only when debounce/stability gates pass (length, stable time, seen frames).
+- OCR noise-gate parameters are centralized in `src/tuning_params.h` (single fixed configuration, currently aligned with the previous Balanced tuning).
 - Subtitle dedupe gate suppresses repeated dispatch while the same subtitle is still on screen.
-- Translation is async and stale/error events are logged to keep overlay responsive.
-- Translations are buffered in a **display queue** and shown sequentially with per-entry timing. Stale or overflowing entries are dropped automatically.
+- Translation is async; stale/error events are handled without freezing the overlay.
+- Translations are buffered in a display queue and shown sequentially with per-entry timing.
 
 ## Features
 
 - Red scan frame with drag/resize from edges and corners
 - Translation bubble auto-resizes and stays inside frame
 - Translation placement selectable above or below source subtitle
-- Adaptive capture loop for low latency
+- Adaptive capture loop for lower latency
 - Noise filtering (frame diff ratio + contrast gate)
 - OCR debounce and stabilization filters
-- Right-click profile menu: Fast, Balanced, Clean
+- Right-click menu:
+  - Translation Position (above/below)
 - Hotkeys:
-  - `Alt+1`: Fast
-  - `Alt+2`: Balanced
-  - `Alt+3`: Clean
   - `Alt+T`: toggle translation position
-- Default startup profile: `Balanced`
+- Fixed OCR noise configuration at startup (equivalent to previous Balanced values)
 
 ## Requirements
 
-- Ubuntu Linux
+- Linux desktop environment (tested on Ubuntu)
 - CMake 3.16+
 - C++17 compiler
 - Qt6 Widgets + Concurrent + Network
 - OpenCV 4.x
-- ONNX Runtime C++ (required)
-- NVIDIA driver + CUDA + cuDNN (required for GPU OCR)
+- ONNX Runtime C++
+- SentencePiece C++ library (`libsentencepiece-dev`)
+- NVIDIA driver + CUDA + cuDNN (required only if you enable CUDA OCR provider)
 
-## Install System Dependencies
+## Install System Dependencies (Ubuntu)
 
 ```bash
 sudo apt update
 sudo apt install -y build-essential cmake git wget tar
-sudo apt install -y qt6-base-dev
-sudo apt install -y libopencv-dev
+sudo apt install -y qt6-base-dev libopencv-dev libsentencepiece-dev
 ```
 
-## Install NVIDIA Driver + CUDA + cuDNN (RTX4060)
+## Install ONNX Runtime C++
 
-1. Verify GPU:
+1. Download ONNX Runtime Linux package (CPU or GPU) from official releases.
+2. Extract to a fixed directory, for example `/opt/onnxruntime-linux-x64-gpu`.
+3. Export root path for CMake discovery:
 
 ```bash
-nvidia-smi
+export ONNXRUNTIME_ROOT=/opt/onnxruntime-linux-x64-gpu
 ```
 
-1. Install NVIDIA driver (if missing):
+(Optional) persist in shell profile:
 
 ```bash
-sudo ubuntu-drivers autoinstall
-sudo reboot
+echo 'export ONNXRUNTIME_ROOT=/opt/onnxruntime-linux-x64-gpu' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-1. Install CUDA Toolkit (example for Ubuntu official repo flow):
-
-```bash
-sudo apt install -y nvidia-cuda-toolkit
-```
-
-1. Install cuDNN package compatible with your CUDA version.
-
-Note: exact package name depends on your CUDA version and repo configuration. After install, verify libraries exist:
-
-```bash
-ls /usr/lib/x86_64-linux-gnu/libcudnn* || true
-```
-
-## Install ONNX Runtime C++ (GPU build)
-
-1. Download ONNX Runtime Linux x64 GPU package from official releases.
-1. Extract it, for example to `/opt/onnxruntime-linux-x64-gpu`.
-
-Example:
-
-```bash
-cd /tmp
-# Replace URL with the exact version you want.
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.18.1/onnxruntime-linux-x64-gpu-1.18.1.tgz
-tar -xzf onnxruntime-linux-x64-gpu-1.18.1.tgz
-sudo mv onnxruntime-linux-x64-gpu-1.18.1 /opt/onnxruntime-linux-x64-gpu
-```
-
-1. Export runtime library path:
+If you use GPU package, also export runtime library path:
 
 ```bash
 export LD_LIBRARY_PATH=/opt/onnxruntime-linux-x64-gpu/lib:$LD_LIBRARY_PATH
 ```
 
-To persist it:
+## Prepare OCR Model Files
 
-```bash
-echo 'export LD_LIBRARY_PATH=/opt/onnxruntime-linux-x64-gpu/lib:$LD_LIBRARY_PATH' >> ~/.zshrc
-source ~/.zshrc
-```
+The `models/` directory is intentionally gitignored, so model files are not included in this repository.
+You must download and place PaddleOCR model assets manually before running the app.
 
-## Prepare Paddle OCR ONNX Models
-
-Put model files in:
+Place OCR model assets at:
 
 ```text
 models/paddle/
@@ -134,64 +115,75 @@ models/paddle/
 └── ppocr_keys_v1.txt
 ```
 
-Current engine uses recognizer model + charset file. Paths are configured in `src/tuning_params.h`.
-
-## Prepare Local llama.cpp Translation Backend (zh -> vi)
-
-Run `llama-server` with your GGUF Qwen model.
+Create the directory:
 
 ```bash
-# Example path, change to your actual model file.
+mkdir -p models/paddle
+```
+
+Download model files:
+
+1. Download PaddleOCR recognition ONNX model (`ch_PP-OCRv4_rec_infer.onnx`).
+2. Download matching character dictionary (`ppocr_keys_v1.txt`).
+
+You can obtain both files from PaddleOCR official release resources or trusted mirrors, then copy them into `models/paddle/`.
+
+Quick verification:
+
+```bash
+ls -lh models/paddle/ch_PP-OCRv4_rec_infer.onnx models/paddle/ppocr_keys_v1.txt
+```
+
+Default paths are configured in `src/tuning_params.h`.
+
+## Prepare Local Translation Backend (Required)
+
+The app now uses local translation only.
+
+### Option A: llama.cpp server
+
+```bash
 ~/llama.cpp/build/bin/llama-server \
   -m /path/to/Qwen2.5-7B-Instruct-Q4_K_M.gguf \
   --host 127.0.0.1 --port 8080 \
   -ngl 99
 ```
 
-Quick endpoint check (`llama.cpp` native completion API):
+Health check:
 
 ```bash
 curl http://127.0.0.1:8080/health
 ```
 
-Optional runtime overrides:
+### Option B: Ollama
+
+Run Ollama separately (default port `11434`), then set API mode/base URL accordingly.
+
+### Option C: OpenAI-compatible local endpoint
+
+Use any local server exposing `/v1/chat/completions`.
+
+### Runtime environment overrides
 
 ```bash
 export SST_LLAMA_BASE_URL=http://127.0.0.1:8080
 export SST_LLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M
 export SST_LLM_API=llamacpp   # auto | llamacpp | openai | ollama
+export SST_TRANSLATE_CONTEXT_FILE=../translate/movie_context.txt
+export SST_TRANSLATE_GLOSSARY_FILE=../translate/glossary.json
 ```
 
-Current defaults in `src/tuning_params.h` target llama.cpp server.
+`SST_LLM_API=auto` resolution behavior:
 
-Local translation guardrails:
-
-- The llama.cpp request avoids single-newline stop tokens to reduce empty first-token outputs.
-- Retry passes are enabled by default (`kEnableRetryPasses = true`) to rescue empty or suspicious drafts.
-- When a local output becomes empty after sanitization, runtime log now includes source/raw snippets for faster diagnosis.
-- Trailing punctuation artifacts from model output (for example `。 ：`) are trimmed before display/logging.
-
-## Translation Backend Switch
-
-You can switch translation backend at runtime from right-click menu:
-You can switch translation backend at runtime from right-click menu:
-
-- `Translation Backend -> Local Llama (Qwen2.5 7B)`
-- `Translation Backend -> Google Translate API`
-
-You can also choose startup backend by env var:
-
-```bash
-export SST_TRANSLATE_BACKEND=google   # or local
-```
-
-If you keep `local` backend (default), the app calls the local LLM endpoint configured by `SST_LLAMA_BASE_URL`, `SST_LLAMA_MODEL`, and `SST_LLM_API`.
+- Base URL contains `:11434` or `/api` -> treat as Ollama API
+- Base URL contains `/v1` -> treat as OpenAI-compatible API
+- Otherwise -> treat as llama.cpp completion API
 
 ## Glossary For Proper Names (Han-Viet)
 
-To make person/place names more stable (for example `Guangxi -> Quảng Tây`, `Chongqing -> Trùng Khánh`, `田汉 -> Điền Hán`), use `translate/glossary.json` with canonical targets and aliases.
+To stabilize person/place names (for example `Guangxi -> Quảng Tây`, `Chongqing -> Trùng Khánh`, `田汉 -> Điền Hán`), use `translate/glossary.json`.
 
-Supported formats:
+Supported format:
 
 ```json
 {
@@ -214,93 +206,87 @@ Supported formats:
 
 Behavior:
 
-- `glossary` entries are injected into the LLM prompt as term hints.
-- Alias rules are also applied after model output sanitization, so Latin/Pinyin variants in generated text are normalized before display.
-- You do not need to add every word. Focus on recurring proper nouns (people, places, military titles, organizations).
+- Glossary entries are injected into LLM prompt context.
+- Alias normalization is applied after translation sanitization.
+- Longer aliases are prioritized first to reduce partial replacement issues.
+
+## Translation Guardrails (Current)
+
+Implemented in `src/translate_client.cpp`:
+
+- Reject obvious non-Chinese OCR candidates before translation request.
+- Sanitize raw model output (labels, Han remnants, punctuation noise, spacing noise).
+- Post-process noisy artifacts from local LLM generations.
+- Reject suspicious outputs:
+  - English-heavy output
+  - Over-expanded translation for very short source phrase
+  - Suspiciously short translation
+- Force one complete-line retry when first output is suspiciously short.
+- Optional additional repair/rescue passes are controlled by `kEnableRetryPasses`.
+
+Current default in `src/tuning_params.h`:
+
+- `kEnableRetryPasses = false`
 
 ## Translation Display Queue
 
-Translated subtitles are buffered in an internal queue and rendered sequentially to keep display timing close to the original source subtitle appearance.
+Translated subtitles are buffered and rendered sequentially to preserve timing quality.
 
-### How it works
+How it works:
 
-1. Each completed translation is **enqueued** with an arrival timestamp.
-2. A `QTimer` fires every `kDisplayTickMs` ms and calls `tickDisplayQueue()`.
-3. Each entry is shown for a duration computed as:
+1. Each completed translation is enqueued with timestamp.
+2. `tickDisplayQueue()` runs every `kDisplayTickMs`.
+3. Display duration per entry:
 
-$$\text{duration} = \text{clamp}\!\left(\text{kDisplayBaseMs} + \text{charCount} \times \text{kDisplayMsPerChar},\ \text{kDisplayMinMs},\ \text{kDisplayMaxMs}\right)$$
+$$
+\text{duration} = \text{clamp}\left(\text{kDisplayBaseMs} + \text{charCount} \times \text{kDisplayMsPerChar},\ \text{kDisplayMinMs},\ \text{kDisplayMaxMs}\right)
+$$
 
-4. When an entry has been in the queue longer than `kDisplayMaxLatencyMs`, it is **dropped** to avoid showing stale translations.
-5. If the queue overflows (`≥ kDisplayQueueMaxSize`), it is **cleared entirely** so that the latest translation is shown immediately.
-6. When both the queue is empty and the source Chinese subtitle has disappeared, the overlay is **cleared**.
+4. Stale queue entries (`> kDisplayMaxLatencyMs`) are dropped.
+5. If queue size reaches `kDisplayQueueMaxSize`, queue is flushed to prioritize newest subtitle.
+6. When queue is empty and source subtitle has disappeared, overlay is cleared.
 
-### Config parameters (`src/tuning_params.h`)
+Current defaults (`src/tuning_params.h`):
 
 | Parameter | Default | Description |
 | --- | --- | --- |
-| `kDisplayMinMs` | 600 ms | Minimum display duration per entry |
-| `kDisplayMaxMs` | 4000 ms | Maximum display duration per entry |
-| `kDisplayBaseMs` | 300 ms | Base duration before per-character contribution |
-| `kDisplayMsPerChar` | 75 ms | Added ms per displayed character |
+| `kDisplayMinMs` | 300 ms | Minimum display duration per entry |
+| `kDisplayMaxMs` | 3000 ms | Maximum display duration per entry |
+| `kDisplayBaseMs` | 250 ms | Base duration before per-character contribution |
+| `kDisplayMsPerChar` | 70 ms | Added ms per displayed character |
 | `kDisplayMaxLatencyMs` | 2500 ms | Drop entry if queued longer than this |
 | `kDisplayQueueMaxSize` | 5 | Max queue depth before overflow flush |
 | `kDisplayTickMs` | 60 ms | Display timer interval |
 
-## Configure Model Paths
-
-Edit `src/tuning_params.h`:
-
-- `kPaddleRecOnnxPath`
-- `kPaddleCharsetPath`
-- `kUseCudaExecutionProvider`
-
-Default values are relative to executable folder.
-
 ## Build
 
-By default, CMake configures a `Release` build when `CMAKE_BUILD_TYPE` is not specified. This is the recommended mode for normal use because it enables compiler optimizations and keeps capture/OCR latency lower.
+By default, CMake sets `Release` if `CMAKE_BUILD_TYPE` is not specified.
 
 ```bash
 mkdir -p build
 cd build
-cmake .. \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DONNXRUNTIME_INCLUDE_DIR=/opt/onnxruntime-linux-x64-gpu/include \
-  -DONNXRUNTIME_LIBRARY=/opt/onnxruntime-linux-x64-gpu/lib/libonnxruntime.so
+cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j"$(nproc)"
 ```
 
-For debugging, configure a separate debug build directory:
-
-```bash
-mkdir -p build-debug
-cd build-debug
-cmake .. \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DONNXRUNTIME_INCLUDE_DIR=/opt/onnxruntime-linux-x64-gpu/include \
-  -DONNXRUNTIME_LIBRARY=/opt/onnxruntime-linux-x64-gpu/lib/libonnxruntime.so
-cmake --build . -j"$(nproc)"
-```
-
-To save CaptureWorker preprocessed OCR input images during runtime, enable the optional debug-image flag. Keep this disabled for normal use because writing PNG files can noticeably affect capture performance.
+Optional debug-image capture build:
 
 ```bash
 mkdir -p build-debug-images
 cd build-debug-images
 cmake .. \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DSST_ENABLE_CAPTURE_DEBUG_IMAGES=ON \
-  -DONNXRUNTIME_INCLUDE_DIR=/opt/onnxruntime-linux-x64-gpu/include \
-  -DONNXRUNTIME_LIBRARY=/opt/onnxruntime-linux-x64-gpu/lib/libonnxruntime.so
+  -DSST_ENABLE_CAPTURE_DEBUG_IMAGES=ON
 cmake --build . -j"$(nproc)"
 ```
 
-Useful CMake build options:
+Useful CMake options:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `CMAKE_BUILD_TYPE` | `Release` | Single-config build mode. Common values are `Debug`, `Release`, `RelWithDebInfo`, and `MinSizeRel`. |
-| `SST_ENABLE_CAPTURE_DEBUG_IMAGES` | `OFF` | Defines `ENABLE_CAPTURE_DEBUG_IMAGES` for `ScreenSubTranslator`, enabling runtime saving of CaptureWorker preprocessed debug images. |
+| `CMAKE_BUILD_TYPE` | `Release` | Build mode (`Debug`, `Release`, `RelWithDebInfo`, `MinSizeRel`) |
+| `SST_ENABLE_CAPTURE_DEBUG_IMAGES` | `OFF` | Save CaptureWorker debug preprocessed images at runtime |
+| `ONNXRUNTIME_ROOT` (env) | empty | Root path used by CMake to locate ONNX Runtime |
 
 ## Run
 
@@ -309,18 +295,18 @@ cd build
 ./ScreenSubTranslator
 ```
 
-## Validate CUDA OCR Runtime
+## Validate CUDA OCR Runtime (Optional)
 
-When GPU provider is correctly available, ONNX Runtime will use CUDA EP when `kUseCudaExecutionProvider = true`.
+When `kUseCudaExecutionProvider = true`, OCR engine attempts CUDA EP first.
 
-Quick sanity checks:
+Quick checks:
 
 ```bash
 nvidia-smi
 ldd ./ScreenSubTranslator | grep onnxruntime
 ```
 
-If CUDA provider is unavailable, app falls back to CPU and prints a warning.
+If CUDA EP is unavailable, runtime falls back to CPU with warning logs.
 
 ## OCR Batch Evaluation
 
@@ -329,41 +315,20 @@ cd build
 ./OcrBatchEval
 ```
 
-Evaluator reads:
+`OcrBatchEval` uses paths relative to the build directory:
 
-- labels: `../image/image_sub.txt`
-- images: all `imageX` entries found in label file (for example `image1.png` ... `image6.png`)
-- debug outputs: `../image/debug_preprocessed/imageX_prepared.png`
+- image directory: `../test/image`
+- zh labels: `../test/image/image_sub.txt`
+- vi labels (optional): `../test/image/image_sub_vi.txt`
+- debug preprocessed output: `../test/image/debug_preprocessed`
+- translation report: `../test/image/translation_eval.txt`
 
-### Labeled Sample Evaluation (2026-06-24)
+Important note:
 
-Dataset source:
+- `OcrBatchEval` currently uses legacy ONNX translator assets from `../models/translate` (`encoder_model.onnx`, `decoder_model.onnx`, `source.spm`, `target.spm`, `vocab.json`).
+- This is separate from runtime overlay translation, which now uses local LLM HTTP API.
 
-- labels: `image/image_sub.txt`
-- samples: all labeled images in `image/image_sub.txt` (`image1.png` ... `image8.png` at the time of this run)
-
-Exact-match OCR result (after whitespace normalization):
-
-| Image | Ground truth | OCR output | Match |
-| --- | --- | --- | --- |
-| image1 | 老师老师 | 老师老师 | YES |
-| image2 | 同志们当这个城市在进行着 | 同志们当这个城市在进行着 | YES |
-| image3 | 有秩序的撤退的时候 | 有秩序的撤退的时候 | YES |
-| image4 | 是你们依然坚持在这里 | 是你们依然坚持在这里 | YES |
-| image5 | 当这个城市 | 当这个城市 | YES |
-| image6 | 日军企图不费大力 | 日军企图不费大力 | YES |
-| image7 | 四个多月的时间 | 四个多月的时间 | YES |
-| image8 | 和数万士兵的生命换来的 | 和数万士兵的生命换来的 | YES |
-| image9 | 这样做是否会引起民怨 | 这样做是否会引起民怨 | YES |
-| image10 | 好的另外我还想问一下 | 好的另外我还想问一下 | YES |
-
-Summary:
-
-- Exact match: **10/10**
-- Exact-match accuracy: **100.00%**
-- Result command: `cd build && ./OcrBatchEval`
-
-### Current Tool Flow
+## Current Runtime Flow
 
 ```mermaid
 flowchart TD
@@ -373,99 +338,88 @@ flowchart TD
   B --> D[Grab scan-zone frame]
   D --> E[Change detection and noise gate]
   E -->|No meaningful change| D
-  E -->|Changed enough| F[Preprocess: blur, scale x2.6, normalize]
+  E -->|Changed enough| F[Preprocess frame]
   F --> G[Emit processed frame]
 
-  G --> H[OverlayWindow queues latest request]
+  G --> H[OverlayWindow queues latest OCR request]
   H --> I[OcrWorker.processImage]
   I --> J[ONNX OCR infer]
-  J --> K{OCR accepted?\nlen + repeat + gap}
+  J --> K{OCR accepted?\nlen + stable time + frame count}
   K -->|No| H
   K -->|Yes| L{Same subtitle still visible?}
   L -->|Yes| H
   L -->|No| M[Log OCR_DETECTED]
-  M --> N[TranslateClient request\nSelected backend: Local or Google API]
+  M --> N[TranslateClient request\nlocal LLM endpoint]
   N --> O{Translation ready?}
   O -->|No| P[Log TRANSLATE_ERROR]
-  O -->|Yes| Q[Enqueue to translation display queue]
+  O -->|Yes| Q[Enqueue translation display queue]
   Q --> R{Display timer tick 60ms}
-  R -->|Entry expired or queue empty + source gone| S[Clear overlay]
-  R -->|Next entry ready| T[Show entry for computed duration\nclamp to Min/Max display time]
+  R -->|Entry stale or queue empty + source gone| S[Clear overlay]
+  R -->|Entry ready| T[Show entry for computed duration]
   T --> D
 ```
-
-Batch evaluator flow (`OcrBatchEval`): load Chinese labels -> read each labeled image -> preprocess -> OCR -> normalize/compare -> run local zh->vi translation -> print per-image OCR and translation output -> print summary and write translation report.
-
-Translation evaluation outputs:
-
-- report file: `image/translation_eval.txt`
-- optional Vietnamese labels file for exact-match scoring: `image/image_sub_vi.txt`
-
-When `image/image_sub_vi.txt` exists (format identical to `image/image_sub.txt`), evaluator also prints:
-
-- `VI exact match (from OCR)`
-- `VI exact match (from GT)`
 
 ## File Responsibilities
 
 | File | Responsibility |
 | --- | --- |
 | `main.cpp` | Create `QApplication`, start `OverlayWindow`, run app loop |
-| `src/overlay_window.h/.cpp` | UI overlay, drag/resize scan frame, worker thread wiring, OCR acceptance gate, translation display/logging |
-| `src/capture_worker.h/.cpp` | Grab screen region, detect meaningful frame change, preprocess grayscale frame before OCR |
-| `src/ocr_worker.h/.cpp` | Worker-thread bridge: receive preprocessed frame, call OCR engine, emit result/error |
-| `src/ocr_engine.h/.cpp` | ONNX Runtime session, Paddle charset loading, OCR infer, text normalization |
-| `src/translate_client.h/.cpp` | Async Chinese->Vietnamese translation with runtime switch between local ONNX and Google API |
-| `src/tuning_params.h` | Central tuning constants (model paths, OCR input size, per-profile thresholds, debounce values, subtitle dedupe timing, translation display queue parameters) |
-| `tools/ocr_batch_eval.cpp` | Offline evaluator for labeled samples in `image/`, prints per-image match and summary |
-| `image/image_sub.txt` | Ground-truth subtitle labels for batch OCR evaluation |
-| `image/debug_preprocessed/` | Saved preprocessed images for debugging OCR input quality |
+| `src/overlay_window.h/.cpp` | Overlay UI, drag/resize scan frame, worker wiring, OCR acceptance gate, translation queue display, runtime logging |
+| `src/capture_worker.h/.cpp` | Capture scan region, change/noise gate, preprocess image for OCR |
+| `src/ocr_worker.h/.cpp` | Worker-thread bridge: receive frame, call OCR engine, emit result/error |
+| `src/ocr_engine.h/.cpp` | ONNX Runtime OCR session, charset loading, inference, text normalization |
+| `src/translate_client.h/.cpp` | Async Chinese->Vietnamese translation through local LLM HTTP API (llama.cpp/Ollama/OpenAI-compatible local endpoint) |
+| `src/tuning_params.h` | Central tuning constants (OCR, profiles, dedupe, translation queue, local LLM defaults) |
+| `tools/ocr_batch_eval.cpp` | Offline OCR + translation evaluator for labeled samples in `test/image` |
+| `translate/glossary.json` | Glossary and alias normalization rules for proper names |
+| `translate/movie_context.txt` | Optional movie context injected into translation prompts |
 
 ## Logging
 
-Runtime logs are written to:
+Runtime log file:
 
-- `build/subtitle_log.txt`
+- `test/subtitle_log.txt`
 
-Log event types:
+Main log event types currently emitted:
 
 | Event | Description |
 | --- | --- |
 | `SESSION_START` | Application started |
-| `PROFILE_CHANGED` | Noise profile switched |
-| `OCR_CAP-->` | Raw OCR frame captured |
-| `OCR_REJECTED` | OCR result rejected (insufficient Han chars) |
-| `OCR_ROLLBACK` | Candidate rolled back to previous best |
-| `OCR_DETECTED` | OCR text accepted and dispatched for translation |
-| `TRANSLATED` | Translation received from backend |
-| `TRANSLATED_STALE` | Translation arrived for a source that is no longer current |
-| `TRANSLATE_ERROR` | Translation backend error |
-| `DISPLAY_ENQUEUED` | Translation added to display queue |
-| `DISPLAY_SHOW` | Translation dequeued and shown on overlay |
-| `DISPLAY_DROPPED_STALE` | Entry removed from queue (exceeded max latency) |
-| `DISPLAY_QUEUE_OVERFLOW` | Queue was full; cleared to prioritize latest entry |
-| `DISPLAY_CLEARED` | Overlay cleared after source subtitle disappeared and queue is empty |
+| `OCR_DETECTED` | OCR candidate accepted and dispatched to translator |
+| `OCR_ROLLBACK` | Candidate fallback to stronger OCR variant |
+| `OCR_ERROR` | OCR worker error |
+| `TRANSLATED` | Translation received |
+| `TRANSLATE_ERROR` | Translation failure/rejection |
+| `POSITION_CHANGED` | Translation position changed from menu |
+| `POSITION_TOGGLED` | Translation position toggled by hotkey |
+| `DISPLAY_DROPPED_STALE` | Queue entry dropped due to max latency |
+| `DISPLAY_CLEARED` | Overlay cleared when source gone and queue empty |
 
-## Project Structure
+## Project Structure (Current Workspace)
 
 ```text
 screen_sub_translate/
 ├── CMakeLists.txt
 ├── main.cpp
 ├── README.md
-├── models/
-│   ├── paddle/
-│   └── translate/
-└── src/
-    ├── capture_worker.h
-    ├── capture_worker.cpp
-    ├── ocr_engine.h
-    ├── ocr_engine.cpp
-    ├── ocr_worker.h
-    ├── ocr_worker.cpp
-    ├── overlay_window.h
-    ├── overlay_window.cpp
-    ├── translate_client.h
-    ├── translate_client.cpp
-    └── tuning_params.h
+├── src/
+│   ├── capture_worker.h
+│   ├── capture_worker.cpp
+│   ├── ocr_engine.h
+│   ├── ocr_engine.cpp
+│   ├── ocr_worker.h
+│   ├── ocr_worker.cpp
+│   ├── overlay_window.h
+│   ├── overlay_window.cpp
+│   ├── translate_client.h
+│   ├── translate_client.cpp
+│   └── tuning_params.h
+├── test/
+│   ├── subtitle_log.txt
+│   ├── terminal_log.txt
+│   ├── video_test_sub.txt
+│   └── image/
+└── translate/
+    ├── glossary.json
+    └── movie_context.txt
 ```
