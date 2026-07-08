@@ -4,7 +4,6 @@
 #include <QObject>
 #include <QRect>
 
-#include <algorithm>
 #include <atomic>
 
 #include <opencv2/core.hpp>
@@ -30,14 +29,20 @@ signals:
     void imageProcessed(const cv::Mat &processedImg);
 
 private:
-    cv::Mat grabGrayFrame() const;
-    cv::Mat preprocessForOcr(const cv::Mat &grayFrame) const;
+    struct WorkerParams
+    {
+        QRect scanZone;
+        double changeThreshold = tuning::kChangeThreshold;
+        double minChangedRatio = tuning::kMinChangedRatio;
+        double minStdDev = tuning::kMinStdDev;
+    };
 
-    QRect scanZone_;
-    mutable QMutex zoneMutex_;
+    WorkerParams paramsSnapshot() const;
+    cv::Mat grabGrayFrame(const QRect &zone) const;
+    cv::Mat preprocessForOcr(const cv::Mat &grayFrame, double minStdDev) const;
+
+    mutable QMutex paramsMutex_;
+    WorkerParams params_;
     std::atomic_bool running_{false};
     cv::Mat previousSmallGray_;
-    double changeThreshold_ = tuning::kChangeThreshold;
-    double minChangedRatio_ = tuning::kMinChangedRatio;
-    double minStdDev_ = tuning::kMinStdDev;
 };

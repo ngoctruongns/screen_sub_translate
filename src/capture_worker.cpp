@@ -1,78 +1,87 @@
 #include "capture_worker.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QGuiApplication>
 #include <QImage>
 #include <QMutexLocker>
 #include <QPixmap>
 #include <QScreen>
-#include <QThread>
-#include <QDateTime>
+
+#ifdef ENABLE_CAPTURE_DEBUG_IMAGES
 #include <QDir>
-#include <QDebug>
+#include <opencv2/imgcodecs.hpp>
+#endif
+
+#include <algorithm>
+#include <cmath>
 
 #include <opencv2/imgproc.hpp>
-#include <opencv2/imgcodecs.hpp>
+
+namespace
+{
+constexpr double kSmallFrameScale = 0.25;
+constexpr double kDiffPixelThreshold = 12.0;
+constexpr double kOcrResizeScale = 2.6;
+constexpr double kClaheClipLimit = 2.0;
+constexpr int kClaheTileSize = 8;
+constexpr int kDebugSaveEveryNFrames = 10;
+constexpr int kDebugCleanupEveryNSaves = 10;
+
+double sanitizeNonNegative(double value, double fallback)
+{
+    return std::isfinite(value) ? std::max(0.0, value) : fallback;
+}
+} // namespace
 
 CaptureWorker::CaptureWorker(const QRect &scanZone, QObject *parent)
-    : QObject(parent), scanZone_(scanZone)
+    : QObject(parent)
 {
+    params_.scanZone = scanZone;
+}
+
+CaptureWorker::WorkerParams CaptureWorker::paramsSnapshot() const
+{
+    QMutexLocker locker(&paramsMutex_);
+    return params_;
 }
 
 void CaptureWorker::start()
 {
-    running_.store(true);
+    if (running_.exchange(true)) {
+        return;
+    }
+
     qint64 lastOcrDispatchMs = 0;
 
     while (running_.load()) {
         const qint64 cycleStart = QDateTime::currentMSecsSinceEpoch();
-        double changeThreshold;
-        double minChangedRatio;
-        {
-            QMutexLocker locker(&zoneMutex_);
-            changeThreshold = changeThreshold_;
-            minChangedRatio = minChangedRatio_;
-        }
-
-        const cv::Mat gray = grabGrayFrame();
+        const WorkerParams params = paramsSnapshot();
+        const cv::Mat gray = grabGrayFrame(params.scanZone);
 
         if (!gray.empty()) {
-
             cv::Mat small;
-            cv::resize(gray, small, cv::Size(), 0.25, 0.25, cv::INTER_AREA);
+            cv::resize(gray, small, cv::Size(), kSmallFrameScale, kSmallFrameScale, cv::INTER_AREA);
 
-            cv::Mat previousSmallCopy;
-            {
-                QMutexLocker locker(&zoneMutex_);
-                previousSmallCopy = previousSmallGray_.clone();
-                previousSmallGray_ = small.clone();
-            }
+            bool shouldRunOcr = previousSmallGray_.empty();
 
-            bool shouldRunOcr = false;
-
-            if (previousSmallCopy.empty()) {
-                // Frame first time
-                shouldRunOcr = true;
-            } else {
-
+            if (!shouldRunOcr) {
                 cv::Mat diff;
-                cv::absdiff(previousSmallCopy, small, diff);
+                cv::absdiff(previousSmallGray_, small, diff);
 
                 const double diffMean = cv::mean(diff)[0];
 
                 cv::Mat diffMask;
-                cv::threshold(diff, diffMask, 12, 255, cv::THRESH_BINARY);
+                cv::threshold(diff, diffMask, kDiffPixelThreshold, 255, cv::THRESH_BINARY);
 
                 const double changedRatio = static_cast<double>(cv::countNonZero(diffMask)) /
                                             static_cast<double>(diffMask.total());
 
-                shouldRunOcr = (diffMean >= changeThreshold) && (changedRatio >= minChangedRatio);
-
-                // qDebug()
-                //     << "diffMean =" << diffMean
-                //     << "changedRatio =" << changedRatio
-                //     << "OCR =" << shouldRunOcr;
+                shouldRunOcr = (diffMean >= params.changeThreshold) &&
+                               (changedRatio >= params.minChangedRatio);
             }
+
+            previousSmallGray_ = std::move(small);
 
             if (!shouldRunOcr) {
                 const bool keepaliveDue =
@@ -82,8 +91,7 @@ void CaptureWorker::start()
             }
 
             if (shouldRunOcr) {
-
-                const cv::Mat processed = preprocessForOcr(gray);
+                const cv::Mat processed = preprocessForOcr(gray, params.minStdDev);
 
                 if (!processed.empty()) {
                     emit imageProcessed(processed);
@@ -93,7 +101,6 @@ void CaptureWorker::start()
         }
 
         const qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - cycleStart;
-
         const int remain = tuning::kCaptureIntervalMs - static_cast<int>(elapsed);
 
         if (remain > 0) {
@@ -102,41 +109,33 @@ void CaptureWorker::start()
         }
     }
 
-    {
-        QMutexLocker locker(&zoneMutex_);
-        previousSmallGray_.release();
-    }
+    previousSmallGray_.release();
     running_.store(false);
 }
 
 void CaptureWorker::stop()
-{ running_.store(false); }
+{
+    running_.store(false);
+}
 
 void CaptureWorker::setScanZone(const QRect &scanZone)
 {
-    QMutexLocker locker(&zoneMutex_);
-    scanZone_ = scanZone;
+    QMutexLocker locker(&paramsMutex_);
+    params_.scanZone = scanZone;
     previousSmallGray_.release();
-    // Log to debug that the scan zone has been updated
-    // qDebug() << "[CaptureWorker] Scan zone updated to:" << scanZone_;
 }
 
 void CaptureWorker::setNoiseParams(double changeThreshold, double minChangedRatio, double minStdDev)
 {
-    QMutexLocker locker(&zoneMutex_);
-    changeThreshold_ = changeThreshold;
-    minChangedRatio_ = minChangedRatio;
-    minStdDev_ = minStdDev;
+    QMutexLocker locker(&paramsMutex_);
+    params_.changeThreshold = sanitizeNonNegative(changeThreshold, tuning::kChangeThreshold);
+    params_.minChangedRatio =
+        std::clamp(std::isfinite(minChangedRatio) ? minChangedRatio : tuning::kMinChangedRatio, 0.0, 1.0);
+    params_.minStdDev = sanitizeNonNegative(minStdDev, tuning::kMinStdDev);
 }
 
-cv::Mat CaptureWorker::grabGrayFrame() const
+cv::Mat CaptureWorker::grabGrayFrame(const QRect &zone) const
 {
-    QRect zone;
-    {
-        QMutexLocker locker(&zoneMutex_);
-        zone = scanZone_;
-    }
-
     if (!zone.isValid() || zone.width() < 2 || zone.height() < 2) {
         return {};
     }
@@ -160,7 +159,7 @@ cv::Mat CaptureWorker::grabGrayFrame() const
     return grayMat.clone();
 }
 
-cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame) const
+cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame, double minStdDev) const
 {
     if (grayFrame.empty()) {
         return {};
@@ -172,31 +171,26 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame) const
 
     // Step 2: Resize to OCR input size
     cv::Mat enlarged;
-    cv::resize(denoised, enlarged, cv::Size(), 2.6, 2.6, cv::INTER_CUBIC);
+    cv::resize(denoised, enlarged, cv::Size(), kOcrResizeScale, kOcrResizeScale, cv::INTER_CUBIC);
 
-    // Step 3: Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
-    // to improve text contrast and visibility
-    cv::Mat claheResult = enlarged.clone();
-    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+    // Step 3: Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to improve text contrast and visibility
+    cv::Mat claheResult;
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(kClaheClipLimit,
+                                               cv::Size(kClaheTileSize, kClaheTileSize));
     clahe->apply(enlarged, claheResult);
 
     // Step 4: Unsharp masking to sharpen text edges
     cv::Mat blurred;
     cv::GaussianBlur(claheResult, blurred, cv::Size(5, 5), 1.0);
-    cv::Mat sharpened = claheResult.clone();
+
+    cv::Mat sharpened;
     cv::addWeighted(claheResult, 1.5, blurred, -0.5, 0, sharpened);
 
     // Step 5: Normalize to standard OCR input range
     cv::Mat normalized;
     cv::normalize(sharpened, normalized, 0, 255, cv::NORM_MINMAX);
 
-    // Step 6: Check standard deviation threshold
-    double minStdDev = minStdDev_;
-    {
-        QMutexLocker locker(&zoneMutex_);
-        minStdDev = minStdDev_;
-    }
-
+    // Step 6: Check standard deviation to filter out low-contrast frames
     cv::Scalar meanVal;
     cv::Scalar stdDev;
     cv::meanStdDev(normalized, meanVal, stdDev);
@@ -205,32 +199,34 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame) const
         return {};
     }
 
-    // Debug: Save preprocessed images for analysis (every 50th frame)
+    // Optional: Save debug images for analysis if enabled with Debug build flag
+#ifdef ENABLE_CAPTURE_DEBUG_IMAGES
     static int frameCounter = 0;
     static int savedCounter = 0;
-    QString debugDir = QString::fromUtf8("test/image/debug_preprocessed");
+    const QString debugDir = QString::fromUtf8("test/image/debug_preprocessed");
+
     QDir dir;
     if (!dir.exists(debugDir)) {
         dir.mkpath(debugDir);
     }
     dir.setPath(debugDir);
 
-    // Remove all old files in the debug directory
-    if (savedCounter % 10 == 0) {
+    if (savedCounter > 0 && savedCounter % kDebugCleanupEveryNSaves == 0) {
         const QStringList oldFiles = dir.entryList(QStringList() << "*.png", QDir::Files);
         for (const QString &file : oldFiles) {
             dir.remove(file);
         }
     }
 
-    if (++frameCounter % 10 == 0) {
+    if (++frameCounter % kDebugSaveEveryNFrames == 0) {
         ++savedCounter;
-        QString filename = QString::fromUtf8("%1/frame_%2_preprocessed.png")
-            .arg(debugDir).arg(frameCounter, 6, 10, QChar('0'));
+        const QString filename = QString::fromUtf8("%1/frame_%2_preprocessed.png")
+            .arg(debugDir)
+            .arg(frameCounter, 6, 10, QChar('0'));
 
         cv::imwrite(filename.toStdString(), normalized);
-        // qDebug() << "[PREPROCESS DEBUG]" << filename << "stdDev=" << stdDev[0];
     }
+#endif
 
-    return normalized.clone();
+    return normalized;
 }

@@ -258,14 +258,49 @@ Default values are relative to executable folder.
 
 ## Build
 
+By default, CMake configures a `Release` build when `CMAKE_BUILD_TYPE` is not specified. This is the recommended mode for normal use because it enables compiler optimizations and keeps capture/OCR latency lower.
+
 ```bash
 mkdir -p build
 cd build
 cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
   -DONNXRUNTIME_INCLUDE_DIR=/opt/onnxruntime-linux-x64-gpu/include \
   -DONNXRUNTIME_LIBRARY=/opt/onnxruntime-linux-x64-gpu/lib/libonnxruntime.so
 cmake --build . -j"$(nproc)"
 ```
+
+For debugging, configure a separate debug build directory:
+
+```bash
+mkdir -p build-debug
+cd build-debug
+cmake .. \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DONNXRUNTIME_INCLUDE_DIR=/opt/onnxruntime-linux-x64-gpu/include \
+  -DONNXRUNTIME_LIBRARY=/opt/onnxruntime-linux-x64-gpu/lib/libonnxruntime.so
+cmake --build . -j"$(nproc)"
+```
+
+To save CaptureWorker preprocessed OCR input images during runtime, enable the optional debug-image flag. Keep this disabled for normal use because writing PNG files can noticeably affect capture performance.
+
+```bash
+mkdir -p build-debug-images
+cd build-debug-images
+cmake .. \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DSST_ENABLE_CAPTURE_DEBUG_IMAGES=ON \
+  -DONNXRUNTIME_INCLUDE_DIR=/opt/onnxruntime-linux-x64-gpu/include \
+  -DONNXRUNTIME_LIBRARY=/opt/onnxruntime-linux-x64-gpu/lib/libonnxruntime.so
+cmake --build . -j"$(nproc)"
+```
+
+Useful CMake build options:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `CMAKE_BUILD_TYPE` | `Release` | Single-config build mode. Common values are `Debug`, `Release`, `RelWithDebInfo`, and `MinSizeRel`. |
+| `SST_ENABLE_CAPTURE_DEBUG_IMAGES` | `OFF` | Defines `ENABLE_CAPTURE_DEBUG_IMAGES` for `ScreenSubTranslator`, enabling runtime saving of CaptureWorker preprocessed debug images. |
 
 ## Run
 
