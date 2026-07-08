@@ -21,9 +21,11 @@ Use this section as the fixed place to add your demo assets.
 - Qt6 transparent overlay window (always-on-top, draggable, resizable)
 - Capture worker in a dedicated thread
 - OCR worker in a dedicated thread
+- Subtitle logger in a dedicated thread
 - OCR engine: ONNX Runtime C++ API (no Python, no Tesseract)
 - Translation client: local LLM HTTP API only
-- Runtime subtitle logs: `test/subtitle_log.txt`
+- Runtime subtitle logs: `test/subtitles/chinese.srt`, `test/subtitles/vietnamese.srt`
+- Debug runtime event log: `test/subtitle_log.txt` (Debug build only)
 
 ### End-to-End Pipeline (Capture -> OCR -> Translate -> Render)
 
@@ -280,6 +282,15 @@ cmake .. \
 cmake --build . -j"$(nproc)"
 ```
 
+Debug build with runtime event log enabled:
+
+```bash
+mkdir -p build-debug
+cd build-debug
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+cmake --build . -j"$(nproc)"
+```
+
 Useful CMake options:
 
 | Option | Default | Description |
@@ -287,6 +298,11 @@ Useful CMake options:
 | `CMAKE_BUILD_TYPE` | `Release` | Build mode (`Debug`, `Release`, `RelWithDebInfo`, `MinSizeRel`) |
 | `SST_ENABLE_CAPTURE_DEBUG_IMAGES` | `OFF` | Save CaptureWorker debug preprocessed images at runtime |
 | `ONNXRUNTIME_ROOT` (env) | empty | Root path used by CMake to locate ONNX Runtime |
+
+Notes:
+
+- `test/subtitles/chinese.srt` and `test/subtitles/vietnamese.srt` are generated in every build type.
+- `test/subtitle_log.txt` is generated only when building with `-DCMAKE_BUILD_TYPE=Debug` on Ubuntu single-config generators such as Ninja or Unix Makefiles.
 
 ## Run
 
@@ -376,9 +392,11 @@ flowchart TD
 
 ## Logging
 
-Runtime log file:
+Runtime log files:
 
-- `test/subtitle_log.txt`
+- `test/subtitles/chinese.srt`
+- `test/subtitles/vietnamese.srt`
+- `test/subtitle_log.txt` (Debug build only)
 
 Main log event types currently emitted:
 
@@ -394,6 +412,8 @@ Main log event types currently emitted:
 | `POSITION_TOGGLED` | Translation position toggled by hotkey |
 | `DISPLAY_DROPPED_STALE` | Queue entry dropped due to max latency |
 | `DISPLAY_CLEARED` | Overlay cleared when source gone and queue empty |
+
+The `.srt` files are emitted in both Debug and Release builds. Runtime subtitle logging is handled by a dedicated background logger thread so file I/O does not run on the overlay UI thread.
 
 ## Project Structure (Current Workspace)
 
@@ -411,15 +431,23 @@ screen_sub_translate/
 │   ├── ocr_worker.cpp
 │   ├── overlay_window.h
 │   ├── overlay_window.cpp
+│   ├── subtitle_logger.h
+│   ├── subtitle_logger.cpp
 │   ├── translate_client.h
 │   ├── translate_client.cpp
 │   └── tuning_params.h
 ├── test/
 │   ├── subtitle_log.txt
+│   ├── subtitles/
+│   │   ├── chinese.srt
+│   │   └── vietnamese.srt
 │   ├── terminal_log.txt
 │   ├── video_test_sub.txt
 │   └── image/
-└── translate/
-    ├── glossary.json
-    └── movie_context.txt
+├── translate/
+|   ├── glossary.json
+|   └── movie_context.txt
+└── models/paddle/
+    ├── ch_PP-OCRv4_rec_infer.onnx
+    └── ppocr_keys_v1.txt
 ```

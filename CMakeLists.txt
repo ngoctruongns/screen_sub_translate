@@ -10,8 +10,8 @@ set(CMAKE_AUTOUIC ON)
 
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type: Debug, Release, RelWithDebInfo, or MinSizeRel" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
 endif()
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
 
 option(SST_ENABLE_CAPTURE_DEBUG_IMAGES "Save CaptureWorker preprocessed debug images during runtime" OFF)
 
@@ -67,6 +67,7 @@ add_executable(ScreenSubTranslator
 	src/ocr_engine.cpp
 	src/ocr_worker.cpp
 	src/overlay_window.cpp
+	src/subtitle_logger.cpp
 	src/translate_client.cpp
 )
 
@@ -83,6 +84,17 @@ target_include_directories(ScreenSubTranslator PRIVATE
 
 if(SST_ENABLE_CAPTURE_DEBUG_IMAGES)
 	target_compile_definitions(ScreenSubTranslator PRIVATE ENABLE_CAPTURE_DEBUG_IMAGES)
+endif()
+
+if(CMAKE_CONFIGURATION_TYPES)
+	target_compile_definitions(ScreenSubTranslator PRIVATE
+		$<$<CONFIG:Debug>:SST_DEBUG_BUILD>
+	)
+elseif(CMAKE_BUILD_TYPE)
+	string(TOUPPER "${CMAKE_BUILD_TYPE}" SST_BUILD_TYPE_UPPER)
+	if(SST_BUILD_TYPE_UPPER STREQUAL "DEBUG")
+		target_compile_definitions(ScreenSubTranslator PRIVATE SST_DEBUG_BUILD)
+	endif()
 endif()
 
 target_link_libraries(ScreenSubTranslator PRIVATE

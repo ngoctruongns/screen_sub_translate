@@ -12,6 +12,7 @@
 
 #include "capture_worker.h"
 #include "ocr_worker.h"
+#include "subtitle_logger.h"
 #include "translate_client.h"
 #include "tuning_params.h"
 
@@ -57,6 +58,10 @@ private:
     void showPositionMenu(const QPoint &globalPos);
     void appendSubtitleLog(const QString &status, const QString &sourceText,
                            const QString &translatedText) const;
+    void startSubtitleSegment(const QString &sourceText) const;
+    void updateSubtitleSegmentTranslation(const QString &sourceText,
+                                          const QString &translatedText) const;
+    void endSubtitleSegment() const;
     void dispatchLatestOcr();
     void applyDefaultNoiseConfig();
     QString subtitleKey(const QString &text) const;
@@ -99,7 +104,6 @@ private:
     QRect initialGeometry_;
     QPoint initialMouseGlobalPos_;
     QPoint dragOffset_;
-    QString logFilePath_;
     ResultPosition resultPosition_ = ResultPosition::BelowSource;
     const int resizeMarginPx_ = 10;
     int minOcrLength_ = tuning::kMinOcrLength;
@@ -115,6 +119,9 @@ private:
     QHash<QString, int> candidateFrequency_;
 
     QRect lastSentScanZone_;
+
+    QThread loggerThread_;
+    SubtitleLogger *subtitleLogger_ = nullptr;
 
     // Translation display queue state
     QQueue<TranslationEntry> translationQueue_;

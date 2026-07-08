@@ -7,7 +7,6 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
-#include <QFile>
 #include <QFontMetrics>
 #include <QKeySequence>
 #include <QLabel>
@@ -81,14 +80,22 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     setupUi();
     setupHotkeys();
     move(400, 850);
-    logFilePath_ = QDir::cleanPath(
-        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("../test/subtitle_log.txt")));
-    // Clear the log file at startup
-    QFile logFile(logFilePath_);
-    if (logFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        logFile.resize(0);
-        logFile.close();
-    }
+
+    const QString testDir = QDir::cleanPath(
+        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("../test")));
+    subtitleLogger_ = new SubtitleLogger(
+        QDir(testDir).filePath(QStringLiteral("subtitle_log.txt")),
+        QDir(testDir).filePath(QStringLiteral("subtitles")),
+#ifdef SST_DEBUG_BUILD
+        true,
+#else
+        false,
+#endif
+        nullptr);
+    subtitleLogger_->moveToThread(&loggerThread_);
+    connect(&loggerThread_, &QThread::finished, subtitleLogger_, &QObject::deleteLater);
+    loggerThread_.start();
+    QMetaObject::invokeMethod(subtitleLogger_, "initialize", Qt::BlockingQueuedConnection);
     appendSubtitleLog(QStringLiteral("SESSION_START"), QString(), QString());
 
     captureWorker_ = new CaptureWorker(computeCaptureZone());
@@ -126,6 +133,13 @@ OverlayWindow::~OverlayWindow()
     ocrThread_.quit();
     captureThread_.wait();
     ocrThread_.wait();
+
+    if (subtitleLogger_) {
+        QMetaObject::invokeMethod(subtitleLogger_, "shutdown", Qt::BlockingQueuedConnection,
+                                  Q_ARG(qint64, QDateTime::currentMSecsSinceEpoch()));
+    }
+    loggerThread_.quit();
+    loggerThread_.wait();
 }
 
 void OverlayWindow::paintEvent(QPaintEvent *event)
@@ -238,6 +252,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
 
         if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
             subtitleVisible_ = false;
+            endSubtitleSegment();
             recentSubtitleKeys_.clear();
             candidateText_.clear();
             candidateTimer_.invalidate();
@@ -316,6 +331,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
             appendSubtitleLog(QStringLiteral("OCR_DETECTED"), candidateText_,
                               QString("stable=%1ms frames=%2").arg(candidateTimer_.elapsed()).arg(candidateSeenFrames_));
 
+            startSubtitleSegment(candidateText_);
             translateClient_.requestTranslation(candidateText_);
             lastOcrText_ = candidateText_;
         }
@@ -337,6 +353,7 @@ void OverlayWindow::onOcrError(const QString &error, int requestId)
     appendSubtitleLog(QStringLiteral("OCR_ERROR"), QString::number(requestId), error);
     if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
         subtitleVisible_ = false;
+        endSubtitleSegment();
 
         recentSubtitleKeys_.clear();
         candidateText_.clear();
@@ -359,6 +376,7 @@ void OverlayWindow::onTranslationReady(const QString &translatedText, const QStr
     }
 
     appendSubtitleLog(QStringLiteral("TRANSLATED"), sourceText, translatedText);
+    updateSubtitleSegmentTranslation(sourceText, translatedText);
     enqueueTranslation(translatedText, sourceText);
 }
 
@@ -887,19 +905,45 @@ QRect OverlayWindow::computeCaptureZone() const
 void OverlayWindow::appendSubtitleLog(const QString &status, const QString &sourceText,
                                       const QString &translatedText) const
 {
-    QFile file(logFilePath_);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+    if (!subtitleLogger_) {
         return;
     }
 
-    const QString now =
-        QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss.zzz"));
-    QString sourceSafe = sourceText;
-    QString translatedSafe = translatedText;
+    QMetaObject::invokeMethod(subtitleLogger_, "logDebugEvent", Qt::QueuedConnection,
+                              Q_ARG(QString, status), Q_ARG(QString, sourceText),
+                              Q_ARG(QString, translatedText));
+}
 
-    QTextStream out(&file);
-    out << '[' << now << "] " << status << " | source=" << sourceSafe.replace('\n', ' ')
-        << " | result=" << translatedSafe.replace('\n', ' ') << '\n';
+void OverlayWindow::startSubtitleSegment(const QString &sourceText) const
+{
+    if (!subtitleLogger_ || sourceText.isEmpty()) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(subtitleLogger_, "startSubtitle", Qt::QueuedConnection,
+                              Q_ARG(QString, sourceText),
+                              Q_ARG(qint64, QDateTime::currentMSecsSinceEpoch()));
+}
+
+void OverlayWindow::updateSubtitleSegmentTranslation(const QString &sourceText,
+                                                     const QString &translatedText) const
+{
+    if (!subtitleLogger_ || sourceText.isEmpty() || translatedText.isEmpty()) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(subtitleLogger_, "updateTranslation", Qt::QueuedConnection,
+                              Q_ARG(QString, sourceText), Q_ARG(QString, translatedText));
+}
+
+void OverlayWindow::endSubtitleSegment() const
+{
+    if (!subtitleLogger_) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(subtitleLogger_, "endSubtitle", Qt::QueuedConnection,
+                              Q_ARG(qint64, QDateTime::currentMSecsSinceEpoch()));
 }
 
 void OverlayWindow::dispatchLatestOcr()
