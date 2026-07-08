@@ -16,24 +16,21 @@ namespace tuning
     inline constexpr const char *kPaddleRecOnnxPath = "../models/paddle/ch_PP-OCRv4_rec_infer.onnx";
     inline constexpr const char *kPaddleCharsetPath = "../models/paddle/ppocr_keys_v1.txt";
 
-    // Local translation backend defaults via llama.cpp server.
-    inline constexpr const char *kLlamaBaseUrl = "http://127.0.0.1:8080";
-    inline constexpr const char *kLlamaModel = "qwen2.5:7b-instruct-q4_K_M";
-    inline constexpr const char *kLlamaApiMode = "llamacpp"; // auto | llamacpp | openai | ollama
-    inline constexpr const char *kLlamaContextFilePath = "../translate/movie_context.txt";
-    inline constexpr const char *kLlamaGlossaryFilePath = "../translate/glossary.json";
-    inline constexpr double kLlamaTemperature = 0.05;
-    inline constexpr int kLlamaNumPredict = 48;
-    inline constexpr int kLlamaPromptContextMaxChars = 900;
-    inline constexpr int kLlamaHistoryWindowSize = 3;
-    inline constexpr int kLlamaHistoryEntryMaxCharsHan = 42;
-    inline constexpr int kLlamaHistoryEntryMaxCharsVie = 82;
+    // Local translation backend defaults loaded through config file.
+    inline constexpr const char *kTranslateBackendConfigPath = "../translate/translation_backend.json";
+    inline constexpr const char *kTranslateBaseUrl = "http://127.0.0.1:8080";
+    inline constexpr const char *kTranslateModel = ""; // Optional. Empty means discover/use backend default when possible.
+    inline constexpr const char *kTranslateApiMode = "auto"; // auto | llamacpp | openai | ollama
+    inline constexpr const char *kTranslateContextFilePath = "../translate/movie_context.txt";
+    inline constexpr const char *kTranslateGlossaryFilePath = "../translate/glossary.json";
+    inline constexpr double kTranslateTemperature = 0.05;
+    inline constexpr int kTranslateNumPredict = 48;
+    inline constexpr int kTranslatePromptContextMaxChars = 900;
+    inline constexpr int kTranslateHistoryWindowSize = 3;
+    inline constexpr int kTranslateHistoryEntryMaxCharsHan = 42;
+    inline constexpr int kTranslateHistoryEntryMaxCharsVie = 82;
     inline constexpr int kTranslationCacheSize = 96;
     inline constexpr bool kEnableRetryPasses = false;
-
-    inline constexpr double kLlamaRepeatPenalty = 1.1;
-    inline constexpr double kLlamaFrequencyPenalty = 1.05;
-    inline constexpr int kLlamaRepeatLastN = 64;
 
     // Backward-compatibility constants kept for evaluation tools still using legacy ONNX translator.
     inline constexpr const char *kTranslateModelDir = "../models/translate";

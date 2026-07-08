@@ -69,6 +69,8 @@ add_executable(ScreenSubTranslator
 	src/overlay_window.cpp
 	src/subtitle_logger.cpp
 	src/translate_client.cpp
+	src/translation_backend_adapter.cpp
+	src/translation_text_processor.cpp
 )
 
 add_executable(OcrBatchEval

@@ -1,0 +1,13 @@
+{
+  "apiMode": "auto",
+  "baseUrl": "http://127.0.0.1:8080",
+  "model": "",
+  "autoDiscoverModel": true,
+  "modelDiscoveryTimeoutMs": 1200,
+  "cachePrompt": true,
+  "repeatPenalty": 1.1,
+  "frequencyPenalty": 1.05,
+  "repeatLastN": 64,
+  "contextFile": "../translate/movie_context.txt",
+  "glossaryFile": "../translate/glossary.json"
+}
