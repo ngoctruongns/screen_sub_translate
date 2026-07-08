@@ -35,5 +35,11 @@ private:
     std::vector<const char *> outputNames_;
     std::vector<std::string> charset_;
 
+    // Reused buffers to reduce per-frame allocations in performOcr.
+    cv::Mat resizedBuffer_;
+    cv::Mat canvasBuffer_;
+    cv::Mat floatImgBuffer_;
+    std::vector<float> inputTensorValues_;
+
     bool initialized_ = false;
 };

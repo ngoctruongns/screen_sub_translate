@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cstring>
 #include <limits>
 
 #include <QCoreApplication>
@@ -20,6 +19,23 @@
 
 namespace
 {
+bool isHanCodepoint(const ushort u)
+{
+    return (u >= 0x3400 && u <= 0x9FFF) || (u >= 0xF900 && u <= 0xFAFF);
+}
+
+bool isAsciiDigit(const ushort u)
+{
+    return u >= 0x30 && u <= 0x39;
+}
+
+bool isCommonSubtitlePunctuation(const ushort u)
+{
+    // Keep punctuation often seen in subtitles (ASCII + CJK full-width variants).
+    static const QString punctuation = QStringLiteral("!\"'(),-.:;?[]{}...…、。！（），：；？");
+    return punctuation.contains(QChar(u));
+}
+
 QString stripWhitespace(const QString &input)
 {
     QString out;
@@ -274,9 +290,7 @@ QString OcrEngine::normalizeHanText(const QString &text)
     for (const QChar c : t)
     {
         const ushort u = c.unicode();
-        const bool isHan = (u >= 0x3400 && u <= 0x9FFF) || (u >= 0xF900 && u <= 0xFAFF);
-        const bool isAsciiPunct = (u >= 0x30 && u <= 0x39);
-        if (isHan || isAsciiPunct)
+        if (isHanCodepoint(u) || isAsciiDigit(u) || isCommonSubtitlePunctuation(u))
         {
             out.append(c);
         }
@@ -297,13 +311,18 @@ QString OcrEngine::performOcr(const cv::Mat &inputImg)
     {
         cv::cvtColor(inputImg, bgr, cv::COLOR_GRAY2BGR);
     }
+    else if (inputImg.channels() == 3)
+    {
+        bgr = inputImg;
+    }
     else if (inputImg.channels() == 4)
     {
         cv::cvtColor(inputImg, bgr, cv::COLOR_BGRA2BGR);
     }
     else
     {
-        bgr = inputImg;
+        qWarning() << "Unsupported input channels for OCR:" << inputImg.channels();
+        return QString();
     }
 
     // Keep text aspect ratio, then pad to model width to reduce CTC hallucinations.
@@ -316,25 +335,30 @@ QString OcrEngine::performOcr(const cv::Mat &inputImg)
     int resizedW = static_cast<int>(std::ceil(targetH * regionRatio));
     resizedW = std::clamp(resizedW, 8, targetW);
 
-    cv::Mat resized;
-    cv::resize(subtitleRegion, resized, cv::Size(resizedW, targetH), 0, 0, cv::INTER_LINEAR);
+    resizedBuffer_.create(targetH, resizedW, CV_8UC3);
+    cv::resize(subtitleRegion, resizedBuffer_, cv::Size(resizedW, targetH), 0, 0, cv::INTER_LINEAR);
 
-    cv::Mat canvas(targetH, targetW, CV_8UC3, cv::Scalar(0, 0, 0));
-    resized.copyTo(canvas(cv::Rect(0, 0, resizedW, targetH)));
+    canvasBuffer_.create(targetH, targetW, CV_8UC3);
+    canvasBuffer_.setTo(cv::Scalar(0, 0, 0));
+    resizedBuffer_.copyTo(canvasBuffer_(cv::Rect(0, 0, resizedW, targetH)));
 
     // Normalize mean=0.5 std=0.5 and pack as planar NCHW float.
-    cv::Mat floatImg;
-    canvas.convertTo(floatImg, CV_32FC3, 1.0 / 255.0);
+    floatImgBuffer_.create(targetH, targetW, CV_32FC3);
+    canvasBuffer_.convertTo(floatImgBuffer_, CV_32FC3, 1.0 / 255.0);
 
     constexpr int C = 3;
     const size_t planeSize = static_cast<size_t>(tuning::kPaddleInputHeight) * tuning::kPaddleInputWidth;
-    std::vector<float> inputTensorValues(C * planeSize);
+    const size_t totalInputSize = static_cast<size_t>(C) * planeSize;
+    if (inputTensorValues_.size() != totalInputSize)
+    {
+        inputTensorValues_.resize(totalInputSize);
+    }
 
     // Split channels BGR -> planar [B, G, R], normalize (x - 0.5) / 0.5.
-    const float *src = reinterpret_cast<const float *>(floatImg.data);
+    const float *src = reinterpret_cast<const float *>(floatImgBuffer_.data);
     for (int c = 0; c < C; ++c)
     {
-        float *dst = inputTensorValues.data() + static_cast<size_t>(c) * planeSize;
+        float *dst = inputTensorValues_.data() + static_cast<size_t>(c) * planeSize;
         for (size_t i = 0; i < planeSize; ++i)
         {
             dst[i] = (src[i * C + c] - 0.5f) / 0.5f;
@@ -343,7 +367,7 @@ QString OcrEngine::performOcr(const cv::Mat &inputImg)
 
     const std::array<int64_t, 4> shape = {1, C, tuning::kPaddleInputHeight, tuning::kPaddleInputWidth};
     Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
-        memoryInfo_, inputTensorValues.data(), inputTensorValues.size(), shape.data(), shape.size());
+        memoryInfo_, inputTensorValues_.data(), inputTensorValues_.size(), shape.data(), shape.size());
 
     try
     {
