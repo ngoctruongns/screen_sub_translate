@@ -59,6 +59,12 @@ namespace tuning
     inline constexpr int kSubtitleSwitchCooldownMs = 200;    // Minimum time between dispatching different subtitles.
     inline constexpr int kSubtitleResendCooldownMs = 2200;   // Minimum time before resending the same subtitle.
 
+    // Ratio-based short-translation guard.
+    // A translation is suspicious when (output word count / source Han char count) < this ratio.
+    // Only applied when the source has at least kMinHanCharsForRatioCheck Han chars.
+    inline constexpr double kMinTranslationWordRatio = 0.40;
+    inline constexpr int kMinHanCharsForRatioCheck = 5;
+
     // Number of recent subtitles to track for deduplication.
     inline constexpr int kRecentSubtitleWindowSize = 4;
 

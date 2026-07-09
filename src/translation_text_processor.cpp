@@ -198,18 +198,17 @@ bool isSuspiciouslyShortTranslation(const QString &sourceText, const QString &tr
 {
     const int srcHan = hanCharCount(sourceText);
     const int outWords = latinWordCount(translatedText);
-    const int outChars = translatedText.trimmed().size();
 
-    if (srcHan >= 8 && outWords <= 1) {
-        return true;
+    if (srcHan < tuning::kMinHanCharsForRatioCheck) {
+        // Short source: ratio is too noisy; use a hard floor instead.
+        // srcHan >= 3 avoids false-positives for 1–2-char sources (e.g. names).
+        return srcHan >= 3 && outWords <= 1;
     }
-    if (srcHan >= 10 && outWords <= 2) {
-        return true;
-    }
-    if (srcHan >= 8 && outChars <= 4) {
-        return true;
-    }
-    return false;
+
+    // Longer source: ratio check only — all degenerate cases (empty, single-word,
+    // near-empty chars) are already covered when ratio < kMinTranslationWordRatio.
+    const double ratio = static_cast<double>(outWords) / static_cast<double>(srcHan);
+    return ratio < tuning::kMinTranslationWordRatio;
 }
 
 bool isOverExpandedTranslation(const QString &sourceText, const QString &translatedText)

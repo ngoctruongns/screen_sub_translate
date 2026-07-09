@@ -1,54 +1,8 @@
-[2026-07-06 01:07:01.733] SESSION_START | source= | result=
-[2026-07-06 01:07:01.979] PROFILE_CHANGED | source=Balanced | result=len=1 repeat=150
-[2026-07-06 01:07:02.061] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:07:06.611] OCR_DETECTED | source=教王新兰王球张王明 | result=stable=305ms frames=4
-[2026-07-06 01:07:07.364] TRANSLATED | source=教王新兰王球张王明 | result=Giáo hoàng[new line]Sinxan Lan[note removed][new line]Trung đại phu Zhang Ming
-[2026-07-06 01:07:08.603] OCR_DETECTED | source=刘荣光郭玉欣高宗武文 | result=stable=156ms frames=5
-[2026-07-06 01:07:09.144] TRANSLATED | source=刘荣光郭玉欣高宗武文 | result=Lưu Trọng Quang Gö Yư Khắc Tông Vũ Văn removed as per is the
-[2026-07-06 01:07:10.474] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:07:11.813] OCR_DETECTED | source=不会真的相信有密营吧 | result=stable=159ms frames=2
-[2026-07-06 01:07:12.075] TRANSLATED | source=不会真的相信有密营吧 | result=Không phải thật sự tin có mật trại chứ
-[2026-07-06 01:07:13.501] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:07:24.485] OCR_DETECTED | source=福 | result=stable=440ms frames=3
-[2026-07-06 01:07:24.485] TRANSLATE_ERROR | source=不会真的相信有密营吧 | result=Skipped non-Chinese OCR candidate
-[2026-07-06 01:07:33.089] OCR_DETECTED | source=不过为了安全 | result=stable=185ms frames=5
-[2026-07-06 01:07:33.127] TRANSLATE_ERROR | source=不过为了安全 | result=Local Llama translation is empty
-[2026-07-06 01:07:35.636] OCR_DETECTED | source=我们要先派人去摸一下情况 | result=stable=177ms frames=6
-[2026-07-06 01:07:35.862] TRANSLATED | source=我们要先派人去摸一下情况 | result=Chúng tôi phải
-[2026-07-06 01:07:38.460] OCR_DETECTED | source=然后大家再转过去 | result=stable=206ms frames=2
-[2026-07-06 01:07:38.706] TRANSLATED | source=然后大家再转过去 | result=Sau đó mọi người lại chuyển qua phía kia
-[2026-07-06 01:07:41.093] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:07:42.141] OCR_DETECTED | source=当然这很危险 | result=stable=253ms frames=3
-[2026-07-06 01:07:42.374] TRANSLATED | source=当然这很危险 | result=Dĩ nhiên điều này rất nguy hiểm
-[2026-07-06 01:07:44.380] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:07:46.936] OCR_DETECTED | source=谁愿意去 | result=stable=255ms frames=3
-[2026-07-06 01:07:47.954] TRANSLATED | source=谁愿意去 | result=Đồng chí muốn đi không?
-[2026-07-06 01:07:48.760] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:07:51.948] OCR_DETECTED | source=司令 | result=stable=152ms frames=4
-[2026-07-06 01:07:52.025] TRANSLATED | source=司令 | result=Tư lệnh
-[2026-07-06 01:07:52.993] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:07:53.969] POSITION_CHANGED | source=menu-toggle | result=Above
-[2026-07-06 01:07:59.354] OCR_DETECTED | source=小金子一个 | result=stable=156ms frames=6
-[2026-07-06 01:07:59.501] TRANSLATED | source=小金子一个 | result=Đồng chí nhỏ Kim Tử
-[2026-07-06 01:07:59.972] POSITION_CHANGED | source=menu-toggle | result=Below
-[2026-07-06 01:08:00.894] OCR_DETECTED | source=太危险了 | result=stable=325ms frames=4
-[2026-07-06 01:08:00.990] TRANSLATE_ERROR | source=太危险了 | result=Local Llama output rejected: English-heavy output
-[2026-07-06 01:08:02.116] OCR_DETECTED | source=我跟她一块儿去 | result=stable=247ms frames=3
-[2026-07-06 01:08:02.297] TRANSLATED | source=我跟她一块儿去 | result=Đồng chí cùng tôi đi
-[2026-07-06 01:08:03.922] OCR_DETECTED | source=装 | result=stable=1026ms frames=12
-[2026-07-06 01:08:03.922] TRANSLATE_ERROR | source=我跟她一块儿去 | result=Skipped non-Chinese OCR candidate
-[2026-07-06 01:08:04.740] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:08:07.840] OCR_DETECTED | source=公 | result=stable=587ms frames=3
-[2026-07-06 01:08:07.840] TRANSLATE_ERROR | source=装 | result=Skipped non-Chinese OCR candidate
-[2026-07-06 01:08:10.962] OCR_DETECTED | source=好吧 | result=stable=232ms frames=2
-[2026-07-06 01:08:11.042] TRANSLATED | source=好吧 | result=Được rồi
-[2026-07-06 01:08:12.320] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:08:14.916] OCR_DETECTED | source=你们定要速去速回 | result=stable=247ms frames=3
-[2026-07-06 01:08:15.248] TRANSLATED | source=你们定要速去速回 | result=Các bạn phải đi nhanh chóng và trở về ngay
-[2026-07-06 01:08:22.338] OCR_DETECTED | source=我等着你们 | result=stable=180ms frames=5
-[2026-07-06 01:08:22.888] TRANSLATED | source=我等着你们 | result=Tôi chờ các đồng chí về
-[2026-07-06 01:08:24.231] OCR_DETECTED | source=是 | result=stable=368ms frames=11
-[2026-07-06 01:08:24.231] TRANSLATE_ERROR | source=我等着你们 | result=Skipped non-Chinese OCR candidate
-[2026-07-06 01:08:25.272] DISPLAY_CLEARED | source= | result=
-[2026-07-06 01:08:29.954] OCR_DETECTED | source=走了走 | result=stable=193ms frames=6
-[2026-07-06 01:08:30.078] TRANSLATED | source=走了走 | result=Đi
+[2026-07-09 08:23:17.496] SESSION_START | source= | result=
+[2026-07-09 08:23:17.801] DISPLAY_CLEARED | source= | result=
+[2026-07-09 08:23:18.469] OCR_DETECTED | source=我是抗联的 | result=stable=196ms frames=3
+[2026-07-09 08:23:19.106] TRANSLATE_ERROR | source=我是抗联的 | result=Translation backend output rejected: over-expanded short source translation
+[2026-07-09 08:23:40.064] OCR_DETECTED | source=我是抗联的 | result=stable=162ms frames=5
+[2026-07-09 08:23:40.726] TRANSLATE_ERROR | source=我是抗联的 | result=Translation backend output rejected: over-expanded short source translation
+[2026-07-09 08:23:45.687] OCR_DETECTED | source=我是抗联的 | result=stable=160ms frames=5
+[2026-07-09 08:23:46.337] TRANSLATE_ERROR | source=我是抗联的 | result=Translation backend output rejected: over-expanded short source translation

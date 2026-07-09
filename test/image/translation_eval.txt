@@ -1,6 +1,6 @@
 # OCR + Translation Evaluation
-# zh labels: ../image/image_sub.txt
-# vi labels: ../image/image_sub_vi.txt (found)
+# zh labels: ../test/image/image_sub.txt
+# vi labels: ../test/image/image_sub_vi.txt (found)
 
 image1
   zh_expected: 老师老师
@@ -11,7 +11,7 @@ image1
   vi_expected: Thưathầy,thưathầy
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image1_prepared.png
+  prepared: ../test/image/debug_preprocessed/image1_prepared.png
 
 image10
   zh_expected: 好的另外我还想问一下
@@ -22,18 +22,7 @@ image10
   vi_expected: Đượcrồi,ngoàiratôicònmuốnhỏithêmmộtchút
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image10_prepared.png
-
-image11
-  zh_expected: 可是
-  zh_ocr: 可是橋
-  ocr_match: NO
-  vi_from_ocr: Nhưng cây cầu...
-  vi_from_gt: Nhưng...
-  vi_expected: Nhưng
-  vi_match_from_ocr: NO
-  vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image11_prepared.png
+  prepared: ../test/image/debug_preprocessed/image10_prepared.png
 
 image2
   zh_expected: 同志们当这个城市在进行着
@@ -44,7 +33,7 @@ image2
   vi_expected: Cácđồngchí,khithànhphốnàyđangtrảiqua
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image2_prepared.png
+  prepared: ../test/image/debug_preprocessed/image2_prepared.png
 
 image3
   zh_expected: 有秩序的撤退的时候
@@ -55,7 +44,7 @@ image3
   vi_expected: cuộcrútluicótrậttự
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image3_prepared.png
+  prepared: ../test/image/debug_preprocessed/image3_prepared.png
 
 image4
   zh_expected: 是你们依然坚持在这里
@@ -66,7 +55,7 @@ image4
   vi_expected: thìchínhcácđồngchívẫnkiêntrìbámtrụởđây
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image4_prepared.png
+  prepared: ../test/image/debug_preprocessed/image4_prepared.png
 
 image5
   zh_expected: 当这个城市
@@ -77,7 +66,7 @@ image5
   vi_expected: Khithànhphốnày
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image5_prepared.png
+  prepared: ../test/image/debug_preprocessed/image5_prepared.png
 
 image6
   zh_expected: 日军企图不费大力
@@ -88,7 +77,7 @@ image6
   vi_expected: quânNhậtmưutoankhôngtốnnhiềusứclực
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image6_prepared.png
+  prepared: ../test/image/debug_preprocessed/image6_prepared.png
 
 image7
   zh_expected: 四个多月的时间
@@ -99,7 +88,7 @@ image7
   vi_expected: hơnbốnthángthờigian
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image7_prepared.png
+  prepared: ../test/image/debug_preprocessed/image7_prepared.png
 
 image8
   zh_expected: 和数万士兵的生命换来的
@@ -110,7 +99,7 @@ image8
   vi_expected: vàđổibằngsinhmạngcủahàngchụcnghìnbinhsĩ
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image8_prepared.png
+  prepared: ../test/image/debug_preprocessed/image8_prepared.png
 
 image9
   zh_expected: 这样做是否会引起民怨
@@ -121,9 +110,9 @@ image9
   vi_expected: Làmnhưvậycógâyrasựoántráchcủangườidânkhông?
   vi_match_from_ocr: NO
   vi_match_from_gt: NO
-  prepared: ../image/debug_preprocessed/image9_prepared.png
+  prepared: ../test/image/debug_preprocessed/image9_prepared.png
 
 Summary
-  OCR exact: 10/11
-  VI exact (from OCR): 0/11
-  VI exact (from GT): 0/11
+  OCR exact: 10/10
+  VI exact (from OCR): 0/10
+  VI exact (from GT): 0/10

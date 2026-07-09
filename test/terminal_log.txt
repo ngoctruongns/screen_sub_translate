@@ -1,60 +1,41 @@
-build git:(main) ✗ ./ScreenSubTranslator
-TranslateClient: local ONNX model ready
-2026-07-02 08:14:49.877149441 [W:onnxruntime:, session_state.cc:1367 VerifyEachNodeIsAssignedToAnEp] Some nodes were not assigned to the preferred execution providers which may or may not have an negative impact on performance. e.g. ORT explicitly assigns shape related ops to CPU to improve perf.
-2026-07-02 08:14:49.877190659 [W:onnxruntime:, session_state.cc:1369 VerifyEachNodeIsAssignedToAnEp] Rerunning with verbose output on a non-minimal build will show node assignments.
-[PREPROCESS DEBUG] "test/image/debug_preprocessed/frame_000050_preprocessed.png" stdDev= 66.067
-[FUZZY MATCH] Levenshtein distance 1 accepted: "成武啊" | "成武购"
-
-OCR = "成武啊"
-LAST = "我是杨成武"
-VISIBLE = true
-[FUZZY MATCH] Substring detected: "成武" in "成武啊"
-[FUZZY MATCH] Substring detected: "成武" in "成武啊"
-[FUZZY MATCH] Substring detected: "成武" in "成武啊"
-[FUZZY MATCH] Substring detected: "成武" in "成武啊"
-[FUZZY MATCH] Substring detected: "成武" in "成武啊"
-[FUZZY MATCH] Substring detected: "夏司令员" in "产进夏司令员"
-[FUZZY MATCH] Substring detected: "司令员" in "产惠司令员"
-[PREPROCESS DEBUG] "test/image/debug_preprocessed/frame_000100_preprocessed.png" stdDev= 61.9996
-"广白求恩到你邪里没有业" "广白求恩到你邪里没有山" 10 true
-[FUZZY MATCH] Substring detected: "上自求恩到你邪里没有" in "上自求恩到你邪里没有业"
-"上自求恩到你邪里没有业" "上自求恩到你那里没有业" 10 true
-[FUZZY MATCH] Substring detected: "自求恩到你那里没有" in "上自求恩到你那里没有"
-[FUZZY MATCH] Substring detected: "自求恩到你那里没有" in "上自求恩到你那里没有"
-[FUZZY MATCH] Substring detected: "自求恩到你那里没有" in "上自求恩到你那里没有"
-
-OCR = "自求恩到你那里没有"
-LAST = "成武啊"
-VISIBLE = true
-[FUZZY MATCH] Substring detected: "自求恩到你那里没有" in "广自求恩到你那里没有"
-"自求恩到你邪里没有" "自求恩到你那里没有" 8 true
-
-OCR = "是他们已经都到了"
-LAST = "自求恩到你那里没有"
-VISIBLE = true
-[PREPROCESS DEBUG] "test/image/debug_preprocessed/frame_000150_preprocessed.png" stdDev= 61.8062
-
-OCR = "定要照顾好他"
-LAST = "是他们已经都到了"
-VISIBLE = true
-[FUZZY MATCH] Substring detected: "定要照顾好他" in "定要照顾好他业"
-[FUZZY MATCH] Substring detected: "定要照顾好他" in "一定要照顾好他"
-[FUZZY MATCH] Substring detected: "定要照顾好他" in "一定要照顾好他业"
-
-OCR = "好啦"
-LAST = "定要照顾好他"
-VISIBLE = true
-[FUZZY MATCH] Substring detected: "保护好他" in "保护好他位"
-
-OCR = "保护好他"
-LAST = "好啦"
-VISIBLE = true
-[FUZZY MATCH] Substring detected: "保护好他" in "保护好他一"
-
-OCR = "好明白"
-LAST = "保护好他"
-VISIBLE = true
-[FUZZY MATCH] Substring detected: "好明白" in "好明白一"
-[FUZZY MATCH] Substring detected: "好明白" in "好明白厂"
-[PREPROCESS DEBUG] "test/image/debug_preprocessed/frame_000200_preprocessed.png" stdDev= 59.4138
+ build git:(main) ✗ ./ScreenSubTranslator
+TranslateClient: local translation backend ready model= "" mode= "llamacpp" url= "http://127.0.0.1:8080/completion" config= "/home/tvn/code_ws/screen_sub_translate/translate/translation_backend.json" context= "/home/tvn/code_ws/screen_sub_translate/translate/movie_context.txt" glossary= "/home/tvn/code_ws/screen_sub_translate/translate/glossary.json" aliasRules= 49
+2026-07-09 07:35:34.384244535 [W:onnxruntime:, session_state.cc:1367 VerifyEachNodeIsAssignedToAnEp] Some nodes were not assigned to the preferred execution providers which may or may not have an negative impact on performance. e.g. ORT explicitly assigns shape related ops to CPU to improve perf.
+2026-07-09 07:35:34.384272327 [W:onnxruntime:, session_state.cc:1369 VerifyEachNodeIsAssignedToAnEp] Rerunning with verbose output on a non-minimal buildwill show node assignments.
 Subtitle disappeared due to timeout after empty OCR result.
+TranslateClient: empty local translation after sanitize source= "青石岭业" raw= "" mode= "llamacpp" repairPass= false rescuePass= false
+[POST-PROCESS] Original translation: "Bùi không"
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "nhanh nhìn là chim ưng"
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Tại sao những con"
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Đó là đâu."
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Đó là đâu."
+[POST-PROCESS] Original translation: "Dãy núi⻘"
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Đồileanor."
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Có nhiều chim ưng bay ở đó."
+[POST-PROCESS] Original translation: "Ý nghĩa là gì"
+[POST-PROCESS] Original translation: "Tại sao có nhiều"
+[POST-PROCESS] Original translation: "Không biết"
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Chỉ có một khả năng,"
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Có người ở đó"
+[POST-PROCESS] Original translation: "Đi đến nơi đó."
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Tôi cũng đói rồi."
+Subtitle disappeared due to timeout after empty OCR result.
+Subtitle disappeared due to timeout after empty OCR result.
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Bạn vẫn nên đi nơi khác."
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Tôi còn Toán tử"
+Subtitle disappeared due to timeout after empty OCR result.
+[POST-PROCESS] Original translation: "Tôi là Bát lộ quân."
+Subtitle disappeared due to timeout after empty OCR result.
+Subtitle disappeared due to timeout after empty OCR result.
+^C
