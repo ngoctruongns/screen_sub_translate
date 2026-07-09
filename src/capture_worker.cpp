@@ -105,7 +105,7 @@ void CaptureWorker::start()
 
         if (remain > 0) {
             // Process any pending queued-connection calls (e.g. setScanZone) while waiting.
-            QCoreApplication::processEvents(QEventLoop::AllEvents, remain);
+            QCoreApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, remain);
         }
     }
 

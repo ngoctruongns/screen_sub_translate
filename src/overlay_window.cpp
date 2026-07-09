@@ -24,8 +24,9 @@ int countHanChars(const QString &text)
     int count = 0;
     for (const QChar ch : text) {
         const ushort u = ch.unicode();
-        const bool isHan =
-            (u >= 0x3400 && u <= 0x4DBF) || (u >= 0x4E00 && u <= 0x9FFF) || (u >= 0xF900 && u <= 0xFAFF);
+        const bool isHan = (u >= 0x3400 && u <= 0x4DBF)     // CJK Unified Ideographs Extension A
+                        || (u >= 0x4E00 && u <= 0x9FFF)     // CJK Unified Ideographs
+                        || (u >= 0xF900 && u <= 0xFAFF);    // CJK Compatibility Ideographs
         if (isHan) {
             ++count;
         }
