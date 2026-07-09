@@ -8,7 +8,7 @@
 #include <QPixmap>
 #include <QScreen>
 
-#ifdef ENABLE_CAPTURE_DEBUG_IMAGES
+#ifdef SST_DEBUG_BUILD
 #include <QDir>
 #include <opencv2/imgcodecs.hpp>
 #endif
@@ -200,7 +200,7 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame, double minStdD
     }
 
     // Optional: Save debug images for analysis if enabled with Debug build flag
-#ifdef ENABLE_CAPTURE_DEBUG_IMAGES
+#ifdef SST_DEBUG_BUILD
     static int frameCounter = 0;
     static int savedCounter = 0;
     const QString debugDir = QString::fromUtf8("test/image/debug_preprocessed");

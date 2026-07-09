@@ -13,7 +13,6 @@ if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
 endif()
 
-option(SST_ENABLE_CAPTURE_DEBUG_IMAGES "Save CaptureWorker preprocessed debug images during runtime" OFF)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Network)
 
@@ -57,7 +56,6 @@ if(NOT ONNXRUNTIME_INCLUDE_DIR OR NOT ONNXRUNTIME_LIBRARY)
 endif()
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Capture debug images: ${SST_ENABLE_CAPTURE_DEBUG_IMAGES}")
 message(STATUS "Using ONNX Runtime include: ${ONNXRUNTIME_INCLUDE_DIR}")
 message(STATUS "Using ONNX Runtime library: ${ONNXRUNTIME_LIBRARY}")
 
@@ -83,10 +81,6 @@ target_include_directories(ScreenSubTranslator PRIVATE
 	${ONNXRUNTIME_INCLUDE_DIR}
 	src
 )
-
-if(SST_ENABLE_CAPTURE_DEBUG_IMAGES)
-	target_compile_definitions(ScreenSubTranslator PRIVATE ENABLE_CAPTURE_DEBUG_IMAGES)
-endif()
 
 if(CMAKE_CONFIGURATION_TYPES)
 	target_compile_definitions(ScreenSubTranslator PRIVATE

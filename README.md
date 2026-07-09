@@ -159,7 +159,15 @@ Default paths are configured in `src/tuning_params.h`.
 
 ### Build
 
+> **Prerequisite:** `ONNXRUNTIME_ROOT` must be set to your ONNX Runtime install path before running CMake (see [Install ONNX Runtime C++](#install-onnx-runtime-c) above). If you followed that section and persisted the export in `~/.zshrc`, it is already available. Otherwise set it now:
+>
+> ```bash
+> export ONNXRUNTIME_ROOT=/opt/onnxruntime-linux-x64-gpu
+> ```
+
 By default, CMake sets `Release` if `CMAKE_BUILD_TYPE` is not specified.
+
+**Release build** (default, for normal use):
 
 ```bash
 mkdir -p build
@@ -168,18 +176,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j"$(nproc)"
 ```
 
-Optional debug-image capture build:
-
-```bash
-mkdir -p build-debug-images
-cd build-debug-images
-cmake .. \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DSST_ENABLE_CAPTURE_DEBUG_IMAGES=ON
-cmake --build . -j"$(nproc)"
-```
-
-Debug build with runtime event log enabled:
+**Debug build** (enables runtime event log and CaptureWorker debug images):
 
 ```bash
 mkdir -p build-debug
@@ -192,14 +189,13 @@ Useful CMake options:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `CMAKE_BUILD_TYPE` | `Release` | Build mode (`Debug`, `Release`, `RelWithDebInfo`, `MinSizeRel`) |
-| `SST_ENABLE_CAPTURE_DEBUG_IMAGES` | `OFF` | Save CaptureWorker debug preprocessed images at runtime |
-| `ONNXRUNTIME_ROOT` (env) | empty | Root path used by CMake to locate ONNX Runtime |
+| `CMAKE_BUILD_TYPE` | `Release` | Build mode (`Debug` or `Release`) |
+| `ONNXRUNTIME_ROOT` (env) | empty | **Required** if ONNX Runtime is not in a standard system path (e.g. `/opt/onnxruntime-linux-x64-gpu`) |
 
 Notes:
 
 - `test/subtitles/chinese.srt` and `test/subtitles/vietnamese.srt` are generated in every build type.
-- `test/subtitle_log.txt` is generated only when building with `-DCMAKE_BUILD_TYPE=Debug` on Ubuntu single-config generators such as Ninja or Unix Makefiles.
+- `test/subtitle_log.txt` and CaptureWorker debug preprocessed images are enabled automatically when building with `-DCMAKE_BUILD_TYPE=Debug`.
 
 ### Run
 
