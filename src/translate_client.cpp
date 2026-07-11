@@ -63,6 +63,9 @@ void TranslateClient::initializeTranslationBackend()
     modelDiscoveryTimeoutMs_ = runtimeConfig.modelDiscoveryTimeoutMs;
     repeatPenalty_ = runtimeConfig.repeatPenalty;
     frequencyPenalty_ = runtimeConfig.frequencyPenalty;
+    topP_ = runtimeConfig.topP;
+    minP_ = runtimeConfig.minP;
+    topK_ = runtimeConfig.topK;
 
     const TranslationBackend::ApiMode mode =
         TranslationBackend::resolveApiMode(backendApiMode_, backendBaseUrl_);
@@ -81,14 +84,6 @@ void TranslateClient::initializeTranslationBackend()
         const TranslationTextProcessor::GlossaryData glossaryData =
             TranslationTextProcessor::loadGlossary(glossaryFilePath_);
         glossaryAliasPairs_ = glossaryData.aliasPairs;
-        const QString glossaryBlock = glossaryData.promptLines;
-        if (!glossaryBlock.isEmpty()) {
-            if (!cachedContextBlock_.isEmpty()) {
-                cachedContextBlock_ += QStringLiteral("\n\nTerm glossary (apply when relevant):\n") + glossaryBlock;
-            } else {
-                cachedContextBlock_ = QStringLiteral("Term glossary (apply when relevant):\n") + glossaryBlock;
-            }
-        }
         qDebug() << "TranslateClient: local translation backend ready"
                  << "model=" << backendModel_ << "mode=" << TranslationBackend::apiModeName(mode)
                  << "url=" << TranslationBackend::endpointUrl(backendBaseUrl_, mode).toString()
@@ -255,14 +250,24 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         payload.insert(QStringLiteral("frequency_penalty"), frequencyPenalty_);
         payload.insert(QStringLiteral("repeat_last_n"), repeatLastN_);
 
+        // Sampling parameters — control the token probability distribution.
+        // See BackendConfig in translation_backend_adapter.h for tuning notes.
+        payload.insert(QStringLiteral("top_k"), topK_);
+        payload.insert(QStringLiteral("top_p"), topP_);
+        payload.insert(QStringLiteral("min_p"), minP_);
+
         payload.insert(QStringLiteral("stop"),
                        QJsonArray{
                            // Avoid single-newline stop because many models emit '\n' first.
                            // That can terminate generation before any real text is produced.
+                           QStringLiteral("\n"),
                            QStringLiteral("\n\n"),
-                           QStringLiteral("<|im_end|>"),    // Token end of chat for Qwen
-                           QStringLiteral("<|endoftext|>"), // Token end of text for Qwen
-                           QStringLiteral("###")            // End of chat for Ollama
+                           QStringLiteral("<|im_end|>"),    // Chat turn end token (Qwen/ChatML)
+                           QStringLiteral("<|endoftext|>"), // Text end token (Qwen/GPT family)
+                           QStringLiteral("###"),           // Section separator often used by Ollama
+                           QStringLiteral("\u8d8a\u5357\u8bed:"),        // Suppress bilingual meta-label that Qwen emits in Chinese
+                           QStringLiteral("Vietnamese:"),   // Suppress bilingual meta-label in English
+                           QStringLiteral("Note:"),         // Suppress explanatory footnotes
                        });
     }
 
@@ -306,6 +311,9 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
         } else {
             const QJsonObject root = document.object();
             QString rawTranslated = TranslationBackend::extractResponseText(root, localMode);
+
+            // Print to debug raw translate
+            qDebug() << "Raw translation output:" << rawTranslated;
 
             QString translated = TranslationTextProcessor::sanitizeFinalTranslation(rawTranslated);
             translated = TranslationTextProcessor::postProcessTranslation(translated);

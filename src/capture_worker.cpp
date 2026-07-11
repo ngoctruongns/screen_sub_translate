@@ -25,7 +25,7 @@ constexpr double kDiffPixelThreshold = 12.0;
 constexpr double kOcrResizeScale = 2.6;
 constexpr double kClaheClipLimit = 2.0;
 constexpr int kClaheTileSize = 8;
-constexpr int kDebugSaveEveryNFrames = 10;
+constexpr int kDebugSaveEveryNFrames = 50;
 constexpr int kDebugCleanupEveryNSaves = 10;
 
 double sanitizeNonNegative(double value, double fallback)
@@ -218,7 +218,7 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame, double minStdD
         }
     }
 
-    if (++frameCounter % kDebugSaveEveryNFrames == 0) {
+    if (++frameCounter % kDebugSaveEveryNFrames == 1) {
         ++savedCounter;
         const QString filename = QString::fromUtf8("%1/frame_%2_preprocessed.png")
             .arg(debugDir)

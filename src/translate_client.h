@@ -62,8 +62,11 @@ private:
     bool cachePrompt_ = true;
     int repeatLastN_ = 64;
     int modelDiscoveryTimeoutMs_ = 1200;
-    double repeatPenalty_ = 1.1;
-    double frequencyPenalty_ = 1.05;
+    double repeatPenalty_ = 1.15;
+    double frequencyPenalty_ = 1.15;
+    double topP_ = 0.85;
+    double minP_ = 0.06;
+    int topK_ = 40;
     QString cachedContextBlock_;  // Loaded once at init, reused for prefix cache hit
     QVector<QPair<QString, QString>> glossaryAliasPairs_; // alias -> canonical Vietnamese name
     QVector<TranslationContextEntry> recentTranslationHistory_;

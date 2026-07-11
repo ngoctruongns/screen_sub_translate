@@ -165,10 +165,13 @@ BackendConfig defaultBackendConfig()
     config.glossaryFilePath = resolveRuntimePath(QString::fromUtf8(tuning::kTranslateGlossaryFilePath));
     config.autoDiscoverModel = true;
     config.cachePrompt = true;
-    config.repeatLastN = 64;
     config.modelDiscoveryTimeoutMs = 1200;
-    config.repeatPenalty = 1.1;
-    config.frequencyPenalty = 1.05;
+    config.repeatLastN = 128;
+    config.repeatPenalty = 1.15;
+    config.frequencyPenalty = 1.15;
+    config.topP = 0.85;
+    config.minP = 0.06;
+    config.topK = 40;
     return config;
 }
 
@@ -200,13 +203,16 @@ BackendConfig loadBackendConfig(const QString &configPath)
         jsonStringOrDefault(root, QStringLiteral("glossaryFile"), config.glossaryFilePath));
     config.autoDiscoverModel = jsonBoolOrDefault(root, QStringLiteral("autoDiscoverModel"), true);
     config.cachePrompt = jsonBoolOrDefault(root, QStringLiteral("cachePrompt"), true);
-    config.repeatLastN = std::max(0, jsonIntOrDefault(root, QStringLiteral("repeatLastN"), 64));
+    config.repeatLastN = std::max(0, jsonIntOrDefault(root, QStringLiteral("repeatLastN"), 128));
     config.modelDiscoveryTimeoutMs = std::max(200,
         jsonIntOrDefault(root, QStringLiteral("modelDiscoveryTimeoutMs"), 1200));
     config.repeatPenalty = std::max(1.0,
-        jsonDoubleOrDefault(root, QStringLiteral("repeatPenalty"), 1.1));
+        jsonDoubleOrDefault(root, QStringLiteral("repeatPenalty"), 1.15));
     config.frequencyPenalty = std::max(0.0,
-        jsonDoubleOrDefault(root, QStringLiteral("frequencyPenalty"), 1.05));
+        jsonDoubleOrDefault(root, QStringLiteral("frequencyPenalty"), 1.15));
+    config.topP = std::clamp(jsonDoubleOrDefault(root, QStringLiteral("topP"), 0.85), 0.1, 1.0);
+    config.minP = std::clamp(jsonDoubleOrDefault(root, QStringLiteral("minP"), 0.06), 0.0, 0.5);
+    config.topK = std::max(0, jsonIntOrDefault(root, QStringLiteral("topK"), 40));
 
     return config;
 }

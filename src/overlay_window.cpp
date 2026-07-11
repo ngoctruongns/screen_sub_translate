@@ -447,8 +447,8 @@ void OverlayWindow::updateSubtitleLayout()
     const int outerMargin = 12;
     const int bubblePaddingH = 32;
     const int bubblePaddingV = 20;
-    const int maxWidth = std::max(180, width() - outerMargin * 2 - 8);
-    const int maxHeight = std::max(46, static_cast<int>(height() * 0.42));
+    const int maxWidth = static_cast<int>(width() - outerMargin * 2 - 8);
+    const int maxHeight = static_cast<int>(height() * 0.42);
 
     const QString text =
         subtitleLabel_->text().isEmpty() ? QStringLiteral("...") : subtitleLabel_->text();
@@ -469,7 +469,7 @@ void OverlayWindow::updateSubtitleLayout()
     if (resultPosition_ == ResultPosition::AboveSource) {
         y = std::max(outerMargin, scanRect.top() - bubbleHeight - 8);
     } else {
-        y = std::min(height() - bubbleHeight - outerMargin, scanRect.bottom() + 8);
+        y = height() - bubbleHeight - outerMargin;
     }
 
     subtitleLabel_->setGeometry(x, y, bubbleWidth, bubbleHeight);

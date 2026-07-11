@@ -1,6 +1,3 @@
-Tên phim: 东方战场
-
 Bối cảnh phim:
 - Đây là phim chiến tranh cách mạng Trung Quốc, nhiều đoạn thoại quân đội, cán bộ, y tế chiến trường.
 - Nhân vật có thể xưng hô theo cấp bậc như tư lệnh, chính ủy, đồng chí, đại phu, y tá.
-- Lời thoại cần ngắn gọn, tự nhiên, đúng kiểu phụ đề phim.

@@ -1,15 +1,9 @@
 {
     "glossary": {
-        "白求恩": "Bạch Cầu Ân / Bạch đại phu",
         "同志": "Đồng chí",
         "司令员": "Tư lệnh",
-        "毛主席": "Chủ tịch Mao",
         "八路": "Bát lộ quân",
-        "中将阁下": "Trung tướng",
-        "广西": {
-            "target": "Quảng Tây",
-            "aliases": ["Guangxi"]
-        },
+        "广西": "Quảng Tây",
         "重庆": "Trùng Khánh",
         "武汉": "Vũ Hán",
         "南京": "Nam Kinh",
@@ -25,7 +19,6 @@
         "广州": "Quảng Châu",
         "深圳": "Thâm Quyến",
         "香港": "Hương Cảng",
-        "澳门": "Macao",
         "台湾": "Đài Loan",
         "韩国": "Hàn Quốc",
         "朝鲜": "Triều Tiên",
@@ -35,27 +28,11 @@
         "法国": "Pháp",
         "德国": "Đức",
         "意大利": "Ý",
-        "西班牙": "Tây Ban Nha",
-        "葡萄牙": "Bồ Đào Nha",
-        "荷兰": "Hà Lan",
-        "中国": {
-            "target": "Trung Quốc",
-            "aliases": ["China", "Zhongguo"]
-        },
-        "日本": {
-            "target": "Nhật Bản",
-            "aliases": ["Japan"]
-        },
+        "中国": "Trung Quốc",
+        "日本": "Nhật Bản",
+        "苏联": "Liên Xô",
         "毛泽东": "Mao Trạch Đông",
         "周恩来": "Chu Ân Lai",
-        "蒋介石": "Tưởng Giới Thạch",
-        "田汉": {
-            "target": "Điền Hán",
-            "aliases": ["Tian Han", "Tan Han", "Tán Han"]
-        }
-    },
-    "aliases": {
-        "Chongqing": "Trùng Khánh",
-        "Guangxi": "Quảng Tây"
+        "蒋介石": "Tưởng Giới Thạch"
     }
 }

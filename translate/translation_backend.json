@@ -1,13 +1,28 @@
 {
+  "_tuning": [
+    "repeatPenalty     : token repeat penalty multiplier (1.0=off). 1.1–1.2 typical; higher suppresses looping output.",
+    "frequencyPenalty  : extra penalty scaling with token occurrence count; reduces phrase-level repetition.",
+    "repeatLastN       : look-back window (tokens) for repeat_penalty. Higher catches longer-range repetition.",
+    "topK              : keep only top-K candidate tokens before sampling. Lower = more conservative. 0 = disabled.",
+    "topP              : nucleus sampling cutoff 0.0–1.0; 0.85–0.95 balances quality vs. determinism.",
+    "minP              : discard tokens with prob < minP × best_prob. 0.05–0.10 suppresses Han chars leaking into output."
+  ],
+
   "apiMode": "auto",
   "baseUrl": "http://127.0.0.1:8080",
   "model": "",
   "autoDiscoverModel": true,
   "modelDiscoveryTimeoutMs": 1200,
   "cachePrompt": true,
-  "repeatPenalty": 1.1,
-  "frequencyPenalty": 1.05,
-  "repeatLastN": 64,
+
+  "repeatPenalty": 1.05,
+  "frequencyPenalty": 1.15,
+  "repeatLastN": 128,
+
+  "topK": 20,
+  "topP": 0.8,
+  "minP": 0.1,
+
   "contextFile": "../translate/movie_context.txt",
   "glossaryFile": "../translate/glossary.json"
 }

@@ -24,10 +24,29 @@ struct BackendConfig {
     QString glossaryFilePath;
     bool autoDiscoverModel = true;
     bool cachePrompt = true;
-    int repeatLastN = 64;
     int modelDiscoveryTimeoutMs = 1200;
-    double repeatPenalty = 1.1;
-    double frequencyPenalty = 1.05;
+
+    // ── Repetition penalties ──────────────────────────────────────────────
+    // Applied over the last repeatLastN tokens; discourages repeated phrases
+    // and multi-candidate looping that instruction-tuned models sometimes produce.
+    int repeatLastN = 128;          // Token look-back window for repeat_penalty.
+                                    // Higher → penalises longer-range repetition.
+    double repeatPenalty = 1.15;    // Multiplier on tokens already seen in the window.
+                                    // 1.0 = disabled; 1.1–1.2 is typical for chat models.
+    double frequencyPenalty = 1.15; // Additional penalty scaling with how often the token
+                                    // has appeared so far. Reduces phrase-level repetition.
+
+    // ── Sampling parameters ───────────────────────────────────────────────
+    // These three filters are applied in order (topK → topP → minP) before
+    // the final token is sampled from the remaining distribution.
+    int topK = 40;      // Retain only the top-K most probable tokens before sampling.
+                        // Lower → more conservative vocabulary. 0 = disabled.
+    double topP = 0.85; // Nucleus sampling: keep the smallest set of tokens whose
+                        // cumulative probability ≥ topP. 0.8–0.95 is typical.
+    double minP = 0.06; // Minimum probability filter: discard any token whose probability
+                        // is < minP × (best token probability at this step).
+                        // Particularly effective at suppressing low-probability Han characters
+                        // that can leak into Vietnamese output (set 0.05–0.10).
 };
 
 // Config loading

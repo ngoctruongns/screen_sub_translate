@@ -23,14 +23,17 @@ namespace tuning
     inline constexpr const char *kTranslateApiMode = "auto"; // auto | llamacpp | openai | ollama
     inline constexpr const char *kTranslateContextFilePath = "../translate/movie_context.txt";
     inline constexpr const char *kTranslateGlossaryFilePath = "../translate/glossary.json";
-    inline constexpr double kTranslateTemperature = 0.05;
-    inline constexpr int kTranslateNumPredict = 48;
+    inline constexpr double kTranslateTemperature = 0.01; // Sampling temperature: 0.0 = greedy/deterministic; keep ≤0.1 for translation.
+    inline constexpr int kTranslateNumPredict = 64;        // Max new tokens per response. ~64 covers most subtitle lines with headroom.
     inline constexpr int kTranslatePromptContextMaxChars = 900;
-    inline constexpr int kTranslateHistoryWindowSize = 3;
+    inline constexpr int kTranslateHistoryWindowSize = 2;
     inline constexpr int kTranslateHistoryEntryMaxCharsHan = 42;
     inline constexpr int kTranslateHistoryEntryMaxCharsVie = 82;
     inline constexpr int kTranslationCacheSize = 96;
-    inline constexpr bool kEnableRetryPasses = false;
+    // When true, the client automatically retries with a repair prompt (Han chars in output)
+    // or a rescue prompt (empty / suspiciously short output). Disabling drops bad responses
+    // outright — useful for latency testing but hurts real-world translation quality.
+    inline constexpr bool kEnableRetryPasses = true;
 
     // Backward-compatibility constants kept for evaluation tools still using legacy ONNX translator.
     inline constexpr const char *kTranslateModelDir = "../models/translate";
