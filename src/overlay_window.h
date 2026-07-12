@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QElapsedTimer>
-#include <QHash>
 #include <QPoint>
 #include <QThread>
 #include <QTimer>
@@ -11,6 +10,7 @@
 #include <opencv2/core.hpp>
 
 #include "capture_worker.h"
+#include "ocr_subtitle_filter.h"
 #include "ocr_worker.h"
 #include "subtitle_logger.h"
 #include "translate_client.h"
@@ -64,16 +64,10 @@ private:
     void endSubtitleSegment() const;
     void dispatchLatestOcr();
     void applyDefaultNoiseConfig();
-    QString subtitleKey(const QString &text) const;
-    bool isLikelySameSubtitle(const QString &left, const QString &right) const;
-    bool shouldDispatchSubtitle(const QString &ocrText);
     Qt::Edges hitTestEdges(const QPoint &localPos) const;
     void updateCursorForPosition(const QPoint &localPos);
     void applyResize(const QPoint &globalPos);
     QRect computeCaptureZone() const;
-    bool wasRecentlyDispatched(const QString& key) const;
-    void rememberDispatchedSubtitle(const QString& key);
-    QString mostFrequentCandidate() const;
 
     // Translation display queue
     struct TranslationEntry {
@@ -108,15 +102,9 @@ private:
     const int resizeMarginPx_ = 10;
     int minOcrLength_ = tuning::kMinOcrLength;
     int minCandidateStableMs_ = tuning::kMinCandidateStableMs;
-    QString lastDispatchedSubtitleKey_;
-    QElapsedTimer subtitleDispatchTimer_;
+    OcrSubtitleFilter ocrSubtitleFilter_;
     bool subtitleVisible_ = false;
-    QQueue<QString> recentSubtitleKeys_;
     QElapsedTimer lastNonEmptySubtitleTimer_;
-    QString candidateText_;
-    QElapsedTimer candidateTimer_;
-    int candidateSeenFrames_ = 0;
-    QHash<QString, int> candidateFrequency_;
 
     QRect lastSentScanZone_;
 

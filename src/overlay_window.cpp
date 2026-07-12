@@ -17,57 +17,6 @@
 #include <QShortcut>
 #include <QTextStream>
 
-namespace
-{
-int countHanChars(const QString &text)
-{
-    int count = 0;
-    for (const QChar ch : text) {
-        const ushort u = ch.unicode();
-        const bool isHan = (u >= 0x3400 && u <= 0x4DBF)     // CJK Unified Ideographs Extension A
-                        || (u >= 0x4E00 && u <= 0x9FFF)     // CJK Unified Ideographs
-                        || (u >= 0xF900 && u <= 0xFAFF);    // CJK Compatibility Ideographs
-        if (isHan) {
-            ++count;
-        }
-    }
-    return count;
-}
-
-int requiredStableMsForCandidate(const QString &candidate, int baseStableMs)
-{
-    if (candidate.size() <= 1) {
-        return std::max(baseStableMs, tuning::kVeryShortCandidateStableMs);
-    }
-
-    if (candidate.size() <= 3) {
-        return std::max(baseStableMs, tuning::kShortCandidateStableMs);
-    }
-
-    return baseStableMs;
-}
-
-int requiredSeenFramesForCandidate(const QString &candidate)
-{
-    if (candidate.size() <= 1) {
-        return tuning::kVeryShortCandidateMinFrames;
-    }
-
-    if (candidate.size() <= 3) {
-        return tuning::kShortCandidateMinFrames;
-    }
-
-    return 1;
-}
-
-int candidateQualityScore(const QString &text)
-{
-    // Prefer candidates with more Han chars and then longer length.
-    // This avoids locking onto overly short partial OCR fragments.
-    return countHanChars(text) * 4 + text.size();
-}
-} // namespace
-
 OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
 {
     qRegisterMetaType<cv::Mat>("cv::Mat");
@@ -254,11 +203,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
         if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
             subtitleVisible_ = false;
             endSubtitleSegment();
-            recentSubtitleKeys_.clear();
-            candidateText_.clear();
-            candidateTimer_.invalidate();
-            candidateSeenFrames_ = 0;
-            candidateFrequency_.clear();
+            ocrSubtitleFilter_.onSubtitleDisappeared();
 
             qDebug() << "Subtitle disappeared due to timeout after empty OCR result.";
             tickDisplayQueue(); // Clears display immediately if queue is also empty
@@ -268,11 +213,9 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
         // appendSubtitleLog(QStringLiteral("OCR_CAP-->"), ocrText, QString());
         lastNonEmptySubtitleTimer_.restart();
 
-        if (countHanChars(ocrText) < tuning::kMinHanCharsForCandidate) {
-            candidateText_.clear();
-            candidateTimer_.invalidate();
-            candidateSeenFrames_ = 0;
-            candidateFrequency_.clear();
+        const OcrSubtitleFilter::Decision decision = ocrSubtitleFilter_.process(ocrText);
+
+        if (decision.rejectedForQuality) {
             // appendSubtitleLog(QStringLiteral("OCR_REJECTED"), ocrText,
             //                   QStringLiteral("reason=han_quality"));
 
@@ -282,59 +225,19 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
             return;
         }
 
-        if (!isLikelySameSubtitle(ocrText, candidateText_)) {
-            // Derive most frequent string seen so far in the current candidate group
-            const QString bestText = mostFrequentCandidate();
-
-            // Substring relation can indicate partial/corrupted OCR reads, but we avoid collapsing
-            // richer text into a single-character fragment.
-            const int minLen = std::min(ocrText.size(), bestText.size());
-            const int maxLen = std::max(ocrText.size(), bestText.size());
-            const bool hasContainment = !bestText.isEmpty() &&
-                                        (ocrText.contains(bestText) || bestText.contains(ocrText));
-            const bool isPartialRead = hasContainment && minLen >= 2 && (maxLen - minLen) <= 2;
-            if (isPartialRead) {
-                // Keep the higher-quality candidate to recover from short noisy fragments.
-                candidateFrequency_[ocrText]++;
-                candidateText_ = (candidateQualityScore(ocrText) >= candidateQualityScore(bestText))
-                                     ? ocrText
-                                     : bestText;
-                appendSubtitleLog(QStringLiteral("OCR_ROLLBACK"), ocrText,
-                                  QStringLiteral("best=") + candidateText_);
-            } else {
-                // No substring relation — treat as a genuinely new subtitle
-                candidateFrequency_.clear();
-                candidateFrequency_[ocrText] = 1;
-                candidateText_ = ocrText;
-                candidateTimer_.restart();
-                candidateSeenFrames_ = 1;
-            }
-        } else {
-            // Same subtitle group — accumulate frequency for each OCR variant
-            if (!candidateTimer_.isValid()) {
-                candidateTimer_.restart();
-            }
-            candidateFrequency_[ocrText]++;
-            ++candidateSeenFrames_;
-            // Pick the most frequently seen variant as the representative candidate
-            candidateText_ = mostFrequentCandidate();
+        if (decision.rolledBack) {
+            appendSubtitleLog(QStringLiteral("OCR_ROLLBACK"), ocrText,
+                              QStringLiteral("best=") + decision.rollbackBestText);
         }
 
-        const bool enoughLength = candidateText_.size() >= minOcrLength_;
-        const int requiredStableMs = requiredStableMsForCandidate(candidateText_, minCandidateStableMs_);
-        const int requiredFrames = requiredSeenFramesForCandidate(candidateText_);
-        const bool stableEnough =
-            candidateTimer_.isValid() && candidateTimer_.elapsed() >= requiredStableMs;
-        const bool seenEnoughFrames = candidateSeenFrames_ >= requiredFrames;
+        if (decision.shouldDispatch) {
+            subtitleVisible_ = true;
+            appendSubtitleLog(QStringLiteral("OCR_DETECTED"), decision.dispatchText,
+                              QString("stable=%1ms frames=%2").arg(decision.stableElapsedMs).arg(decision.seenFrames));
 
-        if (enoughLength && stableEnough && seenEnoughFrames &&
-            shouldDispatchSubtitle(candidateText_)) {
-            appendSubtitleLog(QStringLiteral("OCR_DETECTED"), candidateText_,
-                              QString("stable=%1ms frames=%2").arg(candidateTimer_.elapsed()).arg(candidateSeenFrames_));
-
-            startSubtitleSegment(candidateText_);
-            translateClient_.requestTranslation(candidateText_);
-            lastOcrText_ = candidateText_;
+            startSubtitleSegment(decision.dispatchText);
+            translateClient_.requestTranslation(decision.dispatchText);
+            lastOcrText_ = decision.dispatchText;
         }
     }
 
@@ -355,12 +258,7 @@ void OverlayWindow::onOcrError(const QString &error, int requestId)
     if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
         subtitleVisible_ = false;
         endSubtitleSegment();
-
-        recentSubtitleKeys_.clear();
-        candidateText_.clear();
-        candidateTimer_.invalidate();
-        candidateSeenFrames_ = 0;
-        candidateFrequency_.clear();
+        ocrSubtitleFilter_.onSubtitleDisappeared();
         qDebug() << "OCR_ERROR: Subtitle disappeared due to timeout after error.";
         tickDisplayQueue(); // Clears display immediately if queue is also empty
     }
@@ -544,281 +442,6 @@ void OverlayWindow::showPositionMenu(const QPoint &globalPos)
     }
 }
 
-QString OverlayWindow::subtitleKey(const QString &text) const
-{
-    QString key;
-    key.reserve(text.size());
-    for (const QChar c : text) {
-        const ushort u = c.unicode();
-        const bool isHan = (u >= 0x3400 && u <= 0x9FFF) || (u >= 0xF900 && u <= 0xFAFF);
-        const bool isAsciiAlnum = (u >= '0' && u <= '9'); // Only get digits
-        // const bool isAsciiAlnum = (u >= '0' && u <= '9') || (u >= 'A' && u <= 'Z') ||
-        //                           (u >= 'a' && u <= 'z'); // TODO: consider accented letters
-        if (isHan || isAsciiAlnum) {
-            key.append(c);
-        }
-    }
-    return key;
-}
-
-static int longestCommonSubstring(const QString &left, const QString &right)
-{
-    const int n = left.size();
-    const int m = right.size();
-
-    int maxLen = 0;
-    QVector<int> prev(m + 1, 0);
-    QVector<int> curr(m + 1, 0);
-
-    for (int i = 1; i <= n; ++i) {
-        for (int j = 1; j <= m; ++j) {
-            if (left.at(i - 1) == right.at(j - 1)) {
-                curr[j] = prev[j - 1] + 1;
-                maxLen = std::max(maxLen, curr[j]);
-            } else {
-                curr[j] = 0;
-            }
-        }
-        std::swap(prev, curr);
-        std::fill(curr.begin(), curr.end(), 0);
-    }
-
-    return maxLen;
-}
-
-static int longestCommonSubsequence(const QString &left, const QString &right)
-{
-    if (left.size() < right.size()) {
-        return longestCommonSubsequence(right, left);
-    }
-
-    const int n = left.size();
-    const int m = right.size();
-
-    QVector<int> dp(m + 1, 0);
-
-    for (int i = 1; i <= n; ++i) {
-        int prev = 0;
-        for (int j = 1; j <= m; ++j) {
-            int temp = dp[j]; // Save the current value before updating
-            if (left.at(i - 1) == right.at(j - 1)) {
-                dp[j] = prev + 1;
-            } else {
-                dp[j] = std::max(dp[j], dp[j - 1]);
-            }
-            prev = temp; // Update prev to the saved value for the next iteration
-        }
-    }
-
-    return dp[m];
-}
-
-static int levenshteinDistance(const QString &left, const QString &right)
-{
-    const int n = left.size();
-    const int m = right.size();
-
-    if (n == 0)
-        return m;
-    if (m == 0)
-        return n;
-
-    QVector<int> prev(m + 1);
-    QVector<int> curr(m + 1);
-
-    for (int j = 0; j <= m; ++j) {
-        prev[j] = j;
-    }
-
-    for (int i = 1; i <= n; ++i) {
-        curr[0] = i;
-
-        for (int j = 1; j <= m; ++j) {
-            const int cost = (left.at(i - 1) == right.at(j - 1)) ? 0 : 1;
-
-            curr[j] = std::min({
-                prev[j] + 1,       // delete
-                curr[j - 1] + 1,   // insert
-                prev[j - 1] + cost // replace
-            });
-        }
-
-        std::swap(prev, curr);
-    }
-
-    return prev[m];
-}
-
-bool OverlayWindow::isLikelySameSubtitle(const QString &left, const QString &right) const
-{
-    if (left.isEmpty() || right.isEmpty()) {
-        return false;
-    }
-
-    if (left == right) {
-        return true;
-    }
-
-    const int minLen = std::min(left.size(), right.size());
-    const int maxLen = std::max(left.size(), right.size());
-    const int lenDiff = std::abs(left.size() - right.size());
-
-    if (lenDiff > 3) {
-        return false;
-    }
-
-    // P2: Improved substring detection for fuzzy matching
-    // For short strings, allow substring containment more aggressively
-    if (minLen >= 2 && lenDiff <= 2) {
-        // Check if shorter string is contained in longer string
-        const QString &shorter = (left.size() < right.size()) ? left : right;
-        const QString &longer = (left.size() < right.size()) ? right : left;
-
-        if (longer.contains(shorter)) {
-            // qDebug() << "[FUZZY MATCH] Substring detected:" << shorter << "in" << longer;
-            return true;
-        }
-    }
-
-    // Allow containment only for sufficiently long strings with very small length difference.
-    if ((left.contains(right) || right.contains(left)) && minLen >= 6 && lenDiff <= 1) {
-        return true;
-    }
-
-    const int lev = levenshteinDistance(left, right);
-
-    // P2: Improved levenshtein matching for short text
-    if (minLen <= 1) {
-        return lev == 0;  // Perfect match only for single char
-    }
-
-    if (minLen <= 3) {
-        // For 2-3 chars: allow 1 edit (more lenient than before which required 0)
-        const bool matched = lev <= 1;
-        // if (matched && lev > 0) {
-        //     qDebug() << "[FUZZY MATCH] Levenshtein distance 1 accepted:" << left << "|" << right;
-        // }
-        return matched;
-    }
-
-    // For 4+ chars: single-edit distance is unambiguously the same subtitle.
-    // Also check for shared contiguous core: OCR noise often corrupts only the prefix/suffix
-    // while leaving a central block intact (e.g. "豪司令员业" vs "夏司令员" share "司令员").
-    // If the longest common substring covers >= 60% of the shorter string and is >= 3 chars,
-    // treat the two readings as the same subtitle.
-    if (lev <= 1) {
-        return true;
-    }
-
-    const int lcs_sub = longestCommonSubstring(left, right);
-    if (lcs_sub >= 3 && static_cast<double>(lcs_sub) / minLen >= 0.60) {
-        // qDebug() << "[FUZZY MATCH] Common substring" << lcs_sub << "chars:" << left << "|" << right;
-        return true;
-    }
-
-    if (minLen <= 4) {
-        return false;  // No further heuristics for very short strings
-    }
-
-    const int lcs = longestCommonSubsequence(left, right);
-    const double lcsRatio = static_cast<double>(lcs) / static_cast<double>(std::max(1, maxLen));
-    const double levRatio = static_cast<double>(lev) / static_cast<double>(std::max(1, maxLen));
-
-    const bool almostContained = (lcsRatio >= 0.82) && (levRatio <= 0.24);
-
-    // if (almostContained) qDebug() << left << right << lcs << almostContained;
-
-    return almostContained;
-}
-
-bool OverlayWindow::shouldDispatchSubtitle(const QString &ocrText)
-{
-    const QString key = subtitleKey(ocrText);
-    if (key.isEmpty()) {
-        return false;
-    }
-
-    if (!subtitleVisible_) {
-        subtitleVisible_ = true;
-
-        // if (wasRecentlyDispatched(key)) {
-        //     return false;
-        // }
-
-        lastDispatchedSubtitleKey_ = key;
-        rememberDispatchedSubtitle(key);
-        subtitleDispatchTimer_.restart();
-        return true;
-    }
-
-    if (wasRecentlyDispatched(key)) {
-        return false;
-    }
-
-    if (subtitleDispatchTimer_.isValid() &&
-        subtitleDispatchTimer_.elapsed() < tuning::kSubtitleSwitchCooldownMs) {
-        return false;
-    }
-
-    const bool isRepeatKey = (key == lastDispatchedSubtitleKey_);
-    if (isRepeatKey && subtitleDispatchTimer_.isValid() &&
-        subtitleDispatchTimer_.elapsed() < tuning::kSubtitleResendCooldownMs) {
-        return false;
-    }
-
-    // qDebug()
-    // << "\nOCR =" << key
-    // << "\nLAST =" << lastDispatchedSubtitleKey_
-    // << "\nVISIBLE =" << subtitleVisible_;
-
-    lastDispatchedSubtitleKey_ = key;
-    rememberDispatchedSubtitle(key);
-    subtitleDispatchTimer_.restart();
-
-    return true;
-}
-
-bool OverlayWindow::wasRecentlyDispatched(const QString &key) const
-{
-    for (const QString &oldKey : recentSubtitleKeys_) {
-        if (isLikelySameSubtitle(key, oldKey)) {
-            // qDebug() << "RECENT MATCH:" << key << "<->" << oldKey;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-void OverlayWindow::rememberDispatchedSubtitle(const QString &key)
-{
-    recentSubtitleKeys_.enqueue(key);
-
-    while (recentSubtitleKeys_.size() > tuning::kRecentSubtitleWindowSize) {
-        recentSubtitleKeys_.dequeue();
-    }
-}
-
-QString OverlayWindow::mostFrequentCandidate() const
-{
-    QString best = candidateText_;
-    int bestCount = -1;
-    int bestQuality = candidateQualityScore(best);
-    for (auto it = candidateFrequency_.cbegin(); it != candidateFrequency_.cend(); ++it) {
-        const QString candidate = it.key();
-        const int count = it.value();
-        const int quality = candidateQualityScore(candidate);
-        if (count > bestCount ||
-            (count == bestCount && quality > bestQuality) ||
-            (count == bestCount && quality == bestQuality && candidate.size() > best.size())) {
-            best = candidate;
-            bestCount = it.value();
-            bestQuality = quality;
-        }
-    }
-    return best;
-}
-
 Qt::Edges OverlayWindow::hitTestEdges(const QPoint &localPos) const
 {
     Qt::Edges edges;
@@ -965,8 +588,7 @@ void OverlayWindow::applyDefaultNoiseConfig()
 {
     minOcrLength_ = tuning::kMinOcrLength;
     minCandidateStableMs_ = tuning::kMinCandidateStableMs;
-    candidateText_.clear();
-    candidateFrequency_.clear();
+    ocrSubtitleFilter_.configure(minOcrLength_, minCandidateStableMs_);
 
     if (captureWorker_) {
         QMetaObject::invokeMethod(captureWorker_, "setNoiseParams", Qt::QueuedConnection,

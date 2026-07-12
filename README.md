@@ -21,6 +21,7 @@ Use this section as the fixed place to add your demo assets.
 - Qt6 transparent overlay window (always-on-top, draggable, resizable)
 - Capture worker in a dedicated thread
 - OCR worker in a dedicated thread
+- OCR subtitle filter module extracted in `src/ocr_subtitle_filter.h/.cpp`
 - Subtitle logger in a dedicated thread
 - OCR engine: ONNX Runtime C++ API (no Python, no Tesseract)
 - Translation client: local LLM HTTP API only
