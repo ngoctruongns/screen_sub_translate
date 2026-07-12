@@ -51,7 +51,7 @@ private:
     QString backendApiMode_;
     QString backendConfigPath_;
     QString promptContextFilePath_;
-    QString glossaryFilePath_;
+    QString aliasFilePath_;
     bool autoDiscoverModel_ = true;
     bool cachePrompt_ = true;
     int repeatLastN_ = 64;
@@ -62,7 +62,7 @@ private:
     double minP_ = 0.06;
     int topK_ = 40;
     QString cachedContextBlock_;  // Loaded once at init, reused for prefix cache hit
-    QVector<QPair<QString, QString>> glossaryAliasPairs_; // alias -> canonical Vietnamese name
+    QVector<QPair<QString, QString>> aliasPairs_; // alias -> canonical Vietnamese name
     QVector<TranslationContextEntry> recentTranslationHistory_;
 
 };

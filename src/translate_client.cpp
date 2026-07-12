@@ -56,7 +56,7 @@ void TranslateClient::initializeTranslationBackend()
     backendModel_ = runtimeConfig.model;
     backendApiMode_ = runtimeConfig.apiMode;
     promptContextFilePath_ = runtimeConfig.contextFilePath;
-    glossaryFilePath_ = runtimeConfig.glossaryFilePath;
+    aliasFilePath_ = runtimeConfig.glossaryFilePath;
     autoDiscoverModel_ = runtimeConfig.autoDiscoverModel;
     cachePrompt_ = runtimeConfig.cachePrompt;
     repeatLastN_ = runtimeConfig.repeatLastN;
@@ -78,19 +78,20 @@ void TranslateClient::initializeTranslationBackend()
     }
 
     localInitialized_ = TranslationBackend::endpointUrl(backendBaseUrl_, mode).isValid();
-    glossaryAliasPairs_.clear();
+    aliasPairs_.clear();
     if (localInitialized_) {
         cachedContextBlock_ = TranslationTextProcessor::loadPromptContext(promptContextFilePath_);
-        const TranslationTextProcessor::GlossaryData glossaryData =
-            TranslationTextProcessor::loadGlossary(glossaryFilePath_);
-        glossaryAliasPairs_ = glossaryData.aliasPairs;
+        const TranslationTextProcessor::AliasData aliasData =
+            TranslationTextProcessor::loadAliasRules(aliasFilePath_);
+        aliasPairs_ = aliasData.aliasPairs;
+
         qDebug() << "TranslateClient: local translation backend ready"
                  << "model=" << backendModel_ << "mode=" << TranslationBackend::apiModeName(mode)
                  << "url=" << TranslationBackend::endpointUrl(backendBaseUrl_, mode).toString()
                  << "config=" << backendConfigPath_
                  << "context=" << promptContextFilePath_
-                 << "glossary=" << glossaryFilePath_
-                 << "aliasRules=" << glossaryAliasPairs_.size();
+                 << "aliasFile=" << aliasFilePath_
+                 << "aliasRules=" << aliasPairs_.size();
     } else {
         qWarning() << "TranslateClient: translation backend config invalid"
                    << "baseUrl=" << backendBaseUrl_ << "mode=" << backendApiMode_
@@ -100,7 +101,7 @@ void TranslateClient::initializeTranslationBackend()
 
 QString TranslateClient::applyGlossaryAliasNormalization(const QString &translatedText) const
 {
-    return TranslationTextProcessor::applyGlossaryNormalization(translatedText, glossaryAliasPairs_);
+    return TranslationTextProcessor::applyAliasNormalization(translatedText, aliasPairs_);
 }
 
 void TranslateClient::requestTranslation(const QString &sourceText)

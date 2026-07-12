@@ -184,6 +184,20 @@ bool containsModelMetaText(const QString &text)
     return false;
 }
 
+QStringList splitCandidateLines(const QString &text)
+{
+    QString normalized = text;
+
+    // Split normal line/sentence separators.
+    normalized.replace(QRegularExpression(QStringLiteral("[\\r\\n.]+")), QStringLiteral("\n"));
+
+    // Avoid splitting every Vietnamese hyphenated word blindly.
+    normalized.replace(QRegularExpression(QStringLiteral("\\s*[-–—]\\s*(?=[A-Za-z]{2,}\\b)")),
+                       QStringLiteral("\n"));
+
+    return normalized.split('\n', Qt::SkipEmptyParts);
+}
+
 QString normalizePunctuation(QString text)
 {
     static const QRegularExpression kCjkPunctuation(
@@ -343,7 +357,15 @@ bool isClearlyOverGenerated(const QString &sourceText, const QString &translated
         return false;
     }
 
-    return outLen > srcLen * 5;
+    if (srcLen <= 5) {
+        return outLen > srcLen * 10;
+    }
+
+    if (srcLen <= 8) {
+        return outLen > srcLen * 8;
+    }
+
+    return outLen > srcLen * 6;
 }
 
 bool containsUnexpectedEnglish(const QString &text)
@@ -400,8 +422,7 @@ bool containsRepeatedSubtitleFragments(const QString &text)
 
 QString selectBestVietnameseLine(const QString &text)
 {
-    QStringList lines =
-        text.split(QRegularExpression(QStringLiteral("[\\r\\n.]+")), Qt::SkipEmptyParts);
+    QStringList lines = splitCandidateLines(text);
 
     if (lines.isEmpty())
         return text;
@@ -549,9 +570,9 @@ QString postProcessTranslation(QString text)
     return text.trimmed();
 }
 
-GlossaryData loadGlossary(const QString &path)
+AliasData loadAliasRules(const QString &path)
 {
-    GlossaryData result;
+    AliasData result;
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -561,55 +582,14 @@ GlossaryData loadGlossary(const QString &path)
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &err);
     if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        qWarning() << "TranslationTextProcessor: failed to parse glossary JSON:" << err.errorString();
+        qWarning() << "TranslationTextProcessor: failed to parse alias JSON:" << err.errorString();
         return result;
     }
 
     const QJsonObject root = doc.object();
-    const QJsonObject glossary = root.value(QStringLiteral("glossary")).toObject();
     const QJsonObject aliases = root.value(QStringLiteral("aliases")).toObject();
 
-    QStringList lines;
     QSet<QString> dedupe;
-
-    for (auto it = glossary.constBegin(); it != glossary.constEnd(); ++it) {
-        const QString key = it.key().trimmed();
-        if (key.isEmpty()) {
-            continue;
-        }
-
-        if (it.value().isString()) {
-            const QString target = it.value().toString().trimmed();
-            if (target.isEmpty()) {
-                continue;
-            }
-            lines.append(key + QStringLiteral(" -> ") + target);
-            appendAliasRule(result.aliasPairs, dedupe, key, target);
-            continue;
-        }
-
-        if (it.value().isObject()) {
-            const QJsonObject item = it.value().toObject();
-            QString target = item.value(QStringLiteral("target")).toString().trimmed();
-            if (target.isEmpty()) {
-                target = item.value(QStringLiteral("value")).toString().trimmed();
-            }
-            if (target.isEmpty()) {
-                continue;
-            }
-
-            lines.append(key + QStringLiteral(" -> ") + target);
-            appendAliasRule(result.aliasPairs, dedupe, key, target);
-
-            const QJsonArray aliasArray = item.value(QStringLiteral("aliases")).toArray();
-            for (const QJsonValue &aliasVal : aliasArray) {
-                if (!aliasVal.isString()) {
-                    continue;
-                }
-                appendAliasRule(result.aliasPairs, dedupe, aliasVal.toString(), target);
-            }
-        }
-    }
 
     for (auto it = aliases.constBegin(); it != aliases.constEnd(); ++it) {
         const QString alias = it.key().trimmed();
@@ -617,6 +597,7 @@ GlossaryData loadGlossary(const QString &path)
         if (alias.isEmpty() || target.isEmpty()) {
             continue;
         }
+
         appendAliasRule(result.aliasPairs, dedupe, alias, target);
     }
 
@@ -625,11 +606,6 @@ GlossaryData loadGlossary(const QString &path)
               [](const QPair<QString, QString> &left, const QPair<QString, QString> &right) {
                   return left.first.size() > right.first.size();
               });
-
-    if (!lines.isEmpty()) {
-        lines.removeDuplicates();
-        result.promptLines = lines.join('\n');
-    }
 
     return result;
 }
@@ -648,7 +624,7 @@ QString loadPromptContext(const QString &path)
     return text;
 }
 
-QString applyGlossaryNormalization(const QString &translatedText,
+QString applyAliasNormalization(const QString &translatedText,
                                    const QVector<QPair<QString, QString>> &aliasPairs)
 {
     if (translatedText.isEmpty() || aliasPairs.isEmpty()) {

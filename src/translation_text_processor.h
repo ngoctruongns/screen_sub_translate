@@ -7,8 +7,7 @@
 namespace TranslationTextProcessor
 {
 
-struct GlossaryData {
-    QString promptLines;
+struct AliasData {
     QVector<QPair<QString, QString>> aliasPairs;
 };
 
@@ -42,9 +41,9 @@ QString sanitizeFinalTranslation(QString text);
 QString postProcessTranslation(QString text);
 
 // Glossary
-GlossaryData loadGlossary(const QString &path);
+AliasData loadAliasRules(const QString &path);
 QString loadPromptContext(const QString &path);
-QString applyGlossaryNormalization(const QString &translatedText,
+QString applyAliasNormalization(const QString &translatedText,
                                    const QVector<QPair<QString, QString>> &aliasPairs);
 
 // Prompt builders
