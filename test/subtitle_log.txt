@@ -1,8 +1,148 @@
-[2026-07-09 08:23:17.496] SESSION_START | source= | result=
-[2026-07-09 08:23:17.801] DISPLAY_CLEARED | source= | result=
-[2026-07-09 08:23:18.469] OCR_DETECTED | source=我是抗联的 | result=stable=196ms frames=3
-[2026-07-09 08:23:19.106] TRANSLATE_ERROR | source=我是抗联的 | result=Translation backend output rejected: over-expanded short source translation
-[2026-07-09 08:23:40.064] OCR_DETECTED | source=我是抗联的 | result=stable=162ms frames=5
-[2026-07-09 08:23:40.726] TRANSLATE_ERROR | source=我是抗联的 | result=Translation backend output rejected: over-expanded short source translation
-[2026-07-09 08:23:45.687] OCR_DETECTED | source=我是抗联的 | result=stable=160ms frames=5
-[2026-07-09 08:23:46.337] TRANSLATE_ERROR | source=我是抗联的 | result=Translation backend output rejected: over-expanded short source translation
+[2026-07-13 01:31:12.886] SESSION_START | source= | result=
+[2026-07-13 01:31:13.204] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:31:16.010] OCR_DETECTED | source=只有这个 | result=stable=168ms frames=5
+[2026-07-13 01:31:16.165] TRANSLATED | source=只有这个 | result=Chỉ có điều này
+[2026-07-13 01:31:17.243] OCR_DETECTED | source=这是什么呀什么意思 | result=stable=175ms frames=6
+[2026-07-13 01:31:17.436] TRANSLATED | source=这是什么呀什么意思 | result=Đây là gì ý nghĩa gì
+[2026-07-13 01:31:19.648] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:31:21.027] OCR_DETECTED | source=那上头给我们多少钱哪 | result=stable=150ms frames=5
+[2026-07-13 01:31:21.295] TRANSLATED | source=那上头给我们多少钱哪 | result=Họ cho chúng tôi bao nhiêu tiền trên đó
+[2026-07-13 01:31:23.197] OCR_DETECTED | source=没给钱还是只给了这个。 | result=stable=164ms frames=5
+[2026-07-13 01:31:23.681] TRANSLATED | source=没给钱还是只给了这个。 | result=Mới không có tiền vẫn chỉ được cái này
+[2026-07-13 01:31:26.914] OCR_DETECTED | source=这怎么行啊！ | result=stable=221ms frames=6
+[2026-07-13 01:31:27.120] TRANSLATED | source=这怎么行啊！ | result=Thật không thể chấp nhận được
+[2026-07-13 01:31:27.232] OCR_DETECTED | source=这怎么行这不胡闹吗 | result=stable=158ms frames=5
+[2026-07-13 01:31:28.011] TRANSLATE_ERROR | source=这怎么行这不胡闹吗 | result=Translation backend output rejected: suspiciously long translation
+[2026-07-13 01:31:29.879] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:31:32.355] OCR_DETECTED | source=東钱也没有机器也没有 | result=stable=216ms frames=2
+[2026-07-13 01:31:32.598] TRANSLATED | source=東钱也没有机器也没有 | result=Đông tiền cũng không có máy móc cũng không
+[2026-07-13 01:31:34.681] OCR_DETECTED | source=让我们用手指头抠啊 | result=stable=172ms frames=5
+[2026-07-13 01:31:34.931] TRANSLATED | source=让我们用手指头抠啊 | result=Hãy dùng ngón tay đào nhé
+[2026-07-13 01:31:36.788] OCR_DETECTED | source=这事我们于不了， | result=stable=158ms frames=5
+[2026-07-13 01:31:36.994] TRANSLATED | source=这事我们于不了， | result=Chuyện này chúng tôi không làm được
+[2026-07-13 01:31:38.510] OCR_DETECTED | source=对不了 | result=stable=151ms frames=5
+[2026-07-13 01:31:38.741] TRANSLATE_ERROR | source=对不了 | result=Translation backend output rejected: suspiciously long translation
+[2026-07-13 01:31:40.012] OCR_DETECTED | source=一直对干不了， | result=stable=166ms frames=5
+[2026-07-13 01:31:40.177] TRANSLATED | source=一直对干不了， | result=Còn mãi không làm được
+[2026-07-13 01:31:42.281] OCR_DETECTED | source=乡亲们乡亲们 | result=stable=164ms frames=5
+[2026-07-13 01:31:42.507] TRANSLATED | source=乡亲们乡亲们 | result=Dân làng các cụ dân làng
+[2026-07-13 01:31:45.309] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:31:46.194] OCR_DETECTED | source=我也知道这个事难办 | result=stable=189ms frames=5
+[2026-07-13 01:31:46.385] TRANSLATED | source=我也知道这个事难办 | result=Tôi cũng biết việc này khó làm
+[2026-07-13 01:31:48.525] OCR_DETECTED | source=可是上面发下来的子在这儿 | result=stable=167ms frames=5
+[2026-07-13 01:31:48.739] TRANSLATED | source=可是上面发下来的子在这儿 | result=Nhưng trên phát xuống này ở đây
+[2026-07-13 01:31:50.675] OCR_DETECTED | source=龙云主席的指示也在这儿 | result=stable=156ms frames=5
+[2026-07-13 01:31:50.990] TRANSLATED | source=龙云主席的指示也在这儿 | result=Dặn dò của Chủ tịch Trườngyun cũng ở đây
+[2026-07-13 01:31:52.926] OCR_DETECTED | source=你们都看到了 | result=stable=164ms frames=5
+[2026-07-13 01:31:53.134] TRANSLATED | source=你们都看到了 | result=Cả hai bên đều đã thấy rồi
+[2026-07-13 01:31:53.976] OCR_DETECTED | source=如果完不成任务 | result=stable=157ms frames=6
+[2026-07-13 01:31:54.161] TRANSLATED | source=如果完不成任务 | result=Nếu không hoàn thành nhiệm vụ
+[2026-07-13 01:31:55.493] OCR_DETECTED | source=我这介县长就要去昆明受审哪！。 | result=stable=198ms frames=6
+[2026-07-13 01:31:55.783] TRANSLATED | source=我这介县长就要去昆明受审哪！。 | result=Tỉnh trưởng của tôi sắp phải ra tòa tại
+[2026-07-13 01:31:59.082] OCR_DETECTED | source=县长 | result=stable=166ms frames=5
+[2026-07-13 01:31:59.186] TRANSLATED | source=县长 | result=tỉnh trưởng
+[2026-07-13 01:32:00.201] OCR_DETECTED | source=手是给县长你的 | result=stable=172ms frames=5
+[2026-07-13 01:32:00.429] TRANSLATED | source=手是给县长你的 | result=Tay là cho tao trưởng huyện này
+[2026-07-13 01:32:02.359] OCR_DETECTED | source=跟我们大伙儿有什么关系啊 | result=stable=175ms frames=5
+[2026-07-13 01:32:02.647] TRANSLATED | source=跟我们大伙儿有什么关系啊 | result=Đối với chúng tôi có gì liên quan sa
+[2026-07-13 01:32:04.803] OCR_DETECTED | source=代就是啊， | result=stable=221ms frames=2
+[2026-07-13 01:32:04.970] TRANSLATED | source=代就是啊， | result=Thay chính là vậy thôi
+[2026-07-13 01:32:07.266] OCR_DETECTED | source=不是我们不肯帮忙啊 | result=stable=154ms frames=4
+[2026-07-13 01:32:07.519] TRANSLATED | source=不是我们不肯帮忙啊 | result=không phải là chúng tôi không muốn giúp đâu
+[2026-07-13 01:32:09.946] OCR_DETECTED | source=你想一想 | result=stable=228ms frames=2
+[2026-07-13 01:32:10.100] TRANSLATED | source=你想一想 | result=Anh nghĩ lại xem
+[2026-07-13 01:32:11.407] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:32:11.704] OCR_DETECTED | source=阿坝那条小土路 | result=stable=160ms frames=4
+[2026-07-13 01:32:11.907] TRANSLATED | source=阿坝那条小土路 | result=Đường đất nhỏ ở A Bạ
+[2026-07-13 01:32:13.729] OCR_DETECTED | source=我们修了十年都没有修好 | result=stable=175ms frames=5
+[2026-07-13 01:32:14.301] TRANSLATED | source=我们修了十年都没有修好 | result=Chúng tôi sửa mười năm vẫn chưa hoàn thành
+[2026-07-13 01:32:16.379] OCR_DETECTED | source=现在要我们三个月， | result=stable=218ms frames=2
+[2026-07-13 01:32:16.559] TRANSLATED | source=现在要我们三个月， | result=Nay yêu cầu chúng ta ba tháng
+[2026-07-13 01:32:18.630] OCR_DETECTED | source=修成滇缅公路 | result=stable=164ms frames=5
+[2026-07-13 01:32:18.860] TRANSLATED | source=修成滇缅公路 | result=Xây thành đường sắt Mê Kông
+[2026-07-13 01:32:20.673] OCR_DETECTED | source=这不是自目做梦吗， | result=stable=169ms frames=5
+[2026-07-13 01:32:20.947] TRANSLATED | source=这不是自目做梦吗， | result=Đây không phải là mơ tự mình sao
+[2026-07-13 01:32:21.653] OCR_DETECTED | source=这不是白日做梦吗。 | result=stable=191ms frames=5
+[2026-07-13 01:32:21.948] TRANSLATED | source=这不是白日做梦吗。 | result=Đây không phải là giấc mơ ngày trắng sao
+[2026-07-13 01:32:22.882] OCR_DETECTED | source=就是啊 | result=stable=152ms frames=5
+[2026-07-13 01:32:23.005] TRANSLATED | source=就是啊 | result=Thế đúng rồi
+[2026-07-13 01:32:25.269] OCR_DETECTED | source=这干不了的事我们不于 | result=stable=225ms frames=2
+[2026-07-13 01:32:25.551] TRANSLATED | source=这干不了的事我们不于 | result=Chúng tôi không làm những việc mà không thể làm
+[2026-07-13 01:32:28.089] OCR_DETECTED | source=走呵们走 | result=stable=215ms frames=2
+[2026-07-13 01:32:28.225] TRANSLATED | source=走呵们走 | result=Chúng ta đi
+[2026-07-13 01:32:29.080] OCR_DETECTED | source=是吧走吧 | result=stable=166ms frames=5
+[2026-07-13 01:32:29.221] TRANSLATED | source=是吧走吧 | result=Được rồi đi
+[2026-07-13 01:32:30.306] OCR_DETECTED | source=乡亲们多亲们 | result=stable=162ms frames=5
+[2026-07-13 01:32:30.684] TRANSLATED | source=乡亲们多亲们 | result=Dân làng các
+[2026-07-13 01:32:30.788] OCR_DETECTED | source=多亲们乡亲们！ | result=stable=163ms frames=6
+[2026-07-13 01:32:30.970] TRANSLATED | source=多亲们乡亲们！ | result=Anh em ruột thịt
+[2026-07-13 01:32:31.329] OCR_DETECTED | source=修亲们乡秉们 | result=stable=172ms frames=5
+[2026-07-13 01:32:31.514] TRANSLATED | source=修亲们乡秉们 | result=Anh em các người ơi
+[2026-07-13 01:32:35.142] OCR_DETECTED | source=老土司 | result=stable=152ms frames=5
+[2026-07-13 01:32:35.303] TRANSLATED | source=老土司 | result=Lão Tù Sát
+[2026-07-13 01:32:36.352] OCR_DETECTED | source=到哪儿去回去 | result=stable=152ms frames=5
+[2026-07-13 01:32:36.491] TRANSLATED | source=到哪儿去回去 | result=Đến đâu về lại
+[2026-07-13 01:32:38.831] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:32:51.838] OCR_DETECTED | source=县长 | result=stable=163ms frames=5
+[2026-07-13 01:32:51.942] TRANSLATED | source=县长 | result=Tỉnh trưởng
+[2026-07-13 01:32:53.117] OCR_DETECTED | source=土司大人 | result=stable=168ms frames=5
+[2026-07-13 01:32:53.282] TRANSLATED | source=土司大人 | result=Thượng úy trưởng bản
+[2026-07-13 01:32:54.685] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:32:56.035] OCR_DETECTED | source=洛位乡亲听我说 | result=stable=186ms frames=6
+[2026-07-13 01:32:56.306] TRANSLATED | source=洛位乡亲听我说 | result=Anh em xóm Lo vị nghe tôi nói
+[2026-07-13 01:32:59.277] OCR_DETECTED | source=龙主席号召大家修滇缅公路 | result=stable=188ms frames=6
+[2026-07-13 01:32:59.632] TRANSLATED | source=龙主席号召大家修滇缅公路 | result=Chủ tịch kêu gọi mọi người xây đường sắt Miến Điện
+[2026-07-13 01:33:03.151] OCR_DETECTED | source=不是为了云南 | result=stable=154ms frames=5
+[2026-07-13 01:33:03.317] TRANSLATED | source=不是为了云南 | result=Không phải để giúp Vân Nam
+[2026-07-13 01:33:05.392] OCR_DETECTED | source=水王县长派工派活（ | result=stable=190ms frames=6
+[2026-07-13 01:33:05.646] TRANSLATED | source=水王县长派工派活（ | result=Tiên sinh huyện trưởng phân công việc làm
+[2026-07-13 01:33:11.642] OCR_DETECTED | source=这是为了抗战 | result=stable=160ms frames=5
+[2026-07-13 01:33:11.851] TRANSLATED | source=这是为了抗战 | result=Đây là để chống chiến tranh
+[2026-07-13 01:33:14.606] OCR_DETECTED | source=我们只有把公路修通了 | result=stable=161ms frames=5
+[2026-07-13 01:33:14.841] TRANSLATED | source=我们只有把公路修通了 | result=Chúng ta chỉ có thể thông đường thôi
+[2026-07-13 01:33:17.112] OCR_DETECTED | source=把国外的军事物资运到国内 | result=stable=152ms frames=5
+[2026-07-13 01:33:17.860] TRANSLATE_ERROR | source=把国外的军事物资运到国内 | result=Translation backend output rejected: suspiciously long translation
+[2026-07-13 01:33:20.122] OCR_DETECTED | source=运到前线 | result=stable=165ms frames=5
+[2026-07-13 01:33:20.305] TRANSLATED | source=运到前线 | result=Gửi đến tiền tuyến
+[2026-07-13 01:33:22.039] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:33:22.295] OCR_DETECTED | source=我们才能打败日本鬼子 | result=stable=167ms frames=5
+[2026-07-13 01:33:22.588] TRANSLATED | source=我们才能打败日本鬼子 | result=Chúng ta mới có thể đánh bại giặc Nhật Bản
+[2026-07-13 01:33:25.331] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:33:26.133] OCR_DETECTED | source=大家平常不是说要抗战吗 | result=stable=221ms frames=2
+[2026-07-13 01:33:26.394] TRANSLATED | source=大家平常不是说要抗战吗 | result=Người ta thường nói phải kháng chiến đúng không
+[2026-07-13 01:33:30.412] OCR_DETECTED | source=这筑路就是抗战哪 | result=stable=214ms frames=2
+[2026-07-13 01:33:31.006] TRANSLATE_ERROR | source=这筑路就是抗战哪 | result=Translation backend output rejected: suspiciously long translation
+[2026-07-13 01:33:35.046] OCR_DETECTED | source=为了抗战呀! | result=stable=172ms frames=5
+[2026-07-13 01:33:35.206] TRANSLATED | source=为了抗战呀! | result=Để kháng chiến
+[2026-07-13 01:33:36.661] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:33:37.617] OCR_DETECTED | source=要不然我们家都没了 | result=stable=152ms frames=4
+[2026-07-13 01:33:37.891] TRANSLATED | source=要不然我们家都没了 | result=Nếu không thì gia đình chúng tôi cũng mất rồi
+[2026-07-13 01:33:39.591] OCR_DETECTED | source=就是 | result=stable=188ms frames=6
+[2026-07-13 01:33:39.708] TRANSLATED | source=就是 | result=Đó chính là
+[2026-07-13 01:33:41.356] OCR_DETECTED | source=些福对为了抗日，。 | result=stable=177ms frames=6
+[2026-07-13 01:33:41.579] TRANSLATED | source=些福对为了抗日，。 | result=Một số phúc vì kháng chiến
+[2026-07-13 01:33:43.466] OCR_DETECTED | source=喜我们是不该讲条件， | result=stable=155ms frames=5
+[2026-07-13 01:33:43.714] TRANSLATED | source=喜我们是不该讲条件， | result=Hạnh Chúng tôi không nên bàn về điều kiện
+[2026-07-13 01:33:45.602] DISPLAY_CLEARED | source= | result=
+[2026-07-13 01:33:46.193] OCR_DETECTED | source=你们说我们该怎么干 | result=stable=169ms frames=5
+[2026-07-13 01:33:46.422] TRANSLATED | source=你们说我们该怎么干 | result=Anh em nói chúng tôi phải làm gì
+[2026-07-13 01:33:48.671] OCR_DETECTED | source=说吧怎么干！ | result=stable=229ms frames=2
+[2026-07-13 01:33:48.904] TRANSLATED | source=说吧怎么干！ | result=Nói đi làm sao khôgn
+[2026-07-13 01:33:52.617] OCR_DETECTED | source=您说吧。 | result=stable=173ms frames=5
+[2026-07-13 01:33:52.762] TRANSLATED | source=您说吧。 | result=Anh nói đi
+[2026-07-13 01:33:55.725] OCR_DETECTED | source=我们现在就回去 | result=stable=164ms frames=5
+[2026-07-13 01:33:55.930] TRANSLATED | source=我们现在就回去 | result=Chúng ta bây giờ về ngay
+[2026-07-13 01:33:57.837] OCR_DETECTED | source=动员各树寨的百姓 | result=stable=165ms frames=5
+[2026-07-13 01:33:58.085] TRANSLATED | source=动员各树寨的百姓 | result=Kêu gọi dân chúng ở các làng cây
+[2026-07-13 01:34:00.879] OCR_DETECTED | source=自带粮食 | result=stable=189ms frames=6
+[2026-07-13 01:34:02.011] TRANSLATE_ERROR | source=自带粮食 | result=Translation backend output rejected: suspiciously long translation
+[2026-07-13 01:34:02.181] OCR_DETECTED | source=一自带工具 | result=stable=231ms frames=2
+[2026-07-13 01:34:02.581] TRANSLATE_ERROR | source=一自带工具 | result=Translation backend output rejected: suspiciously long translation
+[2026-07-13 01:34:03.666] OCR_DETECTED | source=就是没有国外的机我没有准 | result=stable=155ms frames=5
+[2026-07-13 01:34:03.977] TRANSLATED | source=就是没有国外的机我没有准 | result=Chính là không có máy móc từ nước ngoài tôi không chắc
+[2026-07-13 01:34:06.385] OCR_DETECTED | source=就是没有国外自包机械没有钱 | result=stable=150ms frames=5
+[2026-07-13 01:34:06.722] TRANSLATED | source=就是没有国外自包机械没有钱 | result=Chỉ là không có máy móc từ nước ngoài và tiền bạc
+[2026-07-13 01:34:06.879] OCR_DETECTED | source=咱们用手刨也得把路刨出来 | result=stable=169ms frames=5
+[2026-07-13 01:34:07.170] TRANSLATED | source=咱们用手刨也得把路刨出来 | result=Chúng ta dùng tay đào cũng phải đào ra đường
+[2026-07-13 01:34:10.270] OCR_DETECTED | source=好好好 | result=stable=219ms frames=2
+[2026-07-13 01:34:10.534] TRANSLATE_ERROR | source=好好好 | result=Translation backend output rejected: suspiciously long translation

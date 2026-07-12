@@ -17,14 +17,30 @@
 namespace TranslationTextProcessor
 {
 
-namespace
+namespace {  // Anonymous namespace for internal helper functions
+
+bool isHanChar(const QChar &ch)
 {
+    return ch.script() == QChar::Script_Han;
+}
+
+bool isEnglishChar(const QChar &ch)
+{
+    const ushort u = ch.unicode();
+    return (u >= '0' && u <= '9') || (u >= 'A' && u <= 'Z') || (u >= 'a' && u <= 'z');
+}
+
+bool isVietnameseAccentChar(const QChar &ch)
+{
+    const ushort u = ch.unicode();
+    // For as Â, Ô, Ơ, Đ ...
+    return (u >= 0x00C0 && u <= 0x024F) || (u >= 0x1EA0 && u <= 0x1EF9);
+}
 
 bool hasLatinLetter(const QString &text)
 {
     for (const QChar ch : text) {
-        const ushort u = ch.unicode();
-        if ((u >= 'A' && u <= 'Z') || (u >= 'a' && u <= 'z')) {
+        if (isEnglishChar(ch)) {
             return true;
         }
     }
@@ -36,9 +52,56 @@ bool isWordBoundaryChar(const QChar ch)
     return !ch.isLetterOrNumber() && ch != QChar('_');
 }
 
-void replaceLatinAliasWholeWord(QString &text,
-                                const QString &alias,
-                                const QString &replacement)
+int hanCharCount(const QString &text)
+{
+    int count = 0;
+    for (const QChar ch : text) {
+        if (isHanChar(ch)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int englishCharCount(const QString &text)
+{
+    int count = 0;
+
+    for (const QChar ch : text) {
+        if (isEnglishChar(ch)) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+int latinWordCount(const QString &text)
+{
+    static const QRegularExpression kWordRegex(QStringLiteral("[A-Za-zÀ-ỹĐđ]+"));
+    int count = 0;
+    auto it = kWordRegex.globalMatch(text);
+    while (it.hasNext()) {
+        it.next();
+        ++count;
+    }
+    return count;
+}
+
+int vietnameseAccentCount(const QString &text)
+{
+    int count = 0;
+
+    for (const QChar ch : text) {
+        if (isVietnameseAccentChar(ch)) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+void replaceLatinAliasWholeWord(QString &text, const QString &alias, const QString &replacement)
 {
     if (text.isEmpty() || alias.isEmpty()) {
         return;
@@ -68,10 +131,8 @@ void replaceLatinAliasWholeWord(QString &text,
     }
 }
 
-void appendAliasRule(QVector<QPair<QString, QString>> &aliasPairs,
-                     QSet<QString> &dedupe,
-                     const QString &alias,
-                     const QString &target)
+void appendAliasRule(QVector<QPair<QString, QString>> &aliasPairs, QSet<QString> &dedupe,
+                     const QString &alias, const QString &target)
 {
     const QString aliasTrimmed = alias.trimmed();
     const QString targetTrimmed = target.trimmed();
@@ -94,7 +155,66 @@ bool isShortSourcePhrase(const QString &sourceText)
     return srcHan > 0 && srcHan <= 5;
 }
 
-} // anonymous namespace
+bool containsModelMetaText(const QString &text)
+{
+    static const QStringList keywords = {
+        QStringLiteral("repair it"),
+        QStringLiteral("rewrite"),
+        QStringLiteral("rephrase"),
+        QStringLiteral("translate"),
+        QStringLiteral("translation"),
+        QStringLiteral("natural translation"),
+        QStringLiteral("make it natural"),
+        QStringLiteral("to be natural"),
+        QStringLiteral("improved version"),
+        QStringLiteral("corrected version"),
+        QStringLiteral("explanation"),
+        QStringLiteral("note:"),
+        QStringLiteral("output:"),
+        QStringLiteral("answer:")
+    };
+
+    const QString lower = text.toLower();
+
+    for (const QString &kw : keywords) {
+        if (lower.contains(kw))
+            return true;
+    }
+
+    return false;
+}
+
+QString normalizePunctuation(QString text)
+{
+    static const QRegularExpression kCjkPunctuation(
+        QStringLiteral("[。、「」『』【】]"));
+
+    text.remove(kCjkPunctuation);
+
+    static const QRegularExpression kLeadingNoise(
+        QStringLiteral(
+            "^[\\s,，。.!！？?;；:：\\-–—>\\(\\)]+"));
+
+    static const QRegularExpression kTrailingNoise(
+        QStringLiteral(
+            "[\\s,，。.!！？?;；:：\\-–—>\\(\\)]+$"));
+
+    text.remove(kLeadingNoise);
+    text.remove(kTrailingNoise);
+
+    return text.trimmed();
+}
+
+QString normalizeWhitespace(QString text)
+{
+    static const QRegularExpression kMultiSpace(QStringLiteral("\\s{2,}"));
+
+    text.replace(kMultiSpace, QStringLiteral(" "));
+
+    return text.trimmed();
+}
+
+} // anonymous namespace ************************************************************************
 
 bool isLikelyChineseSubtitle(const QString &text)
 {
@@ -105,12 +225,7 @@ bool isLikelyChineseSubtitle(const QString &text)
             continue;
         }
 
-        const ushort u = ch.unicode();
-        const bool isCjk =
-            (u >= 0x3400 && u <= 0x4DBF) ||
-            (u >= 0x4E00 && u <= 0x9FFF) ||
-            (u >= 0xF900 && u <= 0xFAFF);
-        if (isCjk) {
+        if (isHanChar(ch)) {
             ++cjkCount;
         }
         if (ch.isLetterOrNumber()) {
@@ -124,12 +239,7 @@ bool isLikelyChineseSubtitle(const QString &text)
 bool containsHanCharacters(const QString &text)
 {
     for (const QChar ch : text) {
-        const ushort u = ch.unicode();
-        const bool isHan =
-            (u >= 0x3400 && u <= 0x4DBF) ||
-            (u >= 0x4E00 && u <= 0x9FFF) ||
-            (u >= 0xF900 && u <= 0xFAFF);
-        if (isHan) {
+        if (isHanChar(ch)) {
             return true;
         }
     }
@@ -138,11 +248,13 @@ bool containsHanCharacters(const QString &text)
 
 bool isEnglishHeavyOutput(const QString &text)
 {
+
     int latinLetters = 0;
     int totalLetters = 0;
     int vnHintLetters = 0;
 
-    for (const QChar ch : text) {
+    QString normalizedText = text.normalized(QString::NormalizationForm_C);
+    for (const QChar ch : normalizedText) {
         if (!ch.isLetter()) {
             continue;
         }
@@ -153,7 +265,8 @@ bool isEnglishHeavyOutput(const QString &text)
             ++latinLetters;
         }
         // Vietnamese-specific letters and common Latin extended range.
-        if (QStringLiteral("ăâđêôơưĂÂĐÊÔƠƯ").contains(ch) || (u >= 0x00C0 && u <= 0x024F)) {
+        if (QStringLiteral("ăâđêôơưĂÂĐÊÔƠƯ").contains(ch) || (u >= 0x00C0 && u <= 0x024F) ||
+            (u >= 0x1EA0 && u <= 0x1EF9)) {
             ++vnHintLetters;
         }
     }
@@ -164,34 +277,6 @@ bool isEnglishHeavyOutput(const QString &text)
 
     const double latinRatio = static_cast<double>(latinLetters) / static_cast<double>(totalLetters);
     return vnHintLetters == 0 && latinRatio > 0.78;
-}
-
-int hanCharCount(const QString &text)
-{
-    int count = 0;
-    for (const QChar ch : text) {
-        const ushort u = ch.unicode();
-        const bool isHan =
-            (u >= 0x3400 && u <= 0x4DBF) ||
-            (u >= 0x4E00 && u <= 0x9FFF) ||
-            (u >= 0xF900 && u <= 0xFAFF);
-        if (isHan) {
-            ++count;
-        }
-    }
-    return count;
-}
-
-int latinWordCount(const QString &text)
-{
-    static const QRegularExpression kWordRegex(QStringLiteral("[A-Za-zÀ-ỹĐđ]+"));
-    int count = 0;
-    auto it = kWordRegex.globalMatch(text);
-    while (it.hasNext()) {
-        it.next();
-        ++count;
-    }
-    return count;
 }
 
 bool isSuspiciouslyShortTranslation(const QString &sourceText, const QString &translatedText)
@@ -229,6 +314,126 @@ bool isOverExpandedTranslation(const QString &sourceText, const QString &transla
     }
 
     return false;
+}
+
+bool isSuspiciouslyLongTranslation(const QString &sourceText, const QString &translatedText)
+{
+    const int srcHan = hanCharCount(sourceText);
+
+    if (srcHan <= 0) {
+        return false;
+    }
+
+    const int outWords = latinWordCount(translatedText);
+
+    // Subtitle short but output unusually long.
+    if (srcHan <= 8) {
+        return outWords > srcHan * 4;
+    }
+
+    return outWords > srcHan * 3;
+}
+
+bool isClearlyOverGenerated(const QString &sourceText, const QString &translatedText)
+{
+    const int srcLen = sourceText.trimmed().size();
+    const int outLen = translatedText.trimmed().size();
+
+    if (srcLen < 3) {
+        return false;
+    }
+
+    return outLen > srcLen * 5;
+}
+
+bool containsUnexpectedEnglish(const QString &text)
+{
+    static const QStringList badWords = {
+        QStringLiteral("anymore"),
+        QStringLiteral("however"),
+        QStringLiteral("therefore"),
+        QStringLiteral("translation"),
+        QStringLiteral("subtitle"),
+        QStringLiteral("context"),
+        QStringLiteral("output"),
+        QStringLiteral("answer"),
+        QStringLiteral("vietnamese")
+    };
+
+    const QString lower = text.toLower();
+
+    for (const QString &word : badWords) {
+        if (lower.contains(word)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool containsRepeatedSubtitleFragments(const QString &text)
+{
+    QString normalized = text.toLower();
+
+    normalized.remove(QRegularExpression(QStringLiteral("[\\s,，。.!！？?;；:\"'`()\\[\\]{}]+")));
+
+    if (normalized.size() < 12) {
+        return false;
+    }
+
+    for (int fragmentLen = 6; fragmentLen <= normalized.size() / 2; ++fragmentLen) {
+        const QString fragment = normalized.left(fragmentLen);
+
+        if (fragment.isEmpty()) {
+            continue;
+        }
+
+        const int count = normalized.count(fragment);
+
+        if (count >= 3) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+QString selectBestVietnameseLine(const QString &text)
+{
+    QStringList lines =
+        text.split(QRegularExpression(QStringLiteral("[\\r\\n.]+")), Qt::SkipEmptyParts);
+
+    if (lines.isEmpty())
+        return text;
+
+    if (lines.size() > 3)
+        lines = lines.mid(0, 3);
+
+    QString bestLine;
+    int bestScore = -1000000;
+
+    for (QString line : lines) {
+        line = line.trimmed();
+
+        if (line.isEmpty())
+            continue;
+
+        // Skip lines that are likely to be model meta-text or instructions
+        if (containsModelMetaText(line))
+            continue;
+
+        // Score lines based on english character count
+        int score = englishCharCount(line);
+        score += vietnameseAccentCount(line) * 10;  // Bonus with Vietnamese accent characters
+        score -= hanCharCount(line) * 20;   // Penalize lines with Chinese characters
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestLine = line;
+        }
+    }
+
+    return bestLine.isEmpty() ? text : bestLine;
 }
 
 QString shortText(const QString &text, int maxChars)
@@ -336,133 +541,8 @@ QString postProcessTranslation(QString text)
         return text;
     }
 
-    // Remove common meta/instruction tails generated by local LLMs.
-    const QStringList cutMarkers = {
-        QStringLiteral("To keep the"),
-        QStringLiteral("To correct the"),
-        QStringLiteral("To correct this"),
-        QStringLiteral("To translate the"),
-        QStringLiteral("hard constraints"),
-        QStringLiteral("rules:"),
-        QStringLiteral("according to the rules"),
-        QStringLiteral("here is the vietnamese subtitle"),
-        QStringLiteral("here's the translation"),
-        QStringLiteral("context provided"),
-        QStringLiteral("hãy tiếp tục dịch"),
-        QStringLiteral("hãy kiên nhẫn"),
-        QStringLiteral("tập trung vào nội dung"),
-        QStringLiteral("phụ đề ngắn gọn"),
-        QStringLiteral("phong cách tự nhiên")
-    };
-
-    int cutAt = -1;
-    for (const QString &marker : cutMarkers) {
-        const int idx = text.indexOf(marker, 0, Qt::CaseInsensitive);
-        if (idx >= 0 && (cutAt < 0 || idx < cutAt)) {
-            cutAt = idx;
-        }
-    }
-    if (cutAt > 0) {
-        text = text.left(cutAt).trimmed();
-    }
-
-    // Remove empty/garbage bracket fragments like (，), (...), etc.
-    static const QRegularExpression kGarbageBrackets(
-        QStringLiteral("[\\(（]\\s*[,，。…\\.\\-\\s]+[\\)）]"));
-    text.remove(kGarbageBrackets);
-
-    // Remove common noisy English tokens seen in bad generations.
-    static const QRegularExpression kNoisyTokens(
-        QStringLiteral("\\b(?:LinkedIn|Bold|scatter|subtitle|translation|context|rules?|Vietnamese|output|answer)\\b"),
-        QRegularExpression::CaseInsensitiveOption);
-    text.remove(kNoisyTokens);
-
-    // Remove empty-parenthesis artifacts frequently emitted by local models,
-    // e.g. ") )", "() )", "( )".
-    static const QRegularExpression kParenArtifacts(
-        QStringLiteral("(?:[\\(（]\\s*[\\)）]|[\\)）]\\s*[\\)）])+")
-    );
-    text.remove(kParenArtifacts);
-
-    // Remove known Vietnamese meta artifact injected by bad generations.
-    static const QRegularExpression kNoisyVnMeta(
-        QStringLiteral("Toàn\\s+bộ\\s+câu\\s+đã\\s+được\\s+OCR\\s+chính\\s+xác\\.?"),
-        QRegularExpression::CaseInsensitiveOption);
-    text.remove(kNoisyVnMeta);
-
-    // Remove long dot/ellipsis spam blocks.
-    static const QRegularExpression kDotSpam(QStringLiteral("(?:\\s*[。\\.…]\\s*){3,}"));
-    text.replace(kDotSpam, QStringLiteral(" "));
-
-    // Remove trailing English-only clause after punctuation.
-    static const QRegularExpression kTrailingEnglishClause(
-        QStringLiteral("[\\.;:!?]\\s*(?:[A-Za-z]{2,}\\s+){2,}[A-Za-z]{2,}\\s*$"));
-    text.remove(kTrailingEnglishClause);
-
-    // Remove short glued English suffix such as ".scatter".
-    static const QRegularExpression kGluedEnglishSuffix(QStringLiteral("\\.\\s*[A-Za-z]{3,}\\b"));
-    text.remove(kGluedEnglishSuffix);
-
-    // Drop consecutive duplicated sentences to avoid repeated subtitle spam.
-    const QStringList sentenceParts = text.split(QRegularExpression(QStringLiteral("(?<=[\\.!?。])\\s+")),
-                                                 Qt::SkipEmptyParts);
-    if (!sentenceParts.isEmpty()) {
-        QStringList compact;
-        compact.reserve(sentenceParts.size());
-        QSet<QString> seen;
-        for (const QString &part : sentenceParts) {
-            const QString normalized = part.trimmed();
-            if (normalized.isEmpty()) {
-                continue;
-            }
-            if (seen.contains(normalized)) {
-                continue;
-            }
-            compact.push_back(normalized);
-            seen.insert(normalized);
-        }
-        text = compact.join(QStringLiteral(" "));
-    }
-
-    // Normalize repeated CJK periods and mixed period/space artifacts such as "。 。".
-    static const QRegularExpression kRepeatedCjkPeriod(QStringLiteral("(?:。\\s*){2,}"));
-    text.replace(kRepeatedCjkPeriod, QStringLiteral("。 "));
-
-    static const QRegularExpression kMixedPeriodNoise(QStringLiteral("(?:\\.\\s*。|。\\s*\\.)+"));
-    text.replace(kMixedPeriodNoise, QStringLiteral("。 "));
-
-    static const QRegularExpression kMultiSpace(QStringLiteral("\\s{2,}"));
-    text.replace(kMultiSpace, QStringLiteral(" "));
-
-    // If model still returns chained alternatives, keep the final one.
-    static const QRegularExpression kArrowSeparator(QStringLiteral("\\s*(?:->|=>|→)\\s*"));
-    if (text.contains(kArrowSeparator)) {
-        const QStringList candidates = text.split(kArrowSeparator, Qt::SkipEmptyParts);
-        if (!candidates.isEmpty()) {
-            text = candidates.constLast().trimmed();
-        }
-    }
-
-    static const QRegularExpression kResidualCjkPunctuation(QStringLiteral("[。、「」『』【】]"));
-    text.remove(kResidualCjkPunctuation);
-
-    // Remove pure trailing punctuation/bracket debris left after cleanup passes.
-    static const QRegularExpression kTrailingBracketNoise(
-        QStringLiteral("(?:[\\s\\)）\\]】\\(（\\[【\\.。,，:：;；\\-–—])+$$"));
-    text.remove(kTrailingBracketNoise);
-
-    // Trim leading punctuation-only artifacts left by malformed generations
-    // (e.g. "。 -> ", ":", "->").
-    static const QRegularExpression kLeadingNoise(
-        QStringLiteral("^(?:(?:->|=>|→)|[\\s。\\.…:：;；,，、\\-–—>])+")
-    );
-    text.remove(kLeadingNoise);
-
-    // Trim trailing punctuation-only fragments left by cleanup passes
-    // (e.g. "。 ：", "... ;", full-width variants).
-    static const QRegularExpression kTrailingPunctNoise(
-        QStringLiteral("[\\s。\\.…:：;；,，]+$"));
-    text.remove(kTrailingPunctNoise);
+    text = normalizePunctuation(text);
+    text = normalizeWhitespace(text);
 
     qDebug() << "[POST-PROCESS] Translation:" << text;
 
@@ -599,15 +679,13 @@ QString translationPrompt(const QString &sourceText,
                          const QString &recentDialogueContext)
 {
     QString prompt = QStringLiteral(
-        "You are translating OCR subtitles for a Chinese historical war film into natural Vietnamese subtitle style.\n"
+        "You are translating OCR subtitles for a Chinese film into natural Vietnamese subtitle style.\n"
         "Rules:\n"
         "- Output ONLY the Vietnamese subtitle.\n"
         "- Absolutely NO explanations, NO notes, NO labels, No extra text, One line only.\n"
         "- No Chinese characters.\n"
         "- Convert Chinese names into Vietnamese Sino-Vietnamese readings.\n"
-        // "- Never use pinyin or romanized Mandarin.\n"
         "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n"
-        "- Start your translation immediately on the very first line without any blank lines or prefixes.\n"
         "- Never output words like 'Vietnamese', 'Output', 'Rules', or any instruction text.\n"
     );
 
@@ -616,96 +694,85 @@ QString translationPrompt(const QString &sourceText,
     }
 
     if (!recentDialogueContext.isEmpty()) {
-        prompt += QStringLiteral("\nContext only. Do NOT translate these lines.\n\nPrevious:\n") + recentDialogueContext + QStringLiteral("\n");
+        prompt += QStringLiteral("\nContext only. Do NOT translate these lines.\n\nPrevious:\n") +
+                  recentDialogueContext + QStringLiteral("\n");
     }
 
-    prompt += QStringLiteral("\nTranslate ONLY this line:\n") + sourceText + QStringLiteral("\n\nVietnamese:");
+    prompt += QStringLiteral("\nTranslate ONLY this line:\n") +
+              sourceText + QStringLiteral("\nVietnamese subtitle:\n");
 
     // Print to debug prompt
-    // qDebug() << "Translation prompt:" << prompt;
+    static bool debugPromptEnabled = true;
+    if (debugPromptEnabled) {
+        qDebug() << "Translation prompt:" << prompt;
+        debugPromptEnabled = false; // Only print once per run to avoid clutter.
+    }
 
     return prompt;
 }
 
-QString repairPrompt(const QString &sourceText,
-                     const QString &draftTranslation,
-                     const QString &contextBlock)
+TranslationIssue evaluateTranslationQuality(const QString &sourceText, const QString &translatedText)
 {
-    QString prompt = QStringLiteral(
-        "Rewrite the draft into one natural Vietnamese subtitle line.\n"
-        "Rules:\n"
-        "- Remove all Chinese Han characters completely.\n"
-        "- Use only Vietnamese/Latin script.\n"
-        "- Preserve the meaning of the original Chinese source.\n"
-        "- No explanations, no notes, no quotes, no extra labels.\n");
-
-    if (!contextBlock.isEmpty()) {
-        prompt += QStringLiteral("\nMovie context provided by user:\n") + contextBlock + QStringLiteral("\n");
+    if (translatedText.trimmed().isEmpty()) {
+        return TranslationIssue::Empty;
     }
 
-    prompt += QStringLiteral("\nOriginal Chinese:\n") + sourceText +
-            //   QStringLiteral("\n\nBad draft:\n") + draftTranslation +
-              QStringLiteral("\n\nOutput:");
-    return prompt;
+    if (containsHanCharacters(translatedText)) {
+        return TranslationIssue::ContainsHan;
+    }
+
+    if (isEnglishHeavyOutput(translatedText)) {
+        return TranslationIssue::EnglishHeavy;
+    }
+
+    if (isOverExpandedTranslation(sourceText, translatedText)) {
+        return TranslationIssue::OverExpanded;
+    }
+
+    if (isSuspiciouslyShortTranslation(sourceText, translatedText)) {
+        return TranslationIssue::TooShort;
+    }
+
+    if (isSuspiciouslyLongTranslation(sourceText, translatedText) ||
+        isClearlyOverGenerated(sourceText, translatedText)) {
+        return TranslationIssue::TooLong;
+    }
+
+    if (containsRepeatedSubtitleFragments(translatedText)) {
+        return TranslationIssue::Repeated;
+    }
+
+    if (containsUnexpectedEnglish(translatedText)) {
+        return TranslationIssue::UnexpectedEnglish;
+    }
+
+    return TranslationIssue::None;
 }
 
-QString rescuePrompt(const QString &sourceText,
-                    const QString &draftTranslation,
-                    const QString &contextBlock,
-                    const QString &recentDialogueContext)
+QString translationIssueMessage(TranslationIssue issue)
 {
-    QString prompt = QStringLiteral(
-        "FINAL RETRY. Output exactly one clean Vietnamese subtitle line.\n"
-        "Hard constraints:\n"
-        "- Do not include any Chinese characters.\n"
-        "- Do not include labels like 'translation', 'dịch', '已被译为'.\n"
-        "- Do not include explanations.\n"
-        "- Keep it short and natural for subtitle display.\n");
-
-    if (!contextBlock.isEmpty()) {
-        prompt += QStringLiteral("\nMovie context provided by user:\n") + contextBlock + QStringLiteral("\n");
+    switch (issue) {
+        case TranslationIssue::None:
+            return QStringLiteral("Translation quality check passed");
+        case TranslationIssue::Empty:
+            return QStringLiteral("Translation backend output is empty");
+        case TranslationIssue::ContainsHan:
+            return QStringLiteral("Translation backend output contains Han");
+        case TranslationIssue::EnglishHeavy:
+            return QStringLiteral("Translation backend output rejected: English-heavy output");
+        case TranslationIssue::OverExpanded:
+            return QStringLiteral("Translation backend output rejected: over-expanded short source translation");
+        case TranslationIssue::TooShort:
+            return QStringLiteral("Translation backend output rejected: suspiciously short translation");
+        case TranslationIssue::TooLong:
+            return QStringLiteral("Translation backend output rejected: suspiciously long translation");
+        case TranslationIssue::Repeated:
+            return QStringLiteral("Translation backend output rejected: repeated subtitle fragments");
+        case TranslationIssue::UnexpectedEnglish:
+            return QStringLiteral("Translation backend output rejected: unexpected English tokens");
     }
 
-    if (!recentDialogueContext.isEmpty()) {
-        prompt += QStringLiteral("\nContext only. Do NOT translate these lines.\n\nPrevious:\n") + recentDialogueContext + QStringLiteral("\n");
-    }
-
-    // if (!draftTranslation.trimmed().isEmpty()) {
-    //     prompt += QStringLiteral("\nBad draft to fix:\n") + draftTranslation + QStringLiteral("\n");
-    // }
-
-    prompt += QStringLiteral("\nTranslate ONLY this line:\n") + sourceText + QStringLiteral("\n\nVietnamese:");
-    return prompt;
-}
-
-QString completeLinePrompt(const QString &sourceText,
-                           const QString &draftTranslation,
-                           const QString &contextBlock,
-                           const QString &recentDialogueContext)
-{
-    QString prompt = QStringLiteral(
-        "Rewrite into one COMPLETE Vietnamese subtitle line for the full Chinese source.\n"
-        "Hard constraints:\n"
-        "- Output exactly one complete sentence, not a fragment.\n"
-        "- Do not output single-word fragments like 'Đã', 'Và', 'Là'.\n"
-        "- Preserve key meaning and entities from the Chinese source.\n"
-        "- No explanations, no notes, no labels.\n"
-        "- No Chinese Han characters in output.\n");
-
-    if (!contextBlock.isEmpty()) {
-        prompt += QStringLiteral("\nMovie context provided by user:\n") + contextBlock + QStringLiteral("\n");
-    }
-
-    if (!recentDialogueContext.isEmpty()) {
-        prompt += QStringLiteral("\nContext only. Do NOT translate these lines.\n\nPrevious:\n") + recentDialogueContext + QStringLiteral("\n");
-    }
-
-    // if (!draftTranslation.trimmed().isEmpty()) {
-    //     prompt += QStringLiteral("\nBad fragment to avoid:\n") + draftTranslation + QStringLiteral("\n");
-    // }
-
-    prompt += QStringLiteral("\nTranslate ONLY this line:\n") + sourceText + QStringLiteral("\n\nVietnamese:");
-    return prompt;
+    return QStringLiteral("Translation backend output rejected: unknown quality issue");
 }
 
 } // namespace TranslationTextProcessor

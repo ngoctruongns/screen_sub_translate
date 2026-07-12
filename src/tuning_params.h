@@ -30,10 +30,15 @@ namespace tuning
     inline constexpr int kTranslateHistoryEntryMaxCharsHan = 42;
     inline constexpr int kTranslateHistoryEntryMaxCharsVie = 82;
     inline constexpr int kTranslationCacheSize = 96;
-    // When true, the client automatically retries with a repair prompt (Han chars in output)
-    // or a rescue prompt (empty / suspiciously short output). Disabling drops bad responses
-    // outright — useful for latency testing but hurts real-world translation quality.
+
+    // When true, the client retries once with the same translation prompt and stricter deterministic sampling
+    // if the first output fails quality checks.
+    // Disabling drops bad responses outright — useful for latency testing but hurts real-world translation quality.
     inline constexpr bool kEnableRetryPasses = true;
+    inline constexpr double kTranslateRetryTemperature = 0.02;
+    inline constexpr int kTranslateRetryTopK = 40;
+    inline constexpr double kTranslateRetryTopP = 0.85;
+    inline constexpr double kTranslateRetryMinP = 0.05;
 
     // Backward-compatibility constants kept for evaluation tools still using legacy ONNX translator.
     inline constexpr const char *kTranslateModelDir = "../models/translate";

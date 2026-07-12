@@ -6,8 +6,6 @@
 #include <QVector>
 #include <QPair>
 
-#include <optional>
-
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -36,11 +34,7 @@ private:
 
     void initializeTranslationBackend();
     void startBackendRequest(const QString &sourceText);
-    void startBackendPromptRequest(const QString &sourceText,
-                                   const QString &prompt,
-                                   const std::optional<QString> &draftTranslation,
-                                   bool isRepairPass,
-                                   bool isRescuePass);
+    void startBackendPromptRequest(const QString &sourceText, const QString &prompt, bool isRetryPass);
     QString recentDialogueContext() const;
     void rememberTranslationContext(const QString &sourceText, const QString &translatedText);
     QString applyGlossaryAliasNormalization(const QString &translatedText) const;

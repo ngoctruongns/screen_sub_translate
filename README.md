@@ -46,7 +46,16 @@ Pipeline notes:
 - OCR noise-gate parameters are centralized in `src/tuning_params.h` (single fixed configuration, currently aligned with the previous Balanced tuning).
 - Subtitle dedupe gate suppresses repeated dispatch while the same subtitle is still on screen.
 - Translation is async; stale/error events are handled without freezing the overlay.
+- Translation output now goes through one centralized quality gate. If the first pass fails and retry is enabled, the app performs one deterministic retry with the same prompt and stricter sampling parameters.
 - Translations are buffered in a display queue and shown sequentially with per-entry timing.
+
+Translation retry policy:
+
+- The first pass uses `translationPrompt()` and normal generation parameters.
+- The raw model output is sanitized, post-processed, normalized by glossary aliases, then checked by `evaluateTranslationQuality()`.
+- If the first pass fails and `kEnableRetryPasses` is enabled, the app retries once with the same prompt and deterministic sampling.
+- Retry parameters are fixed in `translate_client.cpp`: `temperature = 0.0`, `top_k = 20`, `top_p = 0.8`, `min_p = 0.1`.
+- If retry also fails, the result is rejected and logged as `TRANSLATE_ERROR`.
 
 ### Runtime Flow
 
@@ -70,8 +79,10 @@ flowchart TD
   L -->|Yes| H
   L -->|No| M[Log OCR_DETECTED]
   M --> N[TranslateClient request\nlocal LLM endpoint]
-  N --> O{Translation ready?}
-  O -->|No| P[Log TRANSLATE_ERROR]
+  N --> O{Quality check passed?}
+  O -->|No, first pass + retry enabled| P[Retry once with same prompt\nand deterministic sampling]
+  P --> O
+  O -->|No after retry| R[Log TRANSLATE_ERROR]
   O -->|Yes| Q[Enqueue translation display queue]
   Q --> R{Display timer tick 60ms}
   R -->|Entry stale or queue empty + source gone| S[Clear overlay]
@@ -273,8 +284,9 @@ Fields:
 
 Notes:
 
-- Core quality knobs are still fixed in code defaults (`kTranslateTemperature`, `kTranslateNumPredict`) inside `src/tuning_params.h`.
-- The JSON options above are intended for backend/runtime tuning without rebuilding the app.
+- Core first-pass generation knobs are still fixed in code defaults (`kTranslateTemperature`, `kTranslateNumPredict`) inside `src/tuning_params.h`.
+- Runtime JSON options such as `repeatPenalty`, `frequencyPenalty`, and `repeatLastN` are intended for backend/runtime tuning without rebuilding the app.
+- Retry generation uses fixed conservative parameters in `translate_client.cpp`: `temperature = 0.0`, `top_k = 20`, `top_p = 0.8`, `min_p = 0.1`.
 
 Examples:
 
@@ -366,23 +378,38 @@ Behavior:
 Implemented across translation modules:
 
 - **Pre-translation validation** (`translation_text_processor.cpp`):
-  - Reject obvious non-Chinese OCR candidates before translation request
+  - Reject obvious non-Chinese OCR candidates before sending a translation request.
+  - This prevents OCR noise, UI text, or non-subtitle regions from consuming backend requests.
+
+- **Main translation flow** (`translate_client.cpp`):
+  - The normal path is intentionally simple and deterministic:
+    `translationPrompt -> raw model output -> sanitizeFinalTranslation -> postProcessTranslation -> glossary normalization -> quality check`.
+  - If the first result passes quality checks, it is emitted immediately and stored in recent dialogue context.
+
 - **Text sanitization** (`translation_text_processor.cpp`):
-  - Sanitize raw model output (labels, Han remnants, punctuation noise, spacing noise)
-  - Post-process noisy artifacts from local LLM generations
-- **Quality checks** (`translation_text_processor.cpp`):
-  - Reject English-heavy output
-  - Reject over-expanded translation for very short source phrase
-  - Reject suspiciously short translation
-- **Retry orchestration** (`translate_client.cpp`):
-  - Force one complete-line retry when first output is suspiciously short
-  - Optional additional repair/rescue passes controlled by `kEnableRetryPasses`
+  - `sanitizeFinalTranslation()` removes common model-output wrappers such as labels, quotes, Han remnants, chained alternatives, CJK punctuation noise, and spacing artifacts.
+  - `postProcessTranslation()` removes noisy local-LLM artifacts such as instruction tails, meta tokens, repeated sentence fragments, punctuation debris, and glued English suffixes.
+
+- **Centralized quality checks** (`translation_text_processor.cpp`):
+  - Quality evaluation is centralized in `evaluateTranslationQuality()`, which returns a `TranslationIssue`.
+  - Current issue types are `None`, `Empty`, `ContainsHan`, `EnglishHeavy`, `OverExpanded`, `TooShort`, `TooLong`, `Repeated`, and `UnexpectedEnglish`.
+
+- **Single retry orchestration** (`translate_client.cpp`):
+  - If the first quality check fails and `kEnableRetryPasses` is enabled, the client performs exactly one retry using the same translation prompt.
+  - The retry does not use separate repair/rescue prompts anymore; only decoding parameters are changed to make output more deterministic.
+
+- **Retry decoding parameters** (`translate_client.cpp`):
+  - Retry requests use fixed conservative sampling parameters:
+    `temperature = 0.0`, `top_k = 20`, `top_p = 0.8`, `min_p = 0.1`.
+  - If the retry result still fails quality checks, the client emits `translationError()` with the corresponding quality issue message.
+
 - **Glossary normalization** (`translation_text_processor.cpp`):
-  - Apply alias rules to stabilize proper names in final output
+  - Alias rules are applied after sanitization and post-processing to stabilize proper names in final Vietnamese output.
+  - Longer aliases are prioritized first to reduce partial replacement issues.
 
 Current default in `src/tuning_params.h`:
 
-- `kEnableRetryPasses = false`
+- `kEnableRetryPasses = true`
 
 ### Translation Display Queue
 
@@ -423,8 +450,15 @@ All tuning constants are centralized in `src/tuning_params.h`. Key parameters:
 - `kTranslateBaseUrl`: `"http://127.0.0.1:8080"`
 - `kTranslateApiMode`: `"auto"`
 - `kTranslateModel`: `""` (empty for auto-discovery)
-- `kTranslateTemperature`: `0.05` (deterministic)
-- `kTranslateNumPredict`: `48` (max tokens)
+- `kTranslateTemperature`: `0.01` (first-pass sampling temperature)
+- `kTranslateNumPredict`: `64` (max tokens)
+
+**Translation Context and Retry**:
+- `kEnableRetryPasses`: `true`
+- `kTranslateRetryTemperature`: `0.0`
+- `kTranslateRetryTopK`: `20`
+- `kTranslateRetryTopP`: `0.8`
+- `kTranslateRetryMinP`: `0.1`
 
 **OCR Configuration**:
 - `kOcrModelPath`: `"../models/paddle/ch_PP-OCRv4_rec_infer.onnx"`
@@ -442,9 +476,10 @@ All tuning constants are centralized in `src/tuning_params.h`. Key parameters:
 - `kCaptureContrastThreshold`: `20.0`
 
 **Translation Context**:
-- `kTranslatePromptContextMaxChars`: `1500`
-- `kTranslateHistoryWindowSize`: `3`
+- `kTranslatePromptContextMaxChars`: `900`
+- `kTranslateHistoryWindowSize`: `2`
 - `kEnableRetryPasses`: `false`
+- Retry uses the same `translationPrompt()` as the first pass, but with fixed deterministic sampling parameters in `translate_client.cpp`.
 
 ## Daily Usage
 
@@ -614,9 +649,9 @@ The `.srt` files are emitted in both Debug and Release builds. Runtime subtitle 
 ### Module Organization
 
 **Translation Subsystem** (3 modules):
-- `src/translate_client.h / .cpp` - Translation orchestrator: async requests, retry logic, state management
-- `src/translation_backend_adapter.h / .cpp` - Backend connection: JSON config, model discovery, HTTP communication
-- `src/translation_text_processor.h / .cpp` - Text processing: prompts, sanitization, quality checks, glossary
+- `src/translate_client.h / .cpp` - Translation orchestrator: async HTTP requests, single-retry flow, retry sampling parameters, pending/in-flight state management
+- `src/translation_backend_adapter.h / .cpp` - Backend connection: JSON config, API mode resolution, model discovery, HTTP response extraction
+- `src/translation_text_processor.h / .cpp` - Text processing: prompt construction, sanitization, post-processing, centralized quality checks, issue messages, glossary normalization
 
 **Core Application**:
 - `main.cpp` - Application entry point

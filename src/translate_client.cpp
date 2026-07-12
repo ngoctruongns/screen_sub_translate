@@ -176,16 +176,12 @@ void TranslateClient::startBackendRequest(const QString &sourceText)
     const QString dialogueContext = recentDialogueContext();
     startBackendPromptRequest(sourceText,
                               TranslationTextProcessor::translationPrompt(sourceText, cachedContextBlock_, dialogueContext),
-                              std::nullopt,
-                              false,
                               false);
 }
 
 void TranslateClient::startBackendPromptRequest(const QString &sourceText,
                                                 const QString &prompt,
-                                                const std::optional<QString> &draftTranslation,
-                                                bool isRepairPass,
-                                                bool isRescuePass)
+                                                bool isRetryPass)
 {
     inFlightText_ = sourceText;
 
@@ -205,6 +201,11 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         return;
     }
 
+    const double temperature = isRetryPass ? tuning::kTranslateRetryTemperature : tuning::kTranslateTemperature;
+    const int topK = isRetryPass ? tuning::kTranslateRetryTopK : topK_;
+    const double topP = isRetryPass ? tuning::kTranslateRetryTopP : topP_;
+    const double minP = isRetryPass ? tuning::kTranslateRetryMinP : minP_;
+
     const QUrl endpoint = TranslationBackend::endpointUrl(backendBaseUrl_, mode);
     QNetworkRequest request(endpoint);
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
@@ -220,16 +221,20 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         payload.insert(QStringLiteral("stream"), false);
 
         QJsonObject options;
-        options.insert(QStringLiteral("temperature"), tuning::kTranslateTemperature);
+        options.insert(QStringLiteral("temperature"), temperature);
         options.insert(QStringLiteral("num_predict"), tuning::kTranslateNumPredict);
+        options.insert(QStringLiteral("top_k"), topK);
+        options.insert(QStringLiteral("top_p"), topP);
+        options.insert(QStringLiteral("min_p"), minP);
         options.insert(QStringLiteral("stop"), QJsonArray{QStringLiteral("\n\n"), QStringLiteral("###")});
         payload.insert(QStringLiteral("options"), options);
     } else if (mode == TranslationBackend::ApiMode::OpenAI) {
         if (!backendModel_.isEmpty()) {
             payload.insert(QStringLiteral("model"), backendModel_);
         }
-        payload.insert(QStringLiteral("temperature"), tuning::kTranslateTemperature);
+        payload.insert(QStringLiteral("temperature"), temperature);
         payload.insert(QStringLiteral("max_tokens"), tuning::kTranslateNumPredict);
+        payload.insert(QStringLiteral("top_p"), topP);
 
         QJsonArray messages;
         QJsonObject userMsg;
@@ -241,7 +246,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         payload.insert(QStringLiteral("stop"), QJsonArray{QStringLiteral("\n\n"), QStringLiteral("###")});
     } else {
         payload.insert(QStringLiteral("prompt"), prompt);
-        payload.insert(QStringLiteral("temperature"), tuning::kTranslateTemperature);
+        payload.insert(QStringLiteral("temperature"), temperature);
         payload.insert(QStringLiteral("n_predict"), tuning::kTranslateNumPredict); // max token output
         payload.insert(QStringLiteral("stream"), false);    // Disable streaming for simplicity
         payload.insert(QStringLiteral("cache_prompt"), cachePrompt_); // Allow model to cache prompt for faster subsequent calls
@@ -252,22 +257,23 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
 
         // Sampling parameters — control the token probability distribution.
         // See BackendConfig in translation_backend_adapter.h for tuning notes.
-        payload.insert(QStringLiteral("top_k"), topK_);
-        payload.insert(QStringLiteral("top_p"), topP_);
-        payload.insert(QStringLiteral("min_p"), minP_);
+        payload.insert(QStringLiteral("top_k"), topK);
+        payload.insert(QStringLiteral("top_p"), topP);
+        payload.insert(QStringLiteral("min_p"), minP);
 
         payload.insert(QStringLiteral("stop"),
                        QJsonArray{
-                           // Avoid single-newline stop because many models emit '\n' first.
-                           // That can terminate generation before any real text is produced.
-                           QStringLiteral("\n"),
-                           QStringLiteral("\n\n"),
-                           QStringLiteral("<|im_end|>"),    // Chat turn end token (Qwen/ChatML)
-                           QStringLiteral("<|endoftext|>"), // Text end token (Qwen/GPT family)
-                           QStringLiteral("###"),           // Section separator often used by Ollama
-                           QStringLiteral("\u8d8a\u5357\u8bed:"),        // Suppress bilingual meta-label that Qwen emits in Chinese
-                           QStringLiteral("Vietnamese:"),   // Suppress bilingual meta-label in English
-                           QStringLiteral("Note:"),         // Suppress explanatory footnotes
+                            // Do not use single newline as a stop sequence.
+                            // Qwen often emits '\n' before the actual answer; stopping on it
+                            // can produce an empty completion.
+                            QStringLiteral("\n\n"),
+                            QStringLiteral("<|im_end|>"),    // Chat turn end token (Qwen/ChatML)
+                            QStringLiteral("<|endoftext|>"), // Text end token (Qwen/GPT family)
+                            QStringLiteral("<|end|>"),
+                            QStringLiteral("<|eot_id|>"),
+                            QStringLiteral("###"),         // Section separator often used by Ollama
+                            QStringLiteral("\u8d8a\u5357\u8bed:"),        // Suppress bilingual meta-label that Qwen emits in Chinese
+                            QStringLiteral("Note:"),         // Suppress explanatory footnotes
                        });
     }
 
@@ -275,11 +281,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         networkManager_->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     reply->setProperty("sourceText", sourceText);
     reply->setProperty("localApiMode", TranslationBackend::apiModeName(mode));
-    reply->setProperty("repairPass", isRepairPass);
-    reply->setProperty("rescuePass", isRescuePass);
-    if (draftTranslation.has_value()) {
-        reply->setProperty("draftTranslation", *draftTranslation);
-    }
+    reply->setProperty("retryPass", isRetryPass);
     activeReply_ = reply;
 }
 
@@ -287,8 +289,7 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
 {
     const TranslationBackend::ApiMode localMode = TranslationBackend::parseApiMode(reply->property("localApiMode").toString());
     const QString sourceText = reply->property("sourceText").toString();
-    const bool isRepairPass = reply->property("repairPass").toBool();
-    const bool isRescuePass = reply->property("rescuePass").toBool();
+    const bool isRetryPass = reply->property("retryPass").toBool();
 
     if (activeReply_ == reply) {
         activeReply_.clear();
@@ -314,81 +315,37 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
 
             // Print to debug raw translate
             qDebug() << "Raw translation output:" << rawTranslated;
+            if (rawTranslated.trimmed().isEmpty()) {
+                qWarning().noquote() << "TranslateClient: empty raw response body:"
+                                     << QString::fromUtf8(responseData);
+            }
 
-            QString translated = TranslationTextProcessor::sanitizeFinalTranslation(rawTranslated);
+            QString translated = TranslationTextProcessor::selectBestVietnameseLine(rawTranslated);
+            translated = TranslationTextProcessor::sanitizeFinalTranslation(translated);
             translated = TranslationTextProcessor::postProcessTranslation(translated);
             translated = applyGlossaryAliasNormalization(translated);
 
-            if (TranslationTextProcessor::isSuspiciouslyShortTranslation(sourceText, translated) && !isRescuePass) {
+            const TranslationTextProcessor::TranslationIssue issue =
+                TranslationTextProcessor::evaluateTranslationQuality(sourceText, translated);
+
+            if (issue == TranslationTextProcessor::TranslationIssue::None) {
+                rememberTranslationContext(sourceText, translated);
+                emit translationReady(translated, sourceText);
+            } else if (tuning::kEnableRetryPasses && !isRetryPass) {
+                qWarning() << "TranslateClient: translation quality check failed, retrying\n"
+                           << "issue=" << TranslationTextProcessor::translationIssueMessage(issue) << "\n"
+                           << "source=" << TranslationTextProcessor::shortText(sourceText, 40) << "\n"
+                           << "translated=" << TranslationTextProcessor::shortText(translated, 80);
                 const QString dialogueContext = recentDialogueContext();
                 reply->deleteLater();
                 startBackendPromptRequest(sourceText,
-                                          TranslationTextProcessor::completeLinePrompt(sourceText,
-                                                             translated,
-                                                             cachedContextBlock_,
-                                                             dialogueContext),
-                                          translated,
-                                          false,
+                                          TranslationTextProcessor::translationPrompt(sourceText,
+                                                                               cachedContextBlock_,
+                                                                               dialogueContext),
                                           true);
                 return;
-            }
-
-            if (translated.isEmpty()) {
-                qWarning() << "TranslateClient: empty local translation after sanitize"
-                           << "source=" << TranslationTextProcessor::shortText(sourceText, 40)
-                           << "raw=" << TranslationTextProcessor::shortText(rawTranslated, 80)
-                           << "mode=" << TranslationBackend::apiModeName(localMode)
-                           << "repairPass=" << isRepairPass
-                           << "rescuePass=" << isRescuePass;
-                if (tuning::kEnableRetryPasses && !isRescuePass) {
-                    const QString dialogueContext = recentDialogueContext();
-                    reply->deleteLater();
-                    startBackendPromptRequest(sourceText,
-                                              TranslationTextProcessor::rescuePrompt(sourceText,
-                                                           rawTranslated,
-                                                           cachedContextBlock_,
-                                                           dialogueContext),
-                                              rawTranslated,
-                                              false,
-                                              true);
-                    return;
-                }
-                emit translationError(QStringLiteral("Translation backend output is empty"));
-            } else if (TranslationTextProcessor::containsHanCharacters(translated) && !isRepairPass) {
-                if (tuning::kEnableRetryPasses) {
-                    reply->deleteLater();
-                    startBackendPromptRequest(sourceText,
-                                              TranslationTextProcessor::repairPrompt(sourceText, translated, cachedContextBlock_),
-                                              translated,
-                                              true,
-                                              false);
-                    return;
-                }
-                emit translationError(QStringLiteral("Translation backend output contains Han"));
-            } else if (TranslationTextProcessor::containsHanCharacters(translated)) {
-                if (tuning::kEnableRetryPasses && !isRescuePass) {
-                    const QString dialogueContext = recentDialogueContext();
-                    reply->deleteLater();
-                    startBackendPromptRequest(sourceText,
-                                              TranslationTextProcessor::rescuePrompt(sourceText,
-                                                           translated,
-                                                           cachedContextBlock_,
-                                                           dialogueContext),
-                                              translated,
-                                              false,
-                                              true);
-                    return;
-                }
-                emit translationError(QStringLiteral("Translation backend output still contains Han after repair"));
-            } else if (TranslationTextProcessor::isEnglishHeavyOutput(translated)) {
-                emit translationError(QStringLiteral("Translation backend output rejected: English-heavy output"));
-            } else if (TranslationTextProcessor::isOverExpandedTranslation(sourceText, translated)) {
-                emit translationError(QStringLiteral("Translation backend output rejected: over-expanded short source translation"));
-            } else if (TranslationTextProcessor::isSuspiciouslyShortTranslation(sourceText, translated)) {
-                emit translationError(QStringLiteral("Translation backend output rejected: suspiciously short translation"));
             } else {
-                rememberTranslationContext(sourceText, translated);
-                emit translationReady(translated, sourceText);
+                emit translationError(TranslationTextProcessor::translationIssueMessage(issue));
             }
 
             reply->deleteLater();

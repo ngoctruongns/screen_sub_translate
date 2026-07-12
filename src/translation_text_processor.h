@@ -12,6 +12,19 @@ struct GlossaryData {
     QVector<QPair<QString, QString>> aliasPairs;
 };
 
+enum class TranslationIssue
+{
+    None,
+    Empty,
+    ContainsHan,
+    EnglishHeavy,
+    OverExpanded,
+    TooShort,
+    TooLong,
+    Repeated,
+    UnexpectedEnglish
+};
+
 // Text validation
 bool isLikelyChineseSubtitle(const QString &text);
 bool containsHanCharacters(const QString &text);
@@ -19,7 +32,11 @@ bool isEnglishHeavyOutput(const QString &text);
 bool isSuspiciouslyShortTranslation(const QString &sourceText, const QString &translatedText);
 bool isOverExpandedTranslation(const QString &sourceText, const QString &translatedText);
 
+TranslationIssue evaluateTranslationQuality(const QString &sourceText, const QString &translatedText);
+QString translationIssueMessage(TranslationIssue issue);
+
 // Text sanitization
+QString selectBestVietnameseLine(const QString &text);
 QString normalizeTranslation(QString text);
 QString sanitizeFinalTranslation(QString text);
 QString postProcessTranslation(QString text);
@@ -32,23 +49,10 @@ QString applyGlossaryNormalization(const QString &translatedText,
 
 // Prompt builders
 QString translationPrompt(const QString &sourceText,
-                         const QString &contextBlock,
-                         const QString &recentDialogueContext);
-QString repairPrompt(const QString &sourceText,
-                    const QString &draftTranslation,
-                    const QString &contextBlock);
-QString rescuePrompt(const QString &sourceText,
-                    const QString &draftTranslation,
-                    const QString &contextBlock,
-                    const QString &recentDialogueContext);
-QString completeLinePrompt(const QString &sourceText,
-                          const QString &draftTranslation,
                           const QString &contextBlock,
                           const QString &recentDialogueContext);
 
 // Utilities
 QString shortText(const QString &text, int maxChars);
-int hanCharCount(const QString &text);
-int latinWordCount(const QString &text);
 
 } // namespace TranslationTextProcessor
