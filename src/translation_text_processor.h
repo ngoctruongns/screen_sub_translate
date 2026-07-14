@@ -8,6 +8,7 @@ namespace TranslationTextProcessor
 {
 
 struct AliasData {
+    QVector<QPair<QString, QString>> glossaryPairs;
     QVector<QPair<QString, QString>> aliasPairs;
 };
 
@@ -53,12 +54,14 @@ QString applyAliasNormalization(const QString &translatedText,
 // Prompt builders
 QString translationPrompt(const QString &sourceText,
                           const QString &contextBlock,
-                          const QString &recentDialogueContext);
+                          const QString &recentDialogueContext,
+                          const QString &glossaryBlock);
 
 // Prompt builder for retrying translation with previous translation context.
 QString translationRetryPrompt(const QString &sourceText,
                               const QString &recentDialogueContext,
                               const QString &previousTranslation,
+                              const QString &glossaryBlock,
                               TranslationIssue issue);
 
 // Utilities

@@ -10,6 +10,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSet>
 
 #include "translation_backend_adapter.h"
 #include "translation_text_processor.h"
@@ -78,11 +79,13 @@ void TranslateClient::initializeTranslationBackend()
     }
 
     localInitialized_ = TranslationBackend::endpointUrl(backendBaseUrl_, mode).isValid();
+    glossaryPairs_.clear();
     aliasPairs_.clear();
     if (localInitialized_) {
         cachedContextBlock_ = TranslationTextProcessor::loadPromptContext(promptContextFilePath_);
         const TranslationTextProcessor::AliasData aliasData =
             TranslationTextProcessor::loadAliasRules(aliasFilePath_);
+        glossaryPairs_ = aliasData.glossaryPairs;
         aliasPairs_ = aliasData.aliasPairs;
 
         qDebug() << "TranslateClient: local translation backend ready"
@@ -91,6 +94,7 @@ void TranslateClient::initializeTranslationBackend()
                  << "config=" << backendConfigPath_
                  << "context=" << promptContextFilePath_
                  << "aliasFile=" << aliasFilePath_
+                 << "glossaryRules=" << glossaryPairs_.size()
                  << "aliasRules=" << aliasPairs_.size();
     } else {
         qWarning() << "TranslateClient: translation backend config invalid"
@@ -102,6 +106,48 @@ void TranslateClient::initializeTranslationBackend()
 QString TranslateClient::applyGlossaryAliasNormalization(const QString &translatedText) const
 {
     return TranslationTextProcessor::applyAliasNormalization(translatedText, aliasPairs_);
+}
+
+QString TranslateClient::sourceGlossaryBlock(const QString &sourceText) const
+{
+    if (sourceText.isEmpty() || glossaryPairs_.isEmpty()) {
+        return {};
+    }
+
+    QStringList lines;
+    QSet<QString> dedupe;
+
+    for (const auto &pair : glossaryPairs_) {
+        const QString &sourceTerm = pair.first;
+        const QString &target = pair.second;
+
+        if (sourceTerm.isEmpty() || target.isEmpty()) {
+            continue;
+        }
+
+        if (!sourceText.contains(sourceTerm)) {
+            continue;
+        }
+
+        const QString key = sourceTerm + QStringLiteral("\u001f") + target;
+        if (dedupe.contains(key)) {
+            continue;
+        }
+
+        lines.append(sourceTerm + QStringLiteral(" = ") + target);
+        dedupe.insert(key);
+    }
+
+    if (lines.isEmpty()) {
+        return {};
+    }
+
+    constexpr int kMaxGlossaryLines = 8;
+    if (lines.size() > kMaxGlossaryLines) {
+        lines = lines.mid(0, kMaxGlossaryLines);
+    }
+
+    return lines.join(QStringLiteral("\n"));
 }
 
 void TranslateClient::requestTranslation(const QString &sourceText)
@@ -175,8 +221,12 @@ void TranslateClient::rememberTranslationContext(const QString &sourceText,
 void TranslateClient::startBackendRequest(const QString &sourceText)
 {
     const QString dialogueContext = recentDialogueContext();
+    const QString glossaryBlock = sourceGlossaryBlock(sourceText);
     startBackendPromptRequest(sourceText,
-                              TranslationTextProcessor::translationPrompt(sourceText, cachedContextBlock_, dialogueContext),
+                              TranslationTextProcessor::translationPrompt(sourceText,
+                                                                           cachedContextBlock_,
+                                                                           dialogueContext,
+                                                                           glossaryBlock),
                               false);
 }
 
@@ -363,9 +413,14 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                            << "source=" << TranslationTextProcessor::shortText(sourceText, 40) << "\n"
                            << "translated=" << TranslationTextProcessor::shortText(translated, 80);
                 const QString dialogueContext = recentDialogueContext();
+                const QString glossaryBlock = sourceGlossaryBlock(sourceText);
                 reply->deleteLater();
                 startBackendPromptRequest(sourceText,
-                                          TranslationTextProcessor::translationRetryPrompt(sourceText, dialogueContext, rawTranslated, issue),
+                                          TranslationTextProcessor::translationRetryPrompt(sourceText,
+                                                                                           dialogueContext,
+                                                                                           rawTranslated,
+                                                                                           glossaryBlock,
+                                                                                           issue),
                                           true);
                 return;
             } else {

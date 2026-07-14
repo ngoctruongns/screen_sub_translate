@@ -635,10 +635,21 @@ AliasData loadAliasRules(const QString &path)
     }
 
     const QJsonObject root = doc.object();
+    const QJsonObject glossary = root.value(QStringLiteral("glossary")).toObject();
     const QJsonObject aliases = root.value(QStringLiteral("aliases")).toObject();
 
-    QSet<QString> dedupe;
+    QSet<QString> glossaryDedupe;
+    for (auto it = glossary.constBegin(); it != glossary.constEnd(); ++it) {
+        const QString sourceTerm = it.key().trimmed();
+        const QString target = it.value().toString().trimmed();
+        if (sourceTerm.isEmpty() || target.isEmpty()) {
+            continue;
+        }
 
+        appendAliasRule(result.glossaryPairs, glossaryDedupe, sourceTerm, target);
+    }
+
+    QSet<QString> aliasDedupe;
     for (auto it = aliases.constBegin(); it != aliases.constEnd(); ++it) {
         const QString alias = it.key().trimmed();
         const QString target = it.value().toString().trimmed();
@@ -646,10 +657,15 @@ AliasData loadAliasRules(const QString &path)
             continue;
         }
 
-        appendAliasRule(result.aliasPairs, dedupe, alias, target);
+        appendAliasRule(result.aliasPairs, aliasDedupe, alias, target);
     }
 
-    // Longer aliases first to avoid partial replacements before full names.
+    // Longer terms first to avoid partial replacements before full names.
+    std::sort(result.glossaryPairs.begin(), result.glossaryPairs.end(),
+              [](const QPair<QString, QString> &left, const QPair<QString, QString> &right) {
+                  return left.first.size() > right.first.size();
+              });
+
     std::sort(result.aliasPairs.begin(), result.aliasPairs.end(),
               [](const QPair<QString, QString> &left, const QPair<QString, QString> &right) {
                   return left.first.size() > right.first.size();
@@ -701,7 +717,8 @@ QString applyAliasNormalization(const QString &translatedText,
 // Translation prompt for LLM model, with context and recent dialogue history.
 QString translationPrompt(const QString &sourceText,
                          const QString &contextBlock,
-                         const QString &recentDialogueContext)
+                         const QString &recentDialogueContext,
+                         const QString &glossaryBlock)
 {
     QString prompt = QStringLiteral(
         "You are translating OCR subtitles for a Chinese film into natural Vietnamese subtitle style.\n"
@@ -716,6 +733,12 @@ QString translationPrompt(const QString &sourceText,
 
     if (!contextBlock.isEmpty()) {
         prompt += QStringLiteral("\nMovie context provided by user:\n") + contextBlock + QStringLiteral("\n");
+    }
+
+    if (!glossaryBlock.isEmpty()) {
+        prompt += QStringLiteral(
+            "\nGlossary for this line. Use these exact Vietnamese terms when they appear in the source:\n") +
+            glossaryBlock + QStringLiteral("\n");
     }
 
     if (!recentDialogueContext.isEmpty()) {
@@ -740,6 +763,7 @@ QString translationPrompt(const QString &sourceText,
 QString translationRetryPrompt(const QString &sourceText,
                               const QString &recentDialogueContext,
                               const QString &previousTranslation,
+                              const QString &glossaryBlock,
                               TranslationIssue issue)
 {
     QString prompt = QStringLiteral("The previous translation is invalid.\n");
@@ -759,6 +783,12 @@ QString translationRetryPrompt(const QString &sourceText,
         "- No explanations, no notes, no labels, no extra text.\n"
         "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n"
     );
+
+    if (!glossaryBlock.isEmpty()) {
+        prompt += QStringLiteral(
+            "\nGlossary for this line. Use these exact Vietnamese terms when they appear in the source:\n") +
+            glossaryBlock + QStringLiteral("\n");
+    }
 
     if (!recentDialogueContext.isEmpty()) {
         prompt += QStringLiteral("\nContext only. Do NOT translate these lines.\n\nPrevious:\n") +

@@ -38,6 +38,7 @@ private:
     QString recentDialogueContext() const;
     void rememberTranslationContext(const QString &sourceText, const QString &translatedText);
     QString applyGlossaryAliasNormalization(const QString &translatedText) const;
+    QString sourceGlossaryBlock(const QString &sourceText) const;
 
     QNetworkAccessManager *networkManager_ = nullptr;
     QPointer<QNetworkReply> activeReply_;
@@ -62,6 +63,7 @@ private:
     double minP_ = 0.06;
     int topK_ = 40;
     QString cachedContextBlock_;  // Loaded once at init, reused for prefix cache hit
+    QVector<QPair<QString, QString>> glossaryPairs_; // Han source term -> canonical Vietnamese term
     QVector<QPair<QString, QString>> aliasPairs_; // alias -> canonical Vietnamese name
     QVector<TranslationContextEntry> recentTranslationHistory_;
 
