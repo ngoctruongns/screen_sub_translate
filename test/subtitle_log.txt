@@ -1,148 +1,125 @@
-[2026-07-13 01:31:12.886] SESSION_START | source= | result=
-[2026-07-13 01:31:13.204] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:31:16.010] OCR_DETECTED | source=只有这个 | result=stable=168ms frames=5
-[2026-07-13 01:31:16.165] TRANSLATED | source=只有这个 | result=Chỉ có điều này
-[2026-07-13 01:31:17.243] OCR_DETECTED | source=这是什么呀什么意思 | result=stable=175ms frames=6
-[2026-07-13 01:31:17.436] TRANSLATED | source=这是什么呀什么意思 | result=Đây là gì ý nghĩa gì
-[2026-07-13 01:31:19.648] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:31:21.027] OCR_DETECTED | source=那上头给我们多少钱哪 | result=stable=150ms frames=5
-[2026-07-13 01:31:21.295] TRANSLATED | source=那上头给我们多少钱哪 | result=Họ cho chúng tôi bao nhiêu tiền trên đó
-[2026-07-13 01:31:23.197] OCR_DETECTED | source=没给钱还是只给了这个。 | result=stable=164ms frames=5
-[2026-07-13 01:31:23.681] TRANSLATED | source=没给钱还是只给了这个。 | result=Mới không có tiền vẫn chỉ được cái này
-[2026-07-13 01:31:26.914] OCR_DETECTED | source=这怎么行啊！ | result=stable=221ms frames=6
-[2026-07-13 01:31:27.120] TRANSLATED | source=这怎么行啊！ | result=Thật không thể chấp nhận được
-[2026-07-13 01:31:27.232] OCR_DETECTED | source=这怎么行这不胡闹吗 | result=stable=158ms frames=5
-[2026-07-13 01:31:28.011] TRANSLATE_ERROR | source=这怎么行这不胡闹吗 | result=Translation backend output rejected: suspiciously long translation
-[2026-07-13 01:31:29.879] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:31:32.355] OCR_DETECTED | source=東钱也没有机器也没有 | result=stable=216ms frames=2
-[2026-07-13 01:31:32.598] TRANSLATED | source=東钱也没有机器也没有 | result=Đông tiền cũng không có máy móc cũng không
-[2026-07-13 01:31:34.681] OCR_DETECTED | source=让我们用手指头抠啊 | result=stable=172ms frames=5
-[2026-07-13 01:31:34.931] TRANSLATED | source=让我们用手指头抠啊 | result=Hãy dùng ngón tay đào nhé
-[2026-07-13 01:31:36.788] OCR_DETECTED | source=这事我们于不了， | result=stable=158ms frames=5
-[2026-07-13 01:31:36.994] TRANSLATED | source=这事我们于不了， | result=Chuyện này chúng tôi không làm được
-[2026-07-13 01:31:38.510] OCR_DETECTED | source=对不了 | result=stable=151ms frames=5
-[2026-07-13 01:31:38.741] TRANSLATE_ERROR | source=对不了 | result=Translation backend output rejected: suspiciously long translation
-[2026-07-13 01:31:40.012] OCR_DETECTED | source=一直对干不了， | result=stable=166ms frames=5
-[2026-07-13 01:31:40.177] TRANSLATED | source=一直对干不了， | result=Còn mãi không làm được
-[2026-07-13 01:31:42.281] OCR_DETECTED | source=乡亲们乡亲们 | result=stable=164ms frames=5
-[2026-07-13 01:31:42.507] TRANSLATED | source=乡亲们乡亲们 | result=Dân làng các cụ dân làng
-[2026-07-13 01:31:45.309] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:31:46.194] OCR_DETECTED | source=我也知道这个事难办 | result=stable=189ms frames=5
-[2026-07-13 01:31:46.385] TRANSLATED | source=我也知道这个事难办 | result=Tôi cũng biết việc này khó làm
-[2026-07-13 01:31:48.525] OCR_DETECTED | source=可是上面发下来的子在这儿 | result=stable=167ms frames=5
-[2026-07-13 01:31:48.739] TRANSLATED | source=可是上面发下来的子在这儿 | result=Nhưng trên phát xuống này ở đây
-[2026-07-13 01:31:50.675] OCR_DETECTED | source=龙云主席的指示也在这儿 | result=stable=156ms frames=5
-[2026-07-13 01:31:50.990] TRANSLATED | source=龙云主席的指示也在这儿 | result=Dặn dò của Chủ tịch Trườngyun cũng ở đây
-[2026-07-13 01:31:52.926] OCR_DETECTED | source=你们都看到了 | result=stable=164ms frames=5
-[2026-07-13 01:31:53.134] TRANSLATED | source=你们都看到了 | result=Cả hai bên đều đã thấy rồi
-[2026-07-13 01:31:53.976] OCR_DETECTED | source=如果完不成任务 | result=stable=157ms frames=6
-[2026-07-13 01:31:54.161] TRANSLATED | source=如果完不成任务 | result=Nếu không hoàn thành nhiệm vụ
-[2026-07-13 01:31:55.493] OCR_DETECTED | source=我这介县长就要去昆明受审哪！。 | result=stable=198ms frames=6
-[2026-07-13 01:31:55.783] TRANSLATED | source=我这介县长就要去昆明受审哪！。 | result=Tỉnh trưởng của tôi sắp phải ra tòa tại
-[2026-07-13 01:31:59.082] OCR_DETECTED | source=县长 | result=stable=166ms frames=5
-[2026-07-13 01:31:59.186] TRANSLATED | source=县长 | result=tỉnh trưởng
-[2026-07-13 01:32:00.201] OCR_DETECTED | source=手是给县长你的 | result=stable=172ms frames=5
-[2026-07-13 01:32:00.429] TRANSLATED | source=手是给县长你的 | result=Tay là cho tao trưởng huyện này
-[2026-07-13 01:32:02.359] OCR_DETECTED | source=跟我们大伙儿有什么关系啊 | result=stable=175ms frames=5
-[2026-07-13 01:32:02.647] TRANSLATED | source=跟我们大伙儿有什么关系啊 | result=Đối với chúng tôi có gì liên quan sa
-[2026-07-13 01:32:04.803] OCR_DETECTED | source=代就是啊， | result=stable=221ms frames=2
-[2026-07-13 01:32:04.970] TRANSLATED | source=代就是啊， | result=Thay chính là vậy thôi
-[2026-07-13 01:32:07.266] OCR_DETECTED | source=不是我们不肯帮忙啊 | result=stable=154ms frames=4
-[2026-07-13 01:32:07.519] TRANSLATED | source=不是我们不肯帮忙啊 | result=không phải là chúng tôi không muốn giúp đâu
-[2026-07-13 01:32:09.946] OCR_DETECTED | source=你想一想 | result=stable=228ms frames=2
-[2026-07-13 01:32:10.100] TRANSLATED | source=你想一想 | result=Anh nghĩ lại xem
-[2026-07-13 01:32:11.407] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:32:11.704] OCR_DETECTED | source=阿坝那条小土路 | result=stable=160ms frames=4
-[2026-07-13 01:32:11.907] TRANSLATED | source=阿坝那条小土路 | result=Đường đất nhỏ ở A Bạ
-[2026-07-13 01:32:13.729] OCR_DETECTED | source=我们修了十年都没有修好 | result=stable=175ms frames=5
-[2026-07-13 01:32:14.301] TRANSLATED | source=我们修了十年都没有修好 | result=Chúng tôi sửa mười năm vẫn chưa hoàn thành
-[2026-07-13 01:32:16.379] OCR_DETECTED | source=现在要我们三个月， | result=stable=218ms frames=2
-[2026-07-13 01:32:16.559] TRANSLATED | source=现在要我们三个月， | result=Nay yêu cầu chúng ta ba tháng
-[2026-07-13 01:32:18.630] OCR_DETECTED | source=修成滇缅公路 | result=stable=164ms frames=5
-[2026-07-13 01:32:18.860] TRANSLATED | source=修成滇缅公路 | result=Xây thành đường sắt Mê Kông
-[2026-07-13 01:32:20.673] OCR_DETECTED | source=这不是自目做梦吗， | result=stable=169ms frames=5
-[2026-07-13 01:32:20.947] TRANSLATED | source=这不是自目做梦吗， | result=Đây không phải là mơ tự mình sao
-[2026-07-13 01:32:21.653] OCR_DETECTED | source=这不是白日做梦吗。 | result=stable=191ms frames=5
-[2026-07-13 01:32:21.948] TRANSLATED | source=这不是白日做梦吗。 | result=Đây không phải là giấc mơ ngày trắng sao
-[2026-07-13 01:32:22.882] OCR_DETECTED | source=就是啊 | result=stable=152ms frames=5
-[2026-07-13 01:32:23.005] TRANSLATED | source=就是啊 | result=Thế đúng rồi
-[2026-07-13 01:32:25.269] OCR_DETECTED | source=这干不了的事我们不于 | result=stable=225ms frames=2
-[2026-07-13 01:32:25.551] TRANSLATED | source=这干不了的事我们不于 | result=Chúng tôi không làm những việc mà không thể làm
-[2026-07-13 01:32:28.089] OCR_DETECTED | source=走呵们走 | result=stable=215ms frames=2
-[2026-07-13 01:32:28.225] TRANSLATED | source=走呵们走 | result=Chúng ta đi
-[2026-07-13 01:32:29.080] OCR_DETECTED | source=是吧走吧 | result=stable=166ms frames=5
-[2026-07-13 01:32:29.221] TRANSLATED | source=是吧走吧 | result=Được rồi đi
-[2026-07-13 01:32:30.306] OCR_DETECTED | source=乡亲们多亲们 | result=stable=162ms frames=5
-[2026-07-13 01:32:30.684] TRANSLATED | source=乡亲们多亲们 | result=Dân làng các
-[2026-07-13 01:32:30.788] OCR_DETECTED | source=多亲们乡亲们！ | result=stable=163ms frames=6
-[2026-07-13 01:32:30.970] TRANSLATED | source=多亲们乡亲们！ | result=Anh em ruột thịt
-[2026-07-13 01:32:31.329] OCR_DETECTED | source=修亲们乡秉们 | result=stable=172ms frames=5
-[2026-07-13 01:32:31.514] TRANSLATED | source=修亲们乡秉们 | result=Anh em các người ơi
-[2026-07-13 01:32:35.142] OCR_DETECTED | source=老土司 | result=stable=152ms frames=5
-[2026-07-13 01:32:35.303] TRANSLATED | source=老土司 | result=Lão Tù Sát
-[2026-07-13 01:32:36.352] OCR_DETECTED | source=到哪儿去回去 | result=stable=152ms frames=5
-[2026-07-13 01:32:36.491] TRANSLATED | source=到哪儿去回去 | result=Đến đâu về lại
-[2026-07-13 01:32:38.831] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:32:51.838] OCR_DETECTED | source=县长 | result=stable=163ms frames=5
-[2026-07-13 01:32:51.942] TRANSLATED | source=县长 | result=Tỉnh trưởng
-[2026-07-13 01:32:53.117] OCR_DETECTED | source=土司大人 | result=stable=168ms frames=5
-[2026-07-13 01:32:53.282] TRANSLATED | source=土司大人 | result=Thượng úy trưởng bản
-[2026-07-13 01:32:54.685] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:32:56.035] OCR_DETECTED | source=洛位乡亲听我说 | result=stable=186ms frames=6
-[2026-07-13 01:32:56.306] TRANSLATED | source=洛位乡亲听我说 | result=Anh em xóm Lo vị nghe tôi nói
-[2026-07-13 01:32:59.277] OCR_DETECTED | source=龙主席号召大家修滇缅公路 | result=stable=188ms frames=6
-[2026-07-13 01:32:59.632] TRANSLATED | source=龙主席号召大家修滇缅公路 | result=Chủ tịch kêu gọi mọi người xây đường sắt Miến Điện
-[2026-07-13 01:33:03.151] OCR_DETECTED | source=不是为了云南 | result=stable=154ms frames=5
-[2026-07-13 01:33:03.317] TRANSLATED | source=不是为了云南 | result=Không phải để giúp Vân Nam
-[2026-07-13 01:33:05.392] OCR_DETECTED | source=水王县长派工派活（ | result=stable=190ms frames=6
-[2026-07-13 01:33:05.646] TRANSLATED | source=水王县长派工派活（ | result=Tiên sinh huyện trưởng phân công việc làm
-[2026-07-13 01:33:11.642] OCR_DETECTED | source=这是为了抗战 | result=stable=160ms frames=5
-[2026-07-13 01:33:11.851] TRANSLATED | source=这是为了抗战 | result=Đây là để chống chiến tranh
-[2026-07-13 01:33:14.606] OCR_DETECTED | source=我们只有把公路修通了 | result=stable=161ms frames=5
-[2026-07-13 01:33:14.841] TRANSLATED | source=我们只有把公路修通了 | result=Chúng ta chỉ có thể thông đường thôi
-[2026-07-13 01:33:17.112] OCR_DETECTED | source=把国外的军事物资运到国内 | result=stable=152ms frames=5
-[2026-07-13 01:33:17.860] TRANSLATE_ERROR | source=把国外的军事物资运到国内 | result=Translation backend output rejected: suspiciously long translation
-[2026-07-13 01:33:20.122] OCR_DETECTED | source=运到前线 | result=stable=165ms frames=5
-[2026-07-13 01:33:20.305] TRANSLATED | source=运到前线 | result=Gửi đến tiền tuyến
-[2026-07-13 01:33:22.039] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:33:22.295] OCR_DETECTED | source=我们才能打败日本鬼子 | result=stable=167ms frames=5
-[2026-07-13 01:33:22.588] TRANSLATED | source=我们才能打败日本鬼子 | result=Chúng ta mới có thể đánh bại giặc Nhật Bản
-[2026-07-13 01:33:25.331] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:33:26.133] OCR_DETECTED | source=大家平常不是说要抗战吗 | result=stable=221ms frames=2
-[2026-07-13 01:33:26.394] TRANSLATED | source=大家平常不是说要抗战吗 | result=Người ta thường nói phải kháng chiến đúng không
-[2026-07-13 01:33:30.412] OCR_DETECTED | source=这筑路就是抗战哪 | result=stable=214ms frames=2
-[2026-07-13 01:33:31.006] TRANSLATE_ERROR | source=这筑路就是抗战哪 | result=Translation backend output rejected: suspiciously long translation
-[2026-07-13 01:33:35.046] OCR_DETECTED | source=为了抗战呀! | result=stable=172ms frames=5
-[2026-07-13 01:33:35.206] TRANSLATED | source=为了抗战呀! | result=Để kháng chiến
-[2026-07-13 01:33:36.661] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:33:37.617] OCR_DETECTED | source=要不然我们家都没了 | result=stable=152ms frames=4
-[2026-07-13 01:33:37.891] TRANSLATED | source=要不然我们家都没了 | result=Nếu không thì gia đình chúng tôi cũng mất rồi
-[2026-07-13 01:33:39.591] OCR_DETECTED | source=就是 | result=stable=188ms frames=6
-[2026-07-13 01:33:39.708] TRANSLATED | source=就是 | result=Đó chính là
-[2026-07-13 01:33:41.356] OCR_DETECTED | source=些福对为了抗日，。 | result=stable=177ms frames=6
-[2026-07-13 01:33:41.579] TRANSLATED | source=些福对为了抗日，。 | result=Một số phúc vì kháng chiến
-[2026-07-13 01:33:43.466] OCR_DETECTED | source=喜我们是不该讲条件， | result=stable=155ms frames=5
-[2026-07-13 01:33:43.714] TRANSLATED | source=喜我们是不该讲条件， | result=Hạnh Chúng tôi không nên bàn về điều kiện
-[2026-07-13 01:33:45.602] DISPLAY_CLEARED | source= | result=
-[2026-07-13 01:33:46.193] OCR_DETECTED | source=你们说我们该怎么干 | result=stable=169ms frames=5
-[2026-07-13 01:33:46.422] TRANSLATED | source=你们说我们该怎么干 | result=Anh em nói chúng tôi phải làm gì
-[2026-07-13 01:33:48.671] OCR_DETECTED | source=说吧怎么干！ | result=stable=229ms frames=2
-[2026-07-13 01:33:48.904] TRANSLATED | source=说吧怎么干！ | result=Nói đi làm sao khôgn
-[2026-07-13 01:33:52.617] OCR_DETECTED | source=您说吧。 | result=stable=173ms frames=5
-[2026-07-13 01:33:52.762] TRANSLATED | source=您说吧。 | result=Anh nói đi
-[2026-07-13 01:33:55.725] OCR_DETECTED | source=我们现在就回去 | result=stable=164ms frames=5
-[2026-07-13 01:33:55.930] TRANSLATED | source=我们现在就回去 | result=Chúng ta bây giờ về ngay
-[2026-07-13 01:33:57.837] OCR_DETECTED | source=动员各树寨的百姓 | result=stable=165ms frames=5
-[2026-07-13 01:33:58.085] TRANSLATED | source=动员各树寨的百姓 | result=Kêu gọi dân chúng ở các làng cây
-[2026-07-13 01:34:00.879] OCR_DETECTED | source=自带粮食 | result=stable=189ms frames=6
-[2026-07-13 01:34:02.011] TRANSLATE_ERROR | source=自带粮食 | result=Translation backend output rejected: suspiciously long translation
-[2026-07-13 01:34:02.181] OCR_DETECTED | source=一自带工具 | result=stable=231ms frames=2
-[2026-07-13 01:34:02.581] TRANSLATE_ERROR | source=一自带工具 | result=Translation backend output rejected: suspiciously long translation
-[2026-07-13 01:34:03.666] OCR_DETECTED | source=就是没有国外的机我没有准 | result=stable=155ms frames=5
-[2026-07-13 01:34:03.977] TRANSLATED | source=就是没有国外的机我没有准 | result=Chính là không có máy móc từ nước ngoài tôi không chắc
-[2026-07-13 01:34:06.385] OCR_DETECTED | source=就是没有国外自包机械没有钱 | result=stable=150ms frames=5
-[2026-07-13 01:34:06.722] TRANSLATED | source=就是没有国外自包机械没有钱 | result=Chỉ là không có máy móc từ nước ngoài và tiền bạc
-[2026-07-13 01:34:06.879] OCR_DETECTED | source=咱们用手刨也得把路刨出来 | result=stable=169ms frames=5
-[2026-07-13 01:34:07.170] TRANSLATED | source=咱们用手刨也得把路刨出来 | result=Chúng ta dùng tay đào cũng phải đào ra đường
-[2026-07-13 01:34:10.270] OCR_DETECTED | source=好好好 | result=stable=219ms frames=2
-[2026-07-13 01:34:10.534] TRANSLATE_ERROR | source=好好好 | result=Translation backend output rejected: suspiciously long translation
+[2026-07-14 08:27:16.564] SESSION_START | source= | result=
+[2026-07-14 08:27:16.875] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:27:21.258] OCR_DETECTED | source=老刘老刘这次有五个不留 | result=stable=174ms frames=5
+[2026-07-14 08:27:21.639] TRANSLATED | source=老刘老刘这次有五个不留 | result=Lão Lưu lão Lưu lần này có năm người không lưu lại
+[2026-07-14 08:27:26.730] OCR_DETECTED | source=物司 | result=stable=219ms frames=2
+[2026-07-14 08:27:26.827] TRANSLATED | source=物司 | result=Bộ phận
+[2026-07-14 08:27:27.264] OCR_DETECTED | source=狐好说得好！ | result=stable=264ms frames=3
+[2026-07-14 08:27:27.418] TRANSLATED | source=狐好说得好！ | result=Hù nói rất tốt
+[2026-07-14 08:27:28.969] OCR_DETECTED | source=这一 | result=stable=164ms frames=4
+[2026-07-14 08:27:29.047] TRANSLATED | source=这一 | result=Đây
+[2026-07-14 08:27:30.212] OCR_DETECTED | source=关系到我们129师的生死存亡 | result=stable=167ms frames=5
+[2026-07-14 08:27:30.619] TRANSLATED | source=关系到我们129师的生死存亡 | result=Liên quan đến sự sống còn của sư đoàn 129 chúng ta
+[2026-07-14 08:27:33.293] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:27:33.613] OCR_DETECTED | source=要打就打 | result=stable=160ms frames=5
+[2026-07-14 08:27:33.754] TRANSLATED | source=要打就打 | result=Phải đánh thì đánh
+[2026-07-14 08:27:36.178] OCR_DETECTED | source=打不好我就咭指 | result=stable=209ms frames=3
+[2026-07-14 08:27:36.455] TRANSLATED | source=打不好我就咭指 | result=Nếu đánh không tốt tôi sẽ ngón tay
+[2026-07-14 08:27:39.715] OCR_DETECTED | source=回去以后。 | result=stable=224ms frames=2
+[2026-07-14 08:27:39.873] TRANSLATED | source=回去以后。 | result=Quay lại sau khi
+[2026-07-14 08:27:40.948] OCR_DETECTED | source=大家要按刘师长的部署 | result=stable=244ms frames=3
+[2026-07-14 08:27:41.313] TRANSLATED | source=大家要按刘师长的部署 | result=Các người phải thực hiện theo sự bố trí của Thiếu tướng Lưu
+[2026-07-14 08:27:42.947] OCR_DETECTED | source=进行战斗动员 | result=stable=248ms frames=3
+[2026-07-14 08:27:43.121] TRANSLATED | source=进行战斗动员 | result=Tiến hành động viên chiến đấu
+[2026-07-14 08:27:44.934] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:27:53.532] OCR_DETECTED | source=彭总 | result=stable=190ms frames=6
+[2026-07-14 08:27:53.632] TRANSLATED | source=彭总 | result=Phạm Tổng
+[2026-07-14 08:27:54.399] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:27:55.488] OCR_DETECTED | source=可以开始了吗 | result=stable=218ms frames=2
+[2026-07-14 08:27:55.685] TRANSLATED | source=可以开始了吗 | result=Được rồi có thể bắt đầu
+[2026-07-14 08:27:58.093] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:28:02.753] OCR_DETECTED | source=开始吧，， | result=stable=222ms frames=2
+[2026-07-14 08:28:02.890] TRANSLATED | source=开始吧，， | result=Bắt đầu đi
+[2026-07-14 08:28:04.813] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:28:10.886] OCR_DETECTED | source=发布吧 | result=stable=152ms frames=5
+[2026-07-14 08:28:11.025] TRANSLATED | source=发布吧 | result=Xuất bản đi
+[2026-07-14 08:28:13.149] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:28:15.648] OCR_DETECTED | source=现在发布战役命令 | result=stable=167ms frames=5
+[2026-07-14 08:28:15.862] TRANSLATED | source=现在发布战役命令 | result=Bây giờ phát hành lệnh chiến dịch
+[2026-07-14 08:28:17.766] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:28:20.012] OCR_DETECTED | source=本次战役 | result=stable=234ms frames=3
+[2026-07-14 08:28:20.159] TRANSLATED | source=本次战役 | result=Lần này chiến dịch
+[2026-07-14 08:28:21.140] OCR_DETECTED | source=以彻底破坏正太线若干要隘， | result=stable=253ms frames=3
+[2026-07-14 08:28:22.077] TRANSLATE_ERROR | source=以彻底破坏正太线若干要隘， | result=Translation backend output rejected: suspiciously long translation
+[2026-07-14 08:28:24.953] OCR_DETECTED | source=.扫除该线南北地区若干据点 | result=stable=243ms frames=3
+[2026-07-14 08:28:25.410] TRANSLATED | source=.扫除该线南北地区若干据点 | result=Loại bỏ một số điểm phòng ngự ở khu vực nam bắc tuyến đường này
+[2026-07-14 08:28:28.601] OCR_DETECTED | source=以至基本截断该线交通为目的 | result=stable=189ms frames=6
+[2026-07-14 08:28:28.943] TRANSLATED | source=以至基本截断该线交通为目的 | result=Để cơ bản cắt đứt giao thông của tuyến đường đó
+[2026-07-14 08:28:32.208] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:28:32.495] OCR_DETECTED | source=战役部署 | result=stable=150ms frames=5
+[2026-07-14 08:28:32.666] TRANSLATED | source=战役部署 | result=Lập kế hoạch trận đấu
+[2026-07-14 08:28:34.109] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:28:34.637] OCR_DETECTED | source=聂集团主力约10个团 | result=stable=163ms frames=5
+[2026-07-14 08:28:34.954] TRANSLATED | source=聂集团主力约10个团 | result=Nhóm quân của Nie có khoảng 10 đoàn chủ lực
+[2026-07-14 08:28:37.965] OCR_DETECTED | source=破坏平定东至石家压段正太线 | result=stable=161ms frames=5
+[2026-07-14 08:28:38.697] TRANSLATE_ERROR | source=破坏平定东至石家压段正太线 | result=Translation backend output is empty
+[2026-07-14 08:28:43.287] OCR_DETECTED | source=破坏重点应在娘子关东段 | result=stable=166ms frames=5
+[2026-07-14 08:28:43.766] TRANSLATED | source=破坏重点应在娘子关东段 | result=Điểm phá hủy nên tập trung ở đoạn đông của Mộc Giang
+[2026-07-14 08:28:47.089] OCR_DETECTED | source=刘邓集团以主力8个团 | result=stable=156ms frames=5
+[2026-07-14 08:28:47.453] TRANSLATED | source=刘邓集团以主力8个团 | result=Lưu-Dương tập đoàn dùng lực lượng chính 8 đơn vị quân
+[2026-07-14 08:28:50.645] OCR_DETECTED | source=附总部炮兵团1个营 | result=stable=172ms frames=5
+[2026-07-14 08:28:51.072] TRANSLATED | source=附总部炮兵团1个营 | result=Phụ trung đoàn pháo binh của bộ chỉ huy 1 đơn vị
+[2026-07-14 08:28:53.331] OCR_DETECTED | source=破击平定至榆次段正太线 | result=stable=152ms frames=5
+[2026-07-14 08:28:54.106] TRANSLATE_ERROR | source=破击平定至榆次段正太线 | result=Translation backend output is empty
+[2026-07-14 08:28:57.607] OCR_DETECTED | source=破坏重点为阳泉至张净镇段 | result=stable=161ms frames=5
+[2026-07-14 08:28:58.095] TRANSLATED | source=破坏重点为阳泉至张净镇段 | result=Đập phá tập trung vào đoạn từ Dương Quán đến Trương Tịnh Châu
+[2026-07-14 08:29:00.283] OCR_DETECTED | source=张净镇段 | result=stable=160ms frames=5
+[2026-07-14 08:29:00.788] TRANSLATED | source=张净镇段 | result=đoạn từ Trang Tịnh Town
+[2026-07-14 08:29:01.999] OCR_DETECTED | source=三贺关集团应破击伞遥队汇 | result=stable=199ms frames=4
+[2026-07-14 08:29:02.421] TRANSLATED | source=三贺关集团应破击伞遥队汇 | result=Đoàn Thập Hợp Quan nên tập kích đội dù xa
+[2026-07-14 08:29:06.200] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:29:06.545] OCR_DETECTED | source=同蒲线及汾离公路心 | result=stable=207ms frames=2
+[2026-07-14 08:29:06.810] TRANSLATED | source=同蒲线及汾离公路心 | result=Đường sắt Tong Pu và Quốc lộ Fenyi
+[2026-07-14 08:29:09.415] OCR_DETECTED | source=破坏同蒲路部署， | result=stable=168ms frames=5
+[2026-07-14 08:29:10.212] OCR_DETECTED | source=破坏同浦路部著水 | result=stable=166ms frames=5
+[2026-07-14 08:29:10.270] TRANSLATED | source=破坏同蒲路部署， | result=Phá hủy phương án triển khai của đường sắt cùng pú
+[2026-07-14 08:29:10.523] TRANSLATED | source=破坏同浦路部著水 | result=đường sắt Đồng Phù bồiMMdd
+[2026-07-14 08:29:11.278] OCR_DETECTED | source=意以重兵置于阳曲南北、公室 | result=stable=153ms frames=5
+[2026-07-14 08:29:11.771] TRANSLATED | source=意以重兵置于阳曲南北、公室 | result=Ý định tập trung quân lực vào hai bên Nam Bắc Dương Cur và Công Stiù
+[2026-07-14 08:29:12.961] OCR_DETECTED | source=应以重兵置于阳由南北综效 | result=stable=156ms frames=5
+[2026-07-14 08:29:13.378] OCR_DETECTED | source=意以重滨置于阳曲南北发 | result=stable=172ms frames=5
+[2026-07-14 08:29:13.405] TRANSLATED | source=应以重兵置于阳由南北综效 | result=Nên tập trung lực lượng lớn vào hai bên phía Bắc và Nam Yên Duệ
+[2026-07-14 08:29:13.745] TRANSLATED | source=意以重滨置于阳曲南北发 | result=Ý đặt trọng binh ở hai bên sông Dương Quyết
+[2026-07-14 08:29:14.177] OCR_DETECTED | source=司 | result=stable=369ms frames=4
+[2026-07-14 08:29:14.177] TRANSLATE_ERROR | source=意以重滨置于阳曲南北发 | result=Skipped non-Chinese OCR candidate
+[2026-07-14 08:29:14.847] OCR_DETECTED | source=：阻敌向正太线增援 | result=stable=196ms frames=6
+[2026-07-14 08:29:15.080] TRANSLATED | source=：阻敌向正太线增援 | result=Tránh địch tăng viện về tuyến Chính Thái
+[2026-07-14 08:29:17.119] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:29:17.411] OCR_DETECTED | source=四总部特务团 | result=stable=160ms frames=5
+[2026-07-14 08:29:17.763] TRANSLATED | source=四总部特务团 | result=Bộ Tứ Tổng Thụy Đơn Vị Đặc Khu
+[2026-07-14 08:29:20.746] OCR_DETECTED | source=集结于下良西营地区 | result=stable=264ms frames=3
+[2026-07-14 08:29:21.032] TRANSLATED | source=集结于下良西营地区 | result=Hội tại khu vực Xiangxiying
+[2026-07-14 08:29:23.954] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:29:36.773] OCR_DETECTED | source=（班长参军一年多 | result=stable=173ms frames=5
+[2026-07-14 08:29:36.968] TRANSLATED | source=（班长参军一年多 | result=Xếp hạng hơn một năm
+[2026-07-14 08:29:38.660] OCR_DETECTED | source=心我还没遇到过 | result=stable=216ms frames=6
+[2026-07-14 08:29:38.867] TRANSLATED | source=心我还没遇到过 | result=Tôi chưa từng gặp qua ai như vậy
+[2026-07-14 08:29:39.161] OCR_DETECTED | source=今采这么大的阵仗呢， | result=stable=155ms frames=5
+[2026-07-14 08:29:40.585] OCR_DETECTED | source=你还别说这也是我第一次遇到 | result=stable=174ms frames=5
+[2026-07-14 08:29:40.758] TRANSLATE_ERROR | source=你还别说这也是我第一次遇到 | result=Translation backend output is empty
+[2026-07-14 08:29:41.086] TRANSLATED | source=你还别说这也是我第一次遇到 | result=Bạn không nói cũng là lần đầu tiên tôi gặp phải
+[2026-07-14 08:29:42.965] OCR_DETECTED | source=这可是抗战以来 | result=stable=167ms frames=5
+[2026-07-14 08:29:43.322] TRANSLATED | source=这可是抗战以来 | result=Đây là lần đầu tiên kể từ khi kháng chiến bùng nổ
+[2026-07-14 08:29:44.054] OCR_DETECTED | source=，从路军最大的行动 | result=stable=165ms frames=5
+[2026-07-14 08:29:44.322] TRANSLATED | source=，从路军最大的行动 | result=từ hành động lớn nhất của quân đội đường trường
+[2026-07-14 08:29:45.646] OCR_DETECTED | source=是吗那可要好好打 | result=stable=167ms frames=5
+[2026-07-14 08:29:45.829] TRANSLATED | source=是吗那可要好好打 | result=Đúng đấy phải đánh thật tốt
+[2026-07-14 08:29:47.283] OCR_DETECTED | source=给咱们团露露脸 | result=stable=153ms frames=5
+[2026-07-14 08:29:47.551] TRANSLATED | source=给咱们团露露脸 | result=Giúp đơn vị chúng tôi nổi tiếng một chút
+[2026-07-14 08:29:49.274] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:29:49.837] OCR_DETECTED | source=你呀把脖子伸直点 | result=stable=157ms frames=5
+[2026-07-14 08:29:50.086] TRANSLATED | source=你呀把脖子伸直点 | result=Anh ấy à hãy kéo thẳng cổ một chút
+[2026-07-14 08:29:51.124] OCR_DETECTED | source=先在咱们班翠个脸再说一 | result=stable=160ms frames=5
+[2026-07-14 08:29:51.419] TRANSLATED | source=先在咱们班翠个脸再说一 | result=Trước tiên cho lớp mình mặt mũi lại nói tiếp
+[2026-07-14 08:29:51.966] OCR_DETECTED | source=先在咱们班露个脸再说 | result=stable=155ms frames=5
+[2026-07-14 08:29:52.283] TRANSLATED | source=先在咱们班露个脸再说 | result=Trước tiên hãy ra ngoài cho mọi người thấy mặt một chút
+[2026-07-14 08:29:53.717] OCR_DETECTED | source=中 | result=stable=356ms frames=3
+[2026-07-14 08:29:53.718] TRANSLATE_ERROR | source=先在咱们班露个脸再说 | result=Skipped non-Chinese OCR candidate
+[2026-07-14 08:29:54.924] DISPLAY_CLEARED | source= | result=
+[2026-07-14 08:30:05.230] OCR_DETECTED | source=战役打响之后 | result=stable=218ms frames=2
+[2026-07-14 08:30:05.456] TRANSLATED | source=战役打响之后 | result=Sau khi trận chiến bùng nổ
+[2026-07-14 08:30:06.677] OCR_DETECTED | source=如期拿下娘子关 | result=stable=225ms frames=2
+[2026-07-14 08:30:06.939] TRANSLATED | source=如期拿下娘子关 | result=Đạt được Mạnh Gia Côn đúng hẹn
+[2026-07-14 08:30:07.868] OCR_DETECTED | source=是这次战役的关键 | result=stable=223ms frames=2
+[2026-07-14 08:30:08.129] TRANSLATED | source=是这次战役的关键 | result=Đây là điểm quan trọng của trận chiến này
+[2026-07-14 08:30:09.839] DISPLAY_CLEARED | source= | result=

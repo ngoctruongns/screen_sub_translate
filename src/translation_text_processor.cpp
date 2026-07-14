@@ -101,6 +101,16 @@ int vietnameseAccentCount(const QString &text)
     return count;
 }
 
+// Function calc score for translate line
+int calculateLineScore(const QString &line)
+{
+    int score = englishCharCount(line);
+        score += vietnameseAccentCount(line) * 10;  // Bonus with Vietnamese accent characters
+        score -= hanCharCount(line) * 20;   // Penalize lines with Chinese characters
+
+    return score;
+}
+
 void replaceLatinAliasWholeWord(QString &text, const QString &alias, const QString &replacement)
 {
     if (text.isEmpty() || alias.isEmpty()) {
@@ -443,10 +453,8 @@ QString selectBestVietnameseLine(const QString &text)
         if (containsModelMetaText(line))
             continue;
 
-        // Score lines based on english character count
-        int score = englishCharCount(line);
-        score += vietnameseAccentCount(line) * 10;  // Bonus with Vietnamese accent characters
-        score -= hanCharCount(line) * 20;   // Penalize lines with Chinese characters
+        // Calc Score for line
+        int score = calculateLineScore(line);
 
         if (score > bestScore) {
             bestScore = score;
@@ -454,7 +462,14 @@ QString selectBestVietnameseLine(const QString &text)
         }
     }
 
-    return bestLine.isEmpty() ? text : bestLine;
+    // Check score of best line, if too low, return empty string
+    if (bestScore < tuning::kTranslateLineScoreMin) {
+        qDebug() << "selectBestVietnameseLine: best line score too low, bestScore=" << bestScore
+                 << "line=" << bestLine;
+        return QString();
+    }
+
+    return bestLine;
 }
 
 QString shortText(const QString &text, int maxChars)
@@ -469,6 +484,11 @@ QString shortText(const QString &text, int maxChars)
 QString normalizeTranslation(QString text)
 {
     text = text.trimmed();
+
+    // Check empty string
+    if (text.isEmpty()) {
+        return text;
+    }
 
     if (text.startsWith(QStringLiteral("```"))) {
         const QStringList parts = text.split(QStringLiteral("```"), Qt::SkipEmptyParts);
@@ -650,6 +670,7 @@ QString applyAliasNormalization(const QString &translatedText,
     return out;
 }
 
+// Translation prompt for LLM model, with context and recent dialogue history.
 QString translationPrompt(const QString &sourceText,
                          const QString &contextBlock,
                          const QString &recentDialogueContext)
@@ -683,6 +704,38 @@ QString translationPrompt(const QString &sourceText,
         qDebug() << "Translation prompt:" << prompt;
         debugPromptEnabled = false; // Only print once per run to avoid clutter.
     }
+
+    return prompt;
+}
+
+// Retry prompt for LLM model, with context and recent dialogue history.
+QString translationRetryPrompt(const QString &sourceText,
+                              const QString &recentDialogueContext,
+                              const QString &previousTranslation)
+{
+    QString prompt = QStringLiteral(
+        "The previous translation is invalid.\n"
+
+        "Rules:\n"
+        "- Rewrite entirely in Vietnamese.\n"
+        "- No Chinese Han characters.\n"
+        "- Convert all Chinese names to Sino-Vietnamese.\n"
+        "- Output only one Vietnamese subtitle line.\n"
+        "- No explanations, no notes, no labels, no extra text.\n"
+        "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n"
+    );
+
+    if (!recentDialogueContext.isEmpty()) {
+        prompt += QStringLiteral("\nContext only. Do NOT translate these lines.\n\nPrevious:\n") +
+                  recentDialogueContext + QStringLiteral("\n");
+    }
+
+    prompt += QStringLiteral("\nTranslate ONLY this line:\n") +
+              sourceText + QStringLiteral("\nPrevious translation:\n") +
+              previousTranslation + QStringLiteral("\nVietnamese subtitle:\n");
+
+    // print to debug prompt
+    qDebug() << "Retry prompt:" << prompt;
 
     return prompt;
 }

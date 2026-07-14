@@ -23,7 +23,7 @@ namespace tuning
     inline constexpr const char *kTranslateApiMode = "auto"; // auto | llamacpp | openai | ollama
     inline constexpr const char *kTranslateContextFilePath = "../translate/movie_context.txt";
     inline constexpr const char *kTranslateGlossaryFilePath = "../translate/glossary.json";
-    inline constexpr double kTranslateTemperature = 0.01; // Sampling temperature: 0.0 = greedy/deterministic; keep ≤0.1 for translation.
+    inline constexpr double kTranslateTemperature = 0.04; // Sampling temperature: 0.0 = greedy/deterministic; keep ≤0.1 for translation.
     inline constexpr int kTranslateNumPredict = 64;        // Max new tokens per response. ~64 covers most subtitle lines with headroom.
     inline constexpr int kTranslatePromptContextMaxChars = 900;
     inline constexpr int kTranslateHistoryWindowSize = 2;
@@ -35,12 +35,12 @@ namespace tuning
     // if the first output fails quality checks.
     // Disabling drops bad responses outright — useful for latency testing but hurts real-world translation quality.
     inline constexpr bool kEnableRetryPasses = true;
-    inline constexpr double kTranslateRetryTemperature = 0.02;
+    inline constexpr double kTranslateRetryTemperature = 0.08;
     inline constexpr int kTranslateRetryTopK = 40;
     inline constexpr double kTranslateRetryTopP = 0.85;
     inline constexpr double kTranslateRetryMinP = 0.05;
 
-    // Backward-compatibility constants kept for evaluation tools still using legacy ONNX translator.
+    // Params for translation quality checks and retry logic.
     inline constexpr const char *kTranslateModelDir = "../models/translate";
     inline constexpr int64_t kTranslateDecoderStartId = 65000;
     inline constexpr int64_t kTranslateEosId = 0;
@@ -54,6 +54,7 @@ namespace tuning
     inline constexpr double kTranslateLengthPenalty = 1.0;
     inline constexpr int kPaddleInputHeight = 48;
     inline constexpr int kPaddleInputWidth = 320;
+    inline constexpr int kTranslateLineScoreMin = 0; // Minimum score for a line to be considered valid translation output
 
     // Single fixed OCR noise gate configuration (equivalent to previous Balanced profile).
     inline constexpr double kChangeThreshold = 1.65;

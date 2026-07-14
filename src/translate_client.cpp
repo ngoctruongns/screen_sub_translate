@@ -274,6 +274,9 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
                             QStringLiteral("<|eot_id|>"),
                             QStringLiteral("###"),         // Section separator often used by Ollama
                             QStringLiteral("\u8d8a\u5357\u8bed:"),        // Suppress bilingual meta-label that Qwen emits in Chinese
+                            QStringLiteral("越南语："),
+                            QStringLiteral("越南语:"),
+                            QStringLiteral("越南语字幕："),
                             QStringLiteral("Note:"),         // Suppress explanatory footnotes
                        });
     }
@@ -340,9 +343,7 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 const QString dialogueContext = recentDialogueContext();
                 reply->deleteLater();
                 startBackendPromptRequest(sourceText,
-                                          TranslationTextProcessor::translationPrompt(sourceText,
-                                                                               cachedContextBlock_,
-                                                                               dialogueContext),
+                                          TranslationTextProcessor::translationRetryPrompt(sourceText, dialogueContext, rawTranslated),
                                           true);
                 return;
             } else {

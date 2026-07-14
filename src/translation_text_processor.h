@@ -21,7 +21,8 @@ enum class TranslationIssue
     TooShort,
     TooLong,
     Repeated,
-    UnexpectedEnglish
+    UnexpectedEnglish,
+    LowScore,
 };
 
 // Text validation
@@ -50,6 +51,11 @@ QString applyAliasNormalization(const QString &translatedText,
 QString translationPrompt(const QString &sourceText,
                           const QString &contextBlock,
                           const QString &recentDialogueContext);
+
+// Prompt builder for retrying translation with previous translation context.
+QString translationRetryPrompt(const QString &sourceText,
+                              const QString &recentDialogueContext,
+                              const QString &previousTranslation);
 
 // Utilities
 QString shortText(const QString &text, int maxChars);
