@@ -15,7 +15,9 @@ enum class TranslationIssue
 {
     None,
     Empty,
+    NoUsableVietnameseCandidate,
     ContainsHan,
+    ResidualHan,
     EnglishHeavy,
     OverExpanded,
     TooShort,
@@ -39,6 +41,7 @@ QString translationIssueMessage(TranslationIssue issue);
 QString selectBestVietnameseLine(const QString &text);
 QString normalizeTranslation(QString text);
 QString sanitizeFinalTranslation(QString text);
+QString removeHanCharacters(QString text);
 QString postProcessTranslation(QString text);
 
 // Glossary
@@ -55,7 +58,8 @@ QString translationPrompt(const QString &sourceText,
 // Prompt builder for retrying translation with previous translation context.
 QString translationRetryPrompt(const QString &sourceText,
                               const QString &recentDialogueContext,
-                              const QString &previousTranslation);
+                              const QString &previousTranslation,
+                              TranslationIssue issue);
 
 // Utilities
 QString shortText(const QString &text, int maxChars);

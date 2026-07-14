@@ -105,10 +105,43 @@ int vietnameseAccentCount(const QString &text)
 int calculateLineScore(const QString &line)
 {
     int score = englishCharCount(line);
-        score += vietnameseAccentCount(line) * 10;  // Bonus with Vietnamese accent characters
-        score -= hanCharCount(line) * 20;   // Penalize lines with Chinese characters
+    score += latinWordCount(line) * 6;
+    score += vietnameseAccentCount(line) * 8;  // Bonus with Vietnamese accent characters
+    score -= hanCharCount(line) * 12;          // Penalize Han, but keep mixed candidates for retry analysis
 
     return score;
+}
+
+QString retryInstructionForIssue(TranslationIssue issue)
+{
+    switch (issue) {
+        case TranslationIssue::NoUsableVietnameseCandidate:
+            return QStringLiteral("The previous output was not a usable Vietnamese subtitle. Translate again into Vietnamese only.");
+        case TranslationIssue::ContainsHan:
+            return QStringLiteral("The previous output copied Chinese characters. Translate the entire line into Vietnamese and do not copy Chinese text.");
+        case TranslationIssue::ResidualHan:
+            return QStringLiteral("The previous output was mostly Vietnamese but still contained Chinese characters. Replace every remaining Chinese name, place, and term with Vietnamese Sino-Vietnamese words.");
+        case TranslationIssue::EnglishHeavy:
+            return QStringLiteral("The previous output was English-heavy. Use Vietnamese only.");
+        case TranslationIssue::OverExpanded:
+            return QStringLiteral("The previous output over-explained a short phrase. Keep it concise and subtitle-like.");
+        case TranslationIssue::TooShort:
+            return QStringLiteral("The previous output was too short or incomplete. Translate the full meaning.");
+        case TranslationIssue::TooLong:
+            return QStringLiteral("The previous output was too long. Make it shorter and subtitle-like.");
+        case TranslationIssue::Repeated:
+            return QStringLiteral("The previous output repeated text. Do not repeat phrases.");
+        case TranslationIssue::UnexpectedEnglish:
+            return QStringLiteral("The previous output contained unwanted English or meta words. Use Vietnamese only.");
+        case TranslationIssue::Empty:
+            return QStringLiteral("The previous output was empty or invalid. Translate again into Vietnamese only.");
+        case TranslationIssue::LowScore:
+            return QStringLiteral("The previous output did not look like natural Vietnamese. Translate again into one clean Vietnamese subtitle line.");
+        case TranslationIssue::None:
+            return {};
+    }
+
+    return {};
 }
 
 void replaceLatinAliasWholeWord(QString &text, const QString &alias, const QString &replacement)
@@ -363,19 +396,7 @@ bool isClearlyOverGenerated(const QString &sourceText, const QString &translated
     const int srcLen = sourceText.trimmed().size();
     const int outLen = translatedText.trimmed().size();
 
-    if (srcLen < 3) {
-        return false;
-    }
-
-    if (srcLen <= 5) {
-        return outLen > srcLen * 10;
-    }
-
-    if (srcLen <= 8) {
-        return outLen > srcLen * 8;
-    }
-
-    return outLen > srcLen * 6;
+    return outLen > srcLen * 12;
 }
 
 bool containsUnexpectedEnglish(const QString &text)
@@ -552,10 +573,6 @@ QString sanitizeFinalTranslation(QString text)
         }
     }
 
-    static const QRegularExpression kHanRegex(
-        QStringLiteral("[\\x{3400}-\\x{4DBF}\\x{4E00}-\\x{9FFF}\\x{F900}-\\x{FAFF}]+"));
-    text.remove(kHanRegex);
-
     static const QRegularExpression kMultiSpace(QStringLiteral("\\s{2,}"));
     text.replace(kMultiSpace, QStringLiteral(" "));
 
@@ -573,6 +590,17 @@ QString sanitizeFinalTranslation(QString text)
     }
 
     return text;
+}
+
+QString removeHanCharacters(QString text)
+{
+    static const QRegularExpression kHanRegex(
+        QStringLiteral("[\\x{3400}-\\x{4DBF}\\x{4E00}-\\x{9FFF}\\x{F900}-\\x{FAFF}]+"));
+
+    text.remove(kHanRegex);
+    text = text.simplified();
+
+    return text.trimmed();
 }
 
 QString postProcessTranslation(QString text)
@@ -711,14 +739,21 @@ QString translationPrompt(const QString &sourceText,
 // Retry prompt for LLM model, with context and recent dialogue history.
 QString translationRetryPrompt(const QString &sourceText,
                               const QString &recentDialogueContext,
-                              const QString &previousTranslation)
+                              const QString &previousTranslation,
+                              TranslationIssue issue)
 {
-    QString prompt = QStringLiteral(
-        "The previous translation is invalid.\n"
+    QString prompt = QStringLiteral("The previous translation is invalid.\n");
 
+    const QString issueHint = retryInstructionForIssue(issue);
+    if (!issueHint.isEmpty()) {
+        prompt += QStringLiteral("Problem: ") + issueHint + QStringLiteral("\n");
+    }
+
+    prompt += QStringLiteral(
         "Rules:\n"
         "- Rewrite entirely in Vietnamese.\n"
         "- No Chinese Han characters.\n"
+        "- No English words unless they are unavoidable proper names.\n"
         "- Convert all Chinese names to Sino-Vietnamese.\n"
         "- Output only one Vietnamese subtitle line.\n"
         "- No explanations, no notes, no labels, no extra text.\n"
@@ -746,7 +781,13 @@ TranslationIssue evaluateTranslationQuality(const QString &sourceText, const QSt
         return TranslationIssue::Empty;
     }
 
-    if (containsHanCharacters(translatedText)) {
+    const int outHan = hanCharCount(translatedText);
+    if (outHan > 0) {
+        const int outWords = latinWordCount(translatedText);
+        if (outHan <= 3 && outWords >= 4) {
+            return TranslationIssue::ResidualHan;
+        }
+
         return TranslationIssue::ContainsHan;
     }
 
@@ -785,8 +826,12 @@ QString translationIssueMessage(TranslationIssue issue)
             return QStringLiteral("Translation quality check passed");
         case TranslationIssue::Empty:
             return QStringLiteral("Translation backend output is empty");
+        case TranslationIssue::NoUsableVietnameseCandidate:
+            return QStringLiteral("Translation backend output rejected: no usable Vietnamese candidate");
         case TranslationIssue::ContainsHan:
-            return QStringLiteral("Translation backend output contains Han");
+            return QStringLiteral("Translation backend output contains too many Han characters");
+        case TranslationIssue::ResidualHan:
+            return QStringLiteral("Translation backend output contains residual Han characters");
         case TranslationIssue::EnglishHeavy:
             return QStringLiteral("Translation backend output rejected: English-heavy output");
         case TranslationIssue::OverExpanded:
@@ -799,6 +844,8 @@ QString translationIssueMessage(TranslationIssue issue)
             return QStringLiteral("Translation backend output rejected: repeated subtitle fragments");
         case TranslationIssue::UnexpectedEnglish:
             return QStringLiteral("Translation backend output rejected: unexpected English tokens");
+        case TranslationIssue::LowScore:
+            return QStringLiteral("Translation backend output rejected: low Vietnamese candidate score");
     }
 
     return QStringLiteral("Translation backend output rejected: unknown quality issue");

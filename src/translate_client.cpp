@@ -325,16 +325,38 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
             }
 
             QString translated = TranslationTextProcessor::selectBestVietnameseLine(rawTranslated);
-            translated = TranslationTextProcessor::sanitizeFinalTranslation(translated);
-            translated = TranslationTextProcessor::postProcessTranslation(translated);
-            translated = applyGlossaryAliasNormalization(translated);
 
-            const TranslationTextProcessor::TranslationIssue issue =
-                TranslationTextProcessor::evaluateTranslationQuality(sourceText, translated);
+            TranslationTextProcessor::TranslationIssue issue = TranslationTextProcessor::TranslationIssue::None;
+            if (translated.trimmed().isEmpty() && !rawTranslated.trimmed().isEmpty()) {
+                issue = TranslationTextProcessor::containsHanCharacters(rawTranslated)
+                    ? TranslationTextProcessor::TranslationIssue::ContainsHan
+                    : TranslationTextProcessor::TranslationIssue::NoUsableVietnameseCandidate;
+            }
+
+            translated = TranslationTextProcessor::sanitizeFinalTranslation(translated);
 
             if (issue == TranslationTextProcessor::TranslationIssue::None) {
-                rememberTranslationContext(sourceText, translated);
-                emit translationReady(translated, sourceText);
+                issue = TranslationTextProcessor::evaluateTranslationQuality(sourceText, translated);
+            }
+
+            const bool canFallbackByRemovingHan =
+                isRetryPass && issue == TranslationTextProcessor::TranslationIssue::ResidualHan;
+
+            if (issue == TranslationTextProcessor::TranslationIssue::None || canFallbackByRemovingHan) {
+                QString finalText = TranslationTextProcessor::removeHanCharacters(translated);
+                finalText = TranslationTextProcessor::postProcessTranslation(finalText);
+                finalText = applyGlossaryAliasNormalization(finalText);
+
+                const TranslationTextProcessor::TranslationIssue finalIssue =
+                    TranslationTextProcessor::evaluateTranslationQuality(sourceText, finalText);
+                if (finalText.trimmed().isEmpty() ||
+                    finalIssue == TranslationTextProcessor::TranslationIssue::Empty ||
+                    finalIssue == TranslationTextProcessor::TranslationIssue::TooShort) {
+                    emit translationError(TranslationTextProcessor::translationIssueMessage(finalIssue));
+                } else {
+                    rememberTranslationContext(sourceText, finalText);
+                    emit translationReady(finalText, sourceText);
+                }
             } else if (tuning::kEnableRetryPasses && !isRetryPass) {
                 qWarning() << "TranslateClient: translation quality check failed, retrying\n"
                            << "issue=" << TranslationTextProcessor::translationIssueMessage(issue) << "\n"
@@ -343,7 +365,7 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 const QString dialogueContext = recentDialogueContext();
                 reply->deleteLater();
                 startBackendPromptRequest(sourceText,
-                                          TranslationTextProcessor::translationRetryPrompt(sourceText, dialogueContext, rawTranslated),
+                                          TranslationTextProcessor::translationRetryPrompt(sourceText, dialogueContext, rawTranslated, issue),
                                           true);
                 return;
             } else {
