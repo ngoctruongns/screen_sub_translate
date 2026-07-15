@@ -31,11 +31,11 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     setupHotkeys();
     move(400, 850);
 
-    const QString testDir = QDir::cleanPath(
-        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("../test")));
+    const QString logDir = QDir::cleanPath(
+        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("../logs")));
     subtitleLogger_ = new SubtitleLogger(
-        QDir(testDir).filePath(QStringLiteral("subtitle_log.txt")),
-        QDir(testDir).filePath(QStringLiteral("subtitles")),
+        QDir(logDir).filePath(QStringLiteral("subtitle_log.txt")),
+        QDir(logDir).filePath(QStringLiteral("subtitles")),
 #ifdef SST_DEBUG_BUILD
         true,
 #else

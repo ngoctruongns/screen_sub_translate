@@ -203,7 +203,7 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame, double minStdD
 #ifdef SST_DEBUG_BUILD
     static int frameCounter = 0;
     static int savedCounter = 0;
-    const QString debugDir = QString::fromUtf8("test/image/debug_preprocessed");
+    const QString debugDir = QString::fromUtf8("logs/debug_preprocessed");
 
     QDir dir;
     if (!dir.exists(debugDir)) {

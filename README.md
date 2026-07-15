@@ -683,12 +683,20 @@ The `.srt` files are emitted in both Debug and Release builds. Runtime subtitle 
 
 **Core Application**:
 - `main.cpp` - Application entry point
-- `src/overlay_window.h / .cpp` - Main UI window, scan frame, worker coordination
-- `src/capture_worker.h / .cpp` - Screen capture worker thread
-- `src/ocr_worker.h / .cpp` - OCR processing worker thread
-- `src/ocr_engine.h / .cpp` - ONNX Runtime OCR inference engine
-- `src/subtitle_logger.h / .cpp` - SRT file writer worker thread
-- `src/tuning_params.h` - Centralized tuning constants
+- `src/overlay_window.h / .cpp` - Main UI window, scan frame, worker coordination, display queue, hotkeys/menu actions, and subtitle lifecycle handling
+- `src/capture_worker.h / .cpp` - Screen capture worker thread, frame-diff gate, contrast/noise checks, and OCR input preprocessing
+- `src/ocr_worker.h / .cpp` - OCR worker thread that receives processed frames, calls the OCR engine, and passes recognized text through the subtitle filter
+- `src/ocr_engine.h / .cpp` - ONNX Runtime OCR inference engine using Paddle-style recognition model and character dictionary
+- `src/ocr_subtitle_filter.h / .cpp` - OCR subtitle stabilization and dedupe filter before translation dispatch
+- `src/subtitle_logger.h / .cpp` - SRT file writer worker thread for Chinese source and Vietnamese translation logs
+- `src/tuning_params.h` - Centralized tuning constants for capture, OCR gates, translation, retry, and display timing
+
+**OCR Subtitle Filter** (`src/ocr_subtitle_filter.h / .cpp`):
+- The filter is responsible for converting noisy per-frame OCR results into a stable subtitle candidate. It rejects empty/non-Chinese candidates, requires a minimum Han-character count, and waits for configurable stable time plus seen-frame thresholds before allowing dispatch.
+- Candidate tracking uses frequency voting and a quality score based on Han-character count and text length. This helps recover the strongest OCR variant when consecutive frames contain partial reads or small recognition differences.
+- Similarity checks combine containment, Levenshtein distance, longest common substring, and longest common subsequence. These checks decide whether a new OCR read belongs to the current subtitle or should start a fresh candidate window.
+- Dispatch dedupe is handled with normalized subtitle keys containing only Han characters and ASCII digits. Recently dispatched keys are kept in a bounded queue so the same subtitle is not resent while it is still visible on screen.
+- Short subtitles are treated more conservatively by requiring longer stability and more seen frames. When the subtitle disappears, the filter resets candidate state and clears recent visible-subtitle keys.
 
 **Tools**:
 - `tools/ocr_batch_eval.cpp` - Batch OCR evaluation tool
@@ -705,31 +713,39 @@ screen_sub_translate/
 ├── CMakeLists.txt
 ├── main.cpp
 ├── README.md
+├── build/                                  # Local build output (gitignored)
+│   ├── CMakeCache.txt
+│   └── ScreenSubTranslator                 # Main executable after build
 ├── src/                                    # Source files
 │   ├── capture_worker.h / .cpp             # Screen capture worker
 │   ├── ocr_engine.h / .cpp                 # ONNX OCR inference
+│   ├── ocr_subtitle_filter.h / .cpp        # OCR stabilization, rollback, and dedupe filter
 │   ├── ocr_worker.h / .cpp                 # OCR worker thread
 │   ├── overlay_window.h / .cpp             # Main UI window
 │   ├── subtitle_logger.h / .cpp            # SRT logger thread
 │   ├── translate_client.h / .cpp           # Translation orchestrator
-│   ├── translation_backend_adapter.h /.cpp # Backend HTTP/config handler
-│   ├── translation_text_processor.h /.cpp  # Text processing/validation
+│   ├── translation_backend_adapter.h / .cpp # Backend HTTP/config handler
+│   ├── translation_text_processor.h / .cpp # Text processing/validation
 │   └── tuning_params.h                     # Tuning constants
+├── test/                                   # Runtime logs and test data
+│   ├── image/                              # OCR/translation evaluation images and labels
+│   │   ├── image_sub.txt                   # Chinese image labels
+│   │   ├── image_sub_vi.txt                # Vietnamese image labels
+│   │   ├── translation_eval.txt            # Batch translation/evaluation report
+│   │   └── debug_preprocessed/             # Debug preprocessed image output
+│   ├── subtitles/
+│   │   ├── chinese.srt                     # Source subtitle log
+│   │   └── vietnamese.srt                  # Translation log
+│   ├── subtitle_log.txt                    # Debug runtime event log
+│   ├── terminal_log.txt                    # Terminal/debug notes
+│   └── video_test_sub.txt                  # Video test subtitle data
 ├── tools/
 │   └── ocr_batch_eval.cpp                  # Batch OCR evaluator
 ├── translate/                              # Translation config/data
 │   ├── translation_backend.json            # Backend runtime config
 │   ├── glossary.json                       # Proper name glossary
 │   └── movie_context.txt                   # Optional prompt context
-├── models/paddle/                          # OCR model files (gitignored)
-│   ├── ch_PP-OCRv4_rec_infer.onnx          # PaddleOCR model
-│   └── ppocr_keys_v1.txt                   # Character dictionary
-├── test/                                   # Runtime logs and test data
-│   ├── subtitles/
-│   │   ├── chinese.srt                     # Source subtitle log
-│   │   └── vietnamese.srt                  # Translation log
-│   ├── subtitle_log.txt                    # Debug event log
-│   └── image/                              # OCR test images
-└── build/                                  # Build output (gitignored)
-    └── ScreenSubTranslator                 # Compiled executable
+└── models/paddle/                          # OCR model files (gitignored, must be added manually)
+    ├── ch_PP-OCRv4_rec_infer.onnx          # PaddleOCR model
+    └── ppocr_keys_v1.txt                   # Character dictionary
 ```

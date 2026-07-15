@@ -452,9 +452,11 @@ int main()
     const std::string imageDir = "../test/image";
     const std::string expectedFileZh = imageDir + "/image_sub.txt";
     const std::string expectedFileVi = imageDir + "/image_sub_vi.txt";
-    const std::string outputDir = "../test/image/debug_preprocessed";
-    const std::string translationReport = imageDir + "/translation_eval.txt";
+    const std::string logsDir = "../logs";
+    const std::string outputDir = logsDir + "/debug_preprocessed";
+    const std::string translationReport = logsDir + "/translation_eval.txt";
 
+    std::filesystem::create_directories(logsDir);
     std::filesystem::create_directories(outputDir);
 
     const auto expectedZh = loadExpected(expectedFileZh);

@@ -2,3 +2,4 @@
 build/
 python_tools/
 models/
+logs/
