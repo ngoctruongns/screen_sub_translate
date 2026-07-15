@@ -238,6 +238,11 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
             startSubtitleSegment(decision.dispatchText);
             translateClient_.requestTranslation(decision.dispatchText);
             lastOcrText_ = decision.dispatchText;
+
+            // Log to debug
+            qDebug() << "OCR_DETECTED: text=" << decision.dispatchText
+                     << "stableElapsedMs=" << decision.stableElapsedMs
+                     << "seenFrames=" << decision.seenFrames;
         }
     }
 

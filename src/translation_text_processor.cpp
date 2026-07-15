@@ -840,7 +840,7 @@ QString translationPrompt(const QString &sourceText,
     static bool debugPromptEnabled = true;
     if (debugPromptEnabled) {
         qDebug() << "Translation prompt:" << prompt;
-        // debugPromptEnabled = false; // Only print once per run to avoid clutter.
+        debugPromptEnabled = false; // Only print once per run to avoid clutter.
     }
 
     return prompt;
