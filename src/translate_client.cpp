@@ -10,7 +10,6 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
-#include <QSet>
 
 #include "translation_backend_adapter.h"
 #include "translation_text_processor.h"
@@ -108,48 +107,6 @@ QString TranslateClient::applyGlossaryAliasNormalization(const QString &translat
     return TranslationTextProcessor::applyAliasNormalization(translatedText, aliasPairs_);
 }
 
-QString TranslateClient::sourceGlossaryBlock(const QString &sourceText) const
-{
-    if (sourceText.isEmpty() || glossaryPairs_.isEmpty()) {
-        return {};
-    }
-
-    QStringList lines;
-    QSet<QString> dedupe;
-
-    for (const auto &pair : glossaryPairs_) {
-        const QString &sourceTerm = pair.first;
-        const QString &target = pair.second;
-
-        if (sourceTerm.isEmpty() || target.isEmpty()) {
-            continue;
-        }
-
-        if (!sourceText.contains(sourceTerm)) {
-            continue;
-        }
-
-        const QString key = sourceTerm + QStringLiteral("\u001f") + target;
-        if (dedupe.contains(key)) {
-            continue;
-        }
-
-        lines.append(sourceTerm + QStringLiteral(" = ") + target);
-        dedupe.insert(key);
-    }
-
-    if (lines.isEmpty()) {
-        return {};
-    }
-
-    constexpr int kMaxGlossaryLines = 8;
-    if (lines.size() > kMaxGlossaryLines) {
-        lines = lines.mid(0, kMaxGlossaryLines);
-    }
-
-    return lines.join(QStringLiteral("\n"));
-}
-
 void TranslateClient::requestTranslation(const QString &sourceText)
 {
     const QString normalized = sourceText.trimmed();
@@ -221,7 +178,13 @@ void TranslateClient::rememberTranslationContext(const QString &sourceText,
 void TranslateClient::startBackendRequest(const QString &sourceText)
 {
     const QString dialogueContext = recentDialogueContext();
-    const QString glossaryBlock = sourceGlossaryBlock(sourceText);
+    const QString glossaryBlock =
+        TranslationTextProcessor::buildGlossaryBlockForSource(sourceText, glossaryPairs_);
+    if (!glossaryBlock.isEmpty()) {
+        qDebug() << "TranslateClient: glossary block selected" << "source="
+                 << TranslationTextProcessor::shortText(sourceText, 36)
+                 << "entries=" << glossaryBlock.split('\n', Qt::SkipEmptyParts).size();
+    }
     startBackendPromptRequest(sourceText,
                               TranslationTextProcessor::translationPrompt(sourceText,
                                                                            cachedContextBlock_,
@@ -413,7 +376,8 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                            << "source=" << TranslationTextProcessor::shortText(sourceText, 40) << "\n"
                            << "translated=" << TranslationTextProcessor::shortText(translated, 80);
                 const QString dialogueContext = recentDialogueContext();
-                const QString glossaryBlock = sourceGlossaryBlock(sourceText);
+                const QString glossaryBlock =
+                    TranslationTextProcessor::buildGlossaryBlockForSource(sourceText, glossaryPairs_);
                 reply->deleteLater();
                 startBackendPromptRequest(sourceText,
                                           TranslationTextProcessor::translationRetryPrompt(sourceText,

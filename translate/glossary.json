@@ -18,10 +18,6 @@
         "韩国": "Hàn Quốc",
         "朝鲜": "Triều Tiên",
         "俄罗斯": "Nga",
-        "美国": "Mỹ",
-        "英国": "Anh",
-        "法国": "Pháp",
-        "德国": "Đức",
         "意大利": "Ý",
         "中国": "Trung Quốc",
         "日本": "Nhật Bản",
@@ -29,9 +25,6 @@
         "毛泽东": "Mao Trạch Đông",
         "周恩来": "Chu Ân Lai",
         "蒋介石": "Tưởng Giới Thạch",
-        "正太线": "tuyến Chính Thái",
-        "同蒲线": "tuyến Đồng Bồ",
-        "同蒲路": "đường Đồng Bồ",
         "平定": "Bình Định",
         "榆次": "Du Thứ",
         "娘子关": "Nương Tử Quan",
@@ -42,8 +35,10 @@
         "刘邓集团": "tập đoàn Lưu Đặng",
         "聂集团": "tập đoàn Nhiếp",
         "刘师长": "Sư trưởng Lưu",
-        "彭总": "Tổng tư lệnh Bành",
-        "129师": "Sư đoàn 129"
+        "彭总": "Bành tổng",
+        "重庆": "Trùng Khánh",
+        "破壞": "phá hoại",
+        "破坏": "phá hoại"
     },
     "aliases": {
         "Wuhan": "Vũ Hán",
@@ -95,6 +90,6 @@
         "Fenyi": "Phần Ly",
         "Nie": "Nhiếp",
         "Liu-Deng": "Lưu Đặng",
-        "Liu Deng": "Lưu Đặng",
+        "Liu Deng": "Lưu Đặng"
     }
 }

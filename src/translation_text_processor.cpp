@@ -52,6 +52,49 @@ bool isWordBoundaryChar(const QChar ch)
     return !ch.isLetterOrNumber() && ch != QChar('_');
 }
 
+bool containsLatinWholeWordCaseInsensitive(const QString &text, const QString &needle)
+{
+    if (text.isEmpty() || needle.isEmpty()) {
+        return false;
+    }
+
+    const QString loweredText = text.toLower();
+    const QString loweredNeedle = needle.toLower();
+    int searchFrom = 0;
+
+    while (searchFrom < loweredText.size()) {
+        const int idx = loweredText.indexOf(loweredNeedle, searchFrom);
+        if (idx < 0) {
+            return false;
+        }
+
+        const int end = idx + loweredNeedle.size();
+        const bool leftOk = idx == 0 || isWordBoundaryChar(text.at(idx - 1));
+        const bool rightOk = end >= text.size() || isWordBoundaryChar(text.at(end));
+        if (leftOk && rightOk) {
+            return true;
+        }
+
+        searchFrom = idx + loweredNeedle.size();
+    }
+
+    return false;
+}
+
+QString hanVariantFallback(QString text)
+{
+    if (text.isEmpty()) {
+        return text;
+    }
+
+    // Minimal Traditional -> Simplified fallback for frequent OCR glossary mismatches.
+    text.replace(QChar(0x58DE), QChar(0x574F)); // 壞 -> 坏
+    text.replace(QChar(0x9435), QChar(0x94C1)); // 鐵 -> 铁
+    text.replace(QChar(0x8ECC), QChar(0x8F68)); // 軌 -> 轨
+
+    return text;
+}
+
 int hanCharCount(const QString &text)
 {
     int count = 0;
@@ -714,6 +757,67 @@ QString applyAliasNormalization(const QString &translatedText,
     return out;
 }
 
+QString buildGlossaryBlockForSource(const QString &sourceText,
+                                    const QVector<QPair<QString, QString>> &glossaryPairs)
+{
+    if (sourceText.isEmpty() || glossaryPairs.isEmpty()) {
+        return {};
+    }
+
+    constexpr int kMaxGlossaryLines = 8;
+    constexpr int kMaxGlossaryChars = 360;
+
+    const QString normalizedSource = sourceText.normalized(QString::NormalizationForm_C);
+
+    QStringList lines;
+    QSet<QString> dedupe;
+
+    for (const auto &pair : glossaryPairs) {
+        const QString &sourceTerm = pair.first;
+        const QString &target = pair.second;
+        if (sourceTerm.isEmpty() || target.isEmpty()) {
+            continue;
+        }
+
+        bool matched = false;
+        if (hasLatinLetter(sourceTerm)) {
+            matched = containsLatinWholeWordCaseInsensitive(normalizedSource, sourceTerm);
+        } else {
+            matched = normalizedSource.contains(sourceTerm);
+            if (!matched) {
+                matched = normalizedSource.contains(hanVariantFallback(sourceTerm));
+            }
+        }
+
+        if (!matched) {
+            continue;
+        }
+
+        const QString key = sourceTerm + QStringLiteral("\u001f") + target;
+        if (dedupe.contains(key)) {
+            continue;
+        }
+
+        lines.append(sourceTerm + QStringLiteral(" = ") + target);
+        dedupe.insert(key);
+
+        if (lines.size() >= kMaxGlossaryLines || lines.join(QStringLiteral("\n")).size() >= kMaxGlossaryChars) {
+            break;
+        }
+    }
+
+    if (lines.isEmpty()) {
+        return {};
+    }
+
+    QString block = lines.join(QStringLiteral("\n"));
+    if (block.size() > kMaxGlossaryChars) {
+        block = block.left(kMaxGlossaryChars).trimmed();
+    }
+
+    return block;
+}
+
 // Translation prompt for LLM model, with context and recent dialogue history.
 QString translationPrompt(const QString &sourceText,
                          const QString &contextBlock,
@@ -753,7 +857,7 @@ QString translationPrompt(const QString &sourceText,
     static bool debugPromptEnabled = true;
     if (debugPromptEnabled) {
         qDebug() << "Translation prompt:" << prompt;
-        debugPromptEnabled = false; // Only print once per run to avoid clutter.
+        // debugPromptEnabled = false; // Only print once per run to avoid clutter.
     }
 
     return prompt;

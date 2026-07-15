@@ -38,7 +38,6 @@ private:
     QString recentDialogueContext() const;
     void rememberTranslationContext(const QString &sourceText, const QString &translatedText);
     QString applyGlossaryAliasNormalization(const QString &translatedText) const;
-    QString sourceGlossaryBlock(const QString &sourceText) const;
 
     QNetworkAccessManager *networkManager_ = nullptr;
     QPointer<QNetworkReply> activeReply_;

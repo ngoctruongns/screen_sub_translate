@@ -50,6 +50,8 @@ AliasData loadAliasRules(const QString &path);
 QString loadPromptContext(const QString &path);
 QString applyAliasNormalization(const QString &translatedText,
                                    const QVector<QPair<QString, QString>> &aliasPairs);
+QString buildGlossaryBlockForSource(const QString &sourceText,
+                                    const QVector<QPair<QString, QString>> &glossaryPairs);
 
 // Prompt builders
 QString translationPrompt(const QString &sourceText,
