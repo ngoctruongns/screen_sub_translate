@@ -230,7 +230,7 @@ bool OcrSubtitleFilter::isLikelySameSubtitle(const QString &left, const QString 
     const int maxLen = std::max(left.size(), right.size());
     const int lenDiff = std::abs(left.size() - right.size());
 
-    if (lenDiff > 3) {
+    if (lenDiff > 3 && minLen < 6) {
         return false;
     }
 
@@ -262,6 +262,10 @@ bool OcrSubtitleFilter::isLikelySameSubtitle(const QString &left, const QString 
     }
 
     const int lcsSub = longestCommonSubstring(left, right);
+    if (minLen >= 6 && lcsSub >= 6 && static_cast<double>(lcsSub) / minLen >= 0.60) {
+        return true;
+    }
+
     if (lcsSub >= 3 && static_cast<double>(lcsSub) / minLen >= 0.60) {
         return true;
     }
@@ -272,7 +276,12 @@ bool OcrSubtitleFilter::isLikelySameSubtitle(const QString &left, const QString 
 
     const int lcs = longestCommonSubsequence(left, right);
     const double lcsRatio = static_cast<double>(lcs) / static_cast<double>(std::max(1, maxLen));
+    const double lcsShortRatio = static_cast<double>(lcs) / static_cast<double>(std::max(1, minLen));
     const double levRatio = static_cast<double>(lev) / static_cast<double>(std::max(1, maxLen));
+
+    if (minLen >= 6 && lcsShortRatio >= 0.70 && levRatio <= 0.46) {
+        return true;
+    }
 
     return (lcsRatio >= 0.82) && (levRatio <= 0.24);
 }
