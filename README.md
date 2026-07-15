@@ -47,14 +47,17 @@ Pipeline notes:
 - OCR noise-gate parameters are centralized in `src/tuning_params.h` (single fixed configuration, currently aligned with the previous Balanced tuning).
 - Subtitle dedupe gate suppresses repeated dispatch while the same subtitle is still on screen.
 - Translation is async; stale/error events are handled without freezing the overlay.
-- Translation output now goes through one centralized quality gate. If the first pass fails and retry is enabled, the app performs one deterministic retry with the same prompt and stricter sampling parameters.
+- Translation prompts are built per accepted OCR line. By default, the app does not inject `movie_context.txt` into the per-line prompt to avoid broad context leaking into model output; it still includes recent Chinese dialogue context and only the glossary entries that match the current source line.
+- Translation output goes through candidate selection, sanitization, quality checks, post-processing, glossary alias normalization, and a final quality check before being emitted.
+- If the first pass fails and retry is enabled, the app performs one retry using a retry-specific prompt with the detected quality issue and stricter sampling parameters.
 - Translations are buffered in a display queue and shown sequentially with per-entry timing.
 
 Translation retry policy:
 
 - The first pass uses `translationPrompt()` and normal generation parameters.
-- The raw model output is sanitized, post-processed, normalized by glossary aliases, then checked by `evaluateTranslationQuality()`.
-- If the first pass fails and `kEnableRetryPasses` is enabled, the app retries once with the same prompt and deterministic sampling.
+- The prompt contains strict output rules, matching glossary entries for the current source line, recent Chinese dialogue context, and the current source line. `movie_context.txt` is intentionally not injected into the first-pass prompt by default because broad user-provided context can be repeated or paraphrased by small local models.
+- The raw model output is reduced to the best Vietnamese candidate, sanitized, then checked by `evaluateTranslationQuality()`.
+- If the first pass fails and `kEnableRetryPasses` is enabled, the app retries once with `translationRetryPrompt()`. The retry prompt includes the quality issue hint, the same matching glossary block, recent Chinese dialogue context, the source line, and the previous raw translation.
 - Retry parameters are fixed in `translate_client.cpp`: `temperature = 0.0`, `top_k = 20`, `top_p = 0.8`, `min_p = 0.1`.
 - If retry also fails, the result is rejected and logged as `TRANSLATE_ERROR`.
 
@@ -81,7 +84,7 @@ flowchart TD
   L -->|No| M[Log OCR_DETECTED]
   M --> N[TranslateClient request\nlocal LLM endpoint]
   N --> O{Quality check passed?}
-  O -->|No, first pass + retry enabled| P[Retry once with same prompt\nand deterministic sampling]
+  O -->|No, first pass + retry enabled| P[Retry once with retry prompt\nand deterministic sampling]
   P --> O
   O -->|No after retry| R[Log TRANSLATE_ERROR]
   O -->|Yes| Q[Enqueue translation display queue]
@@ -280,7 +283,7 @@ Fields:
 - `repeatPenalty`: llama.cpp `repeat_penalty` option.
 - `frequencyPenalty`: llama.cpp `frequency_penalty` option.
 - `repeatLastN`: llama.cpp `repeat_last_n` option.
-- `contextFile`: optional prompt context file path
+- `contextFile`: optional movie context file path. The file is still loaded for compatibility, but the current default runtime translation prompt does not inject it into per-line requests to reduce context leakage.
 - `glossaryFile`: glossary JSON path
 
 Notes:
@@ -352,17 +355,15 @@ Supported format:
 ```json
 {
   "glossary": {
-    "田汉": {
-      "target": "Điền Hán",
-      "aliases": ["Tian Han", "Tan Han", "Tán Han"]
-    },
-    "广西": {
-      "target": "Quảng Tây",
-      "aliases": ["Guangxi"]
-    },
-    "重庆": "Trùng Khánh"
+    "田汉": "Điền Hán",
+    "广西": "Quảng Tây",
+    "重庆": "Trùng Khánh",
+    "破坏": "phá hoại"
   },
   "aliases": {
+    "Tian Han": "Điền Hán",
+    "Tan Han": "Điền Hán",
+    "Guangxi": "Quảng Tây",
     "Chongqing": "Trùng Khánh"
   }
 }
@@ -370,9 +371,30 @@ Supported format:
 
 Behavior:
 
-- Glossary entries are injected into LLM prompt context.
-- Alias normalization is applied after translation sanitization.
-- Longer aliases are prioritized first to reduce partial replacement issues.
+- `glossary` is used at prompt time. For each source subtitle line, the app selects only glossary entries whose source term appears in that line.
+- The app does not inject the full `glossary.json` into every prompt. The per-line glossary block is limited to 8 entries and 360 characters.
+- Glossary keys should match the script used by the film/OCR source. For simplified Chinese films, keep glossary keys in simplified Chinese.
+- `aliases` are not injected into the prompt. They are applied after translation post-processing to normalize final Vietnamese output, especially when the model emits romanized or English-style names.
+- Longer glossary terms and aliases are prioritized first to reduce partial replacement issues.
+
+Prompt insertion example:
+
+```text
+Glossary for this line. Use these exact Vietnamese terms when they appear in the source:
+重庆 = Trùng Khánh
+破坏 = phá hoại
+```
+
+The first-pass prompt order is:
+
+1. Translation rules.
+2. Matching glossary entries for the current source line.
+3. Recent Chinese dialogue context only, not previous Vietnamese translations.
+4. The current source line and `Vietnamese subtitle:` marker.
+
+`translate/movie_context.txt` is not injected into the first-pass prompt by default. This avoids cases where small local LLMs repeat or translate broad movie context into the subtitle output, especially when the OCR source line is short or noisy.
+
+The retry prompt also includes the matching glossary block when available.
 
 ### Translation Quality Controls
 
@@ -383,21 +405,26 @@ Implemented across translation modules:
   - This prevents OCR noise, UI text, or non-subtitle regions from consuming backend requests.
 
 - **Main translation flow** (`translate_client.cpp`):
-  - The normal path is intentionally simple and deterministic:
-    `translationPrompt -> raw model output -> sanitizeFinalTranslation -> postProcessTranslation -> glossary normalization -> quality check`.
-  - If the first result passes quality checks, it is emitted immediately and stored in recent dialogue context.
+  - The normal path is:
+    `translationPrompt -> raw model output -> selectBestVietnameseLine -> sanitizeFinalTranslation -> evaluateTranslationQuality`.
+  - If the candidate passes the first quality check, the app applies:
+    `removeHanCharacters -> postProcessTranslation -> alias normalization -> final quality check`.
+  - If the final result passes, it is emitted and the Chinese source plus Vietnamese translation are stored in recent dialogue context.
+  - Recent dialogue context sent back into prompts contains only previous Chinese source lines, not previous Vietnamese translations, to avoid feedback loops from bad model output.
 
 - **Text sanitization** (`translation_text_processor.cpp`):
-  - `sanitizeFinalTranslation()` removes common model-output wrappers such as labels, quotes, Han remnants, chained alternatives, CJK punctuation noise, and spacing artifacts.
-  - `postProcessTranslation()` removes noisy local-LLM artifacts such as instruction tails, meta tokens, repeated sentence fragments, punctuation debris, and glued English suffixes.
+  - `selectBestVietnameseLine()` splits raw model output into candidates and scores likely Vietnamese lines while penalizing Han characters.
+  - `sanitizeFinalTranslation()` removes common model-output wrappers such as labels, quotes, chained alternatives, CJK punctuation noise, and spacing artifacts.
+  - `removeHanCharacters()` removes remaining Han characters only after a candidate has passed or when retry fallback allows residual Han removal.
+  - `postProcessTranslation()` normalizes punctuation and whitespace before alias normalization.
 
 - **Centralized quality checks** (`translation_text_processor.cpp`):
   - Quality evaluation is centralized in `evaluateTranslationQuality()`, which returns a `TranslationIssue`.
-  - Current issue types are `None`, `Empty`, `ContainsHan`, `EnglishHeavy`, `OverExpanded`, `TooShort`, `TooLong`, `Repeated`, and `UnexpectedEnglish`.
+  - Current issue types include `None`, `Empty`, `NoUsableVietnameseCandidate`, `ContainsHan`, `ResidualHan`, `EnglishHeavy`, `OverExpanded`, `TooShort`, `TooLong`, `Repeated`, `UnexpectedEnglish`, and `LowScore`.
 
 - **Single retry orchestration** (`translate_client.cpp`):
-  - If the first quality check fails and `kEnableRetryPasses` is enabled, the client performs exactly one retry using the same translation prompt.
-  - The retry does not use separate repair/rescue prompts anymore; only decoding parameters are changed to make output more deterministic.
+  - If the first quality check fails and `kEnableRetryPasses` is enabled, the client performs exactly one retry using `translationRetryPrompt()`.
+  - The retry prompt contains an issue-specific instruction generated from the detected `TranslationIssue`, the same matching glossary block, recent Chinese dialogue context, the source line, and the previous raw translation.
 
 - **Retry decoding parameters** (`translate_client.cpp`):
   - Retry requests use fixed conservative sampling parameters:
@@ -405,7 +432,8 @@ Implemented across translation modules:
   - If the retry result still fails quality checks, the client emits `translationError()` with the corresponding quality issue message.
 
 - **Glossary normalization** (`translation_text_processor.cpp`):
-  - Alias rules are applied after sanitization and post-processing to stabilize proper names in final Vietnamese output.
+  - Alias rules from the `aliases` section of `translate/glossary.json` are applied after sanitization and post-processing to stabilize proper names in final Vietnamese output.
+  - Alias rules are output-side normalization only; they are not inserted into the LLM prompt.
   - Longer aliases are prioritized first to reduce partial replacement issues.
 
 Current default in `src/tuning_params.h`:
@@ -477,10 +505,9 @@ All tuning constants are centralized in `src/tuning_params.h`. Key parameters:
 - `kCaptureContrastThreshold`: `20.0`
 
 **Translation Context**:
-- `kTranslatePromptContextMaxChars`: `900`
+- `kTranslatePromptContextMaxChars`: `900` for loading `movie_context.txt`; the loaded movie context is currently not injected into normal per-line translation prompts by default.
 - `kTranslateHistoryWindowSize`: `2`
-- `kEnableRetryPasses`: `false`
-- Retry uses the same `translationPrompt()` as the first pass, but with fixed deterministic sampling parameters in `translate_client.cpp`.
+- Retry uses `translationRetryPrompt()` with the detected quality issue, the previous raw model output, recent Chinese dialogue context, and matching glossary entries for the current source line.
 
 ## Daily Usage
 
@@ -669,7 +696,7 @@ The `.srt` files are emitted in both Debug and Release builds. Runtime subtitle 
 **Configuration**:
 - `translate/translation_backend.json` - Runtime backend config
 - `translate/glossary.json` - Proper name glossary
-- `translate/movie_context.txt` - Optional movie context
+- `translate/movie_context.txt` - Optional movie context file. It is loaded for compatibility, but current per-line translation prompts do not inject it by default to avoid context leakage in local LLM output.
 
 ### Full Directory Tree
 

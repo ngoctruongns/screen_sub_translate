@@ -81,20 +81,6 @@ bool containsLatinWholeWordCaseInsensitive(const QString &text, const QString &n
     return false;
 }
 
-QString hanVariantFallback(QString text)
-{
-    if (text.isEmpty()) {
-        return text;
-    }
-
-    // Minimal Traditional -> Simplified fallback for frequent OCR glossary mismatches.
-    text.replace(QChar(0x58DE), QChar(0x574F)); // 壞 -> 坏
-    text.replace(QChar(0x9435), QChar(0x94C1)); // 鐵 -> 铁
-    text.replace(QChar(0x8ECC), QChar(0x8F68)); // 軌 -> 轨
-
-    return text;
-}
-
 int hanCharCount(const QString &text)
 {
     int count = 0;
@@ -784,9 +770,6 @@ QString buildGlossaryBlockForSource(const QString &sourceText,
             matched = containsLatinWholeWordCaseInsensitive(normalizedSource, sourceTerm);
         } else {
             matched = normalizedSource.contains(sourceTerm);
-            if (!matched) {
-                matched = normalizedSource.contains(hanVariantFallback(sourceTerm));
-            }
         }
 
         if (!matched) {

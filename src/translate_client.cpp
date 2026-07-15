@@ -185,9 +185,13 @@ void TranslateClient::startBackendRequest(const QString &sourceText)
                  << TranslationTextProcessor::shortText(sourceText, 36)
                  << "entries=" << glossaryBlock.split('\n', Qt::SkipEmptyParts).size();
     }
+    // Do not include the user-provided movie context in per-line prompts by default.
+    // For small local models, broad natural-language context can leak into the subtitle output,
+    // especially when the OCR source is short or noisy. Glossary entries and recent Chinese
+    // source lines remain enabled because they are line-specific and less prone to leakage.
     startBackendPromptRequest(sourceText,
                               TranslationTextProcessor::translationPrompt(sourceText,
-                                                                           cachedContextBlock_,
+                                                                           QString(),
                                                                            dialogueContext,
                                                                            glossaryBlock),
                               false);
