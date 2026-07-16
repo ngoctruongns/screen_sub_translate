@@ -22,7 +22,9 @@ namespace
 {
 constexpr double kSmallFrameScale = 0.25;
 constexpr double kDiffPixelThreshold = 12.0;
-constexpr double kOcrResizeScale = 2.6;
+// 1.0 = no rescale. The OCR engine resizes the crop to the model input height itself,
+// so upscaling the whole frame here was redundant compute; kept tunable for experiments.
+constexpr double kOcrResizeScale = 1.0;
 constexpr double kClaheClipLimit = 2.0;
 constexpr int kClaheTileSize = 8;
 constexpr int kDebugSaveEveryNFrames = 50;
@@ -169,15 +171,19 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame, double minStdD
     cv::Mat denoised;
     cv::GaussianBlur(grayFrame, denoised, cv::Size(3, 3), 0.0);
 
-    // Step 2: Resize to OCR input size
-    cv::Mat enlarged;
-    cv::resize(denoised, enlarged, cv::Size(), kOcrResizeScale, kOcrResizeScale, cv::INTER_CUBIC);
+    // Step 2: Optional rescale (off by default; engine handles final sizing to model height)
+    cv::Mat scaled;
+    if (std::abs(kOcrResizeScale - 1.0) > 1e-3) {
+        cv::resize(denoised, scaled, cv::Size(), kOcrResizeScale, kOcrResizeScale, cv::INTER_CUBIC);
+    } else {
+        scaled = denoised;
+    }
 
     // Step 3: Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to improve text contrast and visibility
     cv::Mat claheResult;
     cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(kClaheClipLimit,
                                                cv::Size(kClaheTileSize, kClaheTileSize));
-    clahe->apply(enlarged, claheResult);
+    clahe->apply(scaled, claheResult);
 
     // Step 4: Unsharp masking to sharpen text edges
     cv::Mat blurred;

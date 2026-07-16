@@ -245,8 +245,13 @@ bool OcrEngine::loadCharset(const QString &charsetPath)
     return charset_.size() > 1;
 }
 
-QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes) const
+QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, float *outConfidence) const
 {
+    if (outConfidence != nullptr)
+    {
+        *outConfidence = 0.0f;
+    }
+
     if (logits == nullptr || timeSteps <= 0 || classes <= 0)
     {
         return QString();
@@ -255,14 +260,19 @@ QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes) co
     std::string out;
     out.reserve(static_cast<size_t>(timeSteps) * 2);
 
+    double confidenceSum = 0.0;
+    int emittedChars = 0;
+
     int prev = -1;
     for (int t = 0; t < timeSteps; ++t)
     {
         const float *row = logits + static_cast<size_t>(t) * classes;
         int bestIdx = 0;
         float bestVal = row[0];
+        double rowSum = row[0];
         for (int c = 1; c < classes; ++c)
         {
+            rowSum += row[c];
             if (row[c] > bestVal)
             {
                 bestVal = row[c];
@@ -273,8 +283,34 @@ QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes) co
         if (bestIdx != 0 && bestIdx != prev && bestIdx < static_cast<int>(charset_.size()))
         {
             out += charset_[bestIdx];
+
+            // Per-character confidence. PP-OCRv4 rec normally outputs post-softmax
+            // probabilities (row sums to ~1) -> use the winning probability directly.
+            // If the export emits raw logits instead, softmax this step on the fly:
+            //   p = exp(bestVal) / sum_c exp(row[c]) = 1 / sum_c exp(row[c] - bestVal).
+            double stepConf;
+            if (std::abs(rowSum - 1.0) < 0.05)
+            {
+                stepConf = bestVal;
+            }
+            else
+            {
+                double denom = 0.0;
+                for (int c = 0; c < classes; ++c)
+                {
+                    denom += std::exp(static_cast<double>(row[c] - bestVal));
+                }
+                stepConf = (denom > 0.0) ? (1.0 / denom) : 0.0;
+            }
+            confidenceSum += stepConf;
+            ++emittedChars;
         }
         prev = bestIdx;
+    }
+
+    if (outConfidence != nullptr && emittedChars > 0)
+    {
+        *outConfidence = static_cast<float>(confidenceSum / emittedChars);
     }
 
     return QString::fromUtf8(out.c_str());
@@ -298,11 +334,11 @@ QString OcrEngine::normalizeHanText(const QString &text)
     return out;
 }
 
-QString OcrEngine::performOcr(const cv::Mat &inputImg)
+OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
 {
     if (!initialized_ || inputImg.empty() || !session_)
     {
-        return QString();
+        return {};
     }
 
     // Convert to BGR 3-channel (PP-OCRv4 rec expects [1,3,H,W]).
@@ -322,7 +358,7 @@ QString OcrEngine::performOcr(const cv::Mat &inputImg)
     else
     {
         qWarning() << "Unsupported input channels for OCR:" << inputImg.channels();
-        return QString();
+        return {};
     }
 
     // Keep text aspect ratio, then pad to model width to reduce CTC hallucinations.
@@ -381,26 +417,28 @@ QString OcrEngine::performOcr(const cv::Mat &inputImg)
 
         if (outputTensors.empty() || !outputTensors[0].IsTensor())
         {
-            return QString();
+            return {};
         }
 
         const Ort::TensorTypeAndShapeInfo info = outputTensors[0].GetTensorTypeAndShapeInfo();
         const std::vector<int64_t> dims = info.GetShape();
         if (dims.size() < 3)
         {
-            return QString();
+            return {};
         }
 
         const int timeSteps = static_cast<int>(dims[dims.size() - 2]);
         const int classes = static_cast<int>(dims[dims.size() - 1]);
         const float *logits = outputTensors[0].GetTensorData<float>();
 
-        return normalizeHanText(decodeCtc(logits, timeSteps, classes));
+        float confidence = 0.0f;
+        const QString decoded = decodeCtc(logits, timeSteps, classes, &confidence);
+        return {normalizeHanText(decoded), confidence};
     }
     catch (const std::exception &e)
     {
         qWarning() << "ONNX inference failed:" << e.what();
-        return QString();
+        return {};
     }
 }
 

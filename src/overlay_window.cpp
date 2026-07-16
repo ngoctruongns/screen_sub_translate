@@ -215,7 +215,7 @@ void OverlayWindow::onImageProcessed(const cv::Mat &processedImg)
     }
 }
 
-void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
+void OverlayWindow::onOcrReady(const QString &ocrText, float confidence, int requestId)
 {
     if (requestId != inFlightOcrRequestId_) {
         return;
@@ -239,6 +239,15 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
         // appendSubtitleLog(QStringLiteral("OCR_CAP-->"), ocrText, QString());
         lastNonEmptySubtitleTimer_.restart();
 
+        // Drop garbled low-confidence reads before they reach the filter/translation.
+        if (confidence < tuning::kMinOcrConfidence) {
+            qDebug() << "OCR_LOW_CONFIDENCE: text=" << ocrText << "confidence=" << confidence;
+            if (latestFrameRequestId_ > requestId) {
+                dispatchLatestOcr();
+            }
+            return;
+        }
+
         const OcrSubtitleFilter::Decision decision = ocrSubtitleFilter_.process(ocrText);
 
         if (decision.rejectedForQuality) {
@@ -257,7 +266,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
         }
 
         if (decision.shouldDispatch) {
-            handleDispatchCandidate(decision);
+            handleDispatchCandidate(decision, confidence);
         }
     }
 
@@ -266,7 +275,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
     }
 }
 
-void OverlayWindow::handleDispatchCandidate(const OcrSubtitleFilter::Decision &decision)
+void OverlayWindow::handleDispatchCandidate(const OcrSubtitleFilter::Decision &decision, float confidence)
 {
     QString dispatchText = decision.dispatchText.trimmed();
     if (dispatchText.isEmpty()) {
@@ -302,7 +311,8 @@ void OverlayWindow::handleDispatchCandidate(const OcrSubtitleFilter::Decision &d
 
     qDebug() << "OCR_DETECTED: text=" << dispatchText
              << "stableElapsedMs=" << decision.stableElapsedMs
-             << "seenFrames=" << decision.seenFrames;
+             << "seenFrames=" << decision.seenFrames
+             << "confidence=" << confidence;
 }
 
 void OverlayWindow::flushPendingIncompleteSubtitle()

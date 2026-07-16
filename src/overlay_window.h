@@ -44,7 +44,7 @@ protected:
 
 private slots:
     void onImageProcessed(const cv::Mat &processedImg);
-    void onOcrReady(const QString &ocrText, int requestId);
+    void onOcrReady(const QString &ocrText, float confidence, int requestId);
     void onOcrError(const QString &error, int requestId);
     void onTranslationReady(const QString &translatedText, const QString &sourceText);
     void onTranslationError(const QString &error);
@@ -64,7 +64,7 @@ private:
     void endSubtitleSegment() const;
     void dispatchLatestOcr();
     void applyDefaultNoiseConfig();
-    void handleDispatchCandidate(const OcrSubtitleFilter::Decision &decision);
+    void handleDispatchCandidate(const OcrSubtitleFilter::Decision &decision, float confidence);
     void flushPendingIncompleteSubtitle();
     static bool isIncompleteSubtitlePhrase(const QString &text);
     Qt::Edges hitTestEdges(const QPoint &localPos) const;

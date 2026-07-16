@@ -518,7 +518,7 @@ int main()
             cv::imwrite(preparedPath, prepared);
         }
 
-        const QString predRaw = engine.performOcr(prepared).trimmed();
+        const QString predRaw = engine.performOcr(prepared).text.trimmed();
         const QString pred = normalize(predRaw);
         const QString gtRaw = it->second.trimmed();
         const QString gt = normalize(gtRaw);

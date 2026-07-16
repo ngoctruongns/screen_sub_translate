@@ -26,7 +26,16 @@ namespace tuning
     inline constexpr const char *kPaddleRecOnnxPath = "../models/paddle/ch_PP-OCRv4_rec_infer.onnx";
     inline constexpr const char *kPaddleCharsetPath = "../models/paddle/ppocr_keys_v1.txt";
     inline constexpr int kPaddleInputHeight = 48;          // Recognition input height (fixed).
-    inline constexpr int kPaddleInputWidth = 320;          // Recognition input width (padded).
+    inline constexpr int kPaddleInputWidth = 480;          // Recognition input width (padded). Wider = less horizontal
+                                                           // squashing on long Han lines. Requires a dynamic-width ONNX
+                                                           // export (most PP-OCRv4 rec exports are); revert to 320 if the
+                                                           // model rejects the input shape.
+
+    // Reject a recognition whose mean per-character confidence (max softmax prob over
+    // the CTC-emitted steps) is below this. Filters garbled reads (e.g. "一居鳞") before
+    // they reach translation. TUNE ON REAL FOOTAGE: confidence is logged per detection;
+    // raise toward 0.8 to drop more garbage, lower if valid subtitles get dropped.
+    inline constexpr float kMinOcrConfidence = 0.55f;
 
     // ─────────────────────────────────────────────────────────────────────────
     // 3. OCR SUBTITLE FILTER (stabilization)  — ocr_subtitle_filter.cpp

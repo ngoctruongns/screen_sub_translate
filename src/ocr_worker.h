@@ -19,7 +19,7 @@ public slots:
     void processImage(const cv::Mat &processedImg, int requestId);
 
 signals:
-    void ocrReady(const QString &ocrText, int requestId);
+    void ocrReady(const QString &ocrText, float confidence, int requestId);
     void ocrError(const QString &error, int requestId);
 
 private:

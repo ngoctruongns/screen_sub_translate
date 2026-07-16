@@ -13,14 +13,20 @@
 class OcrEngine
 {
 public:
+    struct OcrResult
+    {
+        QString text;
+        float confidence = 0.0f; // Mean per-character max-softmax probability (0..1).
+    };
+
     OcrEngine();
     ~OcrEngine();
 
-    QString performOcr(const cv::Mat &inputImg);
+    OcrResult performOcr(const cv::Mat &inputImg);
     bool isReady() const;
 
 private:
-    QString decodeCtc(const float *logits, int timeSteps, int classes) const;
+    QString decodeCtc(const float *logits, int timeSteps, int classes, float *outConfidence) const;
     bool loadCharset(const QString &charsetPath);
     static QString normalizeHanText(const QString &text);
 

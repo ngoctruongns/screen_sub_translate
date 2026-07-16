@@ -11,6 +11,6 @@ void OcrWorker::processImage(const cv::Mat &processedImg, int requestId)
         return;
     }
 
-    const QString ocrText = engine_.performOcr(processedImg);
-    emit ocrReady(ocrText, requestId);
+    const OcrEngine::OcrResult result = engine_.performOcr(processedImg);
+    emit ocrReady(result.text, result.confidence, requestId);
 }
