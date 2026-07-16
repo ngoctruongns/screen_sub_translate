@@ -17,6 +17,31 @@
 #include <QShortcut>
 #include <QTextStream>
 
+namespace
+{
+
+QString joinSubtitleFragments(const QString &left, const QString &right)
+{
+    QString merged = left.trimmed();
+    const QString next = right.trimmed();
+
+    if (merged.isEmpty()) {
+        return next;
+    }
+    if (next.isEmpty()) {
+        return merged;
+    }
+
+    const QChar last = merged.back();
+    if (last == QChar(0xFF0C) || last == QChar(',') || last == QChar(0x3001)) {
+        merged.chop(1);
+    }
+
+    return merged + next;
+}
+
+} // namespace
+
 OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
 {
     qRegisterMetaType<cv::Mat>("cv::Mat");
@@ -201,6 +226,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
     if (ocrText.isEmpty()) {
 
         if (subtitleVisible_ && lastNonEmptySubtitleTimer_.elapsed() >= tuning::kSubtitleDisappearTimeoutMs) {
+            flushPendingIncompleteSubtitle();
             subtitleVisible_ = false;
             endSubtitleSegment();
             ocrSubtitleFilter_.onSubtitleDisappeared();
@@ -231,24 +257,92 @@ void OverlayWindow::onOcrReady(const QString &ocrText, int requestId)
         }
 
         if (decision.shouldDispatch) {
-            subtitleVisible_ = true;
-            appendSubtitleLog(QStringLiteral("OCR_DETECTED"), decision.dispatchText,
-                              QString("stable=%1ms frames=%2").arg(decision.stableElapsedMs).arg(decision.seenFrames));
-
-            startSubtitleSegment(decision.dispatchText);
-            translateClient_.requestTranslation(decision.dispatchText);
-            lastOcrText_ = decision.dispatchText;
-
-            // Log to debug
-            qDebug() << "OCR_DETECTED: text=" << decision.dispatchText
-                     << "stableElapsedMs=" << decision.stableElapsedMs
-                     << "seenFrames=" << decision.seenFrames;
+            handleDispatchCandidate(decision);
         }
     }
 
     if (latestFrameRequestId_ > requestId) {
         dispatchLatestOcr();
     }
+}
+
+void OverlayWindow::handleDispatchCandidate(const OcrSubtitleFilter::Decision &decision)
+{
+    QString dispatchText = decision.dispatchText.trimmed();
+    if (dispatchText.isEmpty()) {
+        return;
+    }
+
+    if (!pendingIncompleteSubtitle_.isEmpty()) {
+        dispatchText = joinSubtitleFragments(pendingIncompleteSubtitle_, dispatchText);
+        appendSubtitleLog(QStringLiteral("OCR_MERGED"), dispatchText,
+                          QStringLiteral("prefix=") + pendingIncompleteSubtitle_);
+        pendingIncompleteSubtitle_.clear();
+        pendingIncompleteSubtitleTimer_.invalidate();
+    }
+
+    if (isIncompleteSubtitlePhrase(dispatchText)) {
+        pendingIncompleteSubtitle_ = dispatchText;
+        pendingIncompleteSubtitleTimer_.restart();
+        appendSubtitleLog(QStringLiteral("OCR_HELD_INCOMPLETE"), dispatchText,
+                          QString("stable=%1ms frames=%2").arg(decision.stableElapsedMs).arg(decision.seenFrames));
+        qDebug() << "OCR_HELD_INCOMPLETE: text=" << dispatchText
+                 << "stableElapsedMs=" << decision.stableElapsedMs
+                 << "seenFrames=" << decision.seenFrames;
+        return;
+    }
+
+    subtitleVisible_ = true;
+    appendSubtitleLog(QStringLiteral("OCR_DETECTED"), dispatchText,
+                      QString("stable=%1ms frames=%2").arg(decision.stableElapsedMs).arg(decision.seenFrames));
+
+    startSubtitleSegment(dispatchText);
+    translateClient_.requestTranslation(dispatchText);
+    lastOcrText_ = dispatchText;
+
+    qDebug() << "OCR_DETECTED: text=" << dispatchText
+             << "stableElapsedMs=" << decision.stableElapsedMs
+             << "seenFrames=" << decision.seenFrames;
+}
+
+void OverlayWindow::flushPendingIncompleteSubtitle()
+{
+    if (pendingIncompleteSubtitle_.isEmpty()) {
+        return;
+    }
+
+    appendSubtitleLog(QStringLiteral("OCR_DROPPED_INCOMPLETE"), pendingIncompleteSubtitle_, QString());
+    qDebug() << "OCR_DROPPED_INCOMPLETE: text=" << pendingIncompleteSubtitle_;
+    pendingIncompleteSubtitle_.clear();
+    pendingIncompleteSubtitleTimer_.invalidate();
+}
+
+bool OverlayWindow::isIncompleteSubtitlePhrase(const QString &text)
+{
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty()) {
+        return false;
+    }
+
+    if (trimmed.endsWith(QChar(0xFF0C)) || trimmed.endsWith(QChar(',')) || trimmed.endsWith(QChar(0x3001))) {
+        return true;
+    }
+
+    static const QStringList kIncompleteSuffixes = {
+        QStringLiteral("当作一"),
+        QStringLiteral("作为一"),
+        QStringLiteral("成为一"),
+        QStringLiteral("看作一"),
+        QStringLiteral("视为一")
+    };
+
+    for (const QString &suffix : kIncompleteSuffixes) {
+        if (trimmed.endsWith(suffix)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void OverlayWindow::onOcrError(const QString &error, int requestId)
@@ -664,7 +758,9 @@ void OverlayWindow::tickDisplayQueue()
 void OverlayWindow::showTranslationEntry(const TranslationEntry &entry)
 {
     lastTranslation_          = entry.translatedText;
-    currentDisplayDurationMs_ = computeDisplayDurationMs(entry.sourceText);
+    // Base reading time on the displayed Vietnamese text, not the Chinese source: Han lines are
+    // much shorter than their Vietnamese rendering, which otherwise clears subtitles too early.
+    currentDisplayDurationMs_ = computeDisplayDurationMs(entry.translatedText);
     currentDisplayTimer_.restart();
     displayingTranslation_    = true;
 

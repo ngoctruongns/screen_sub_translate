@@ -26,6 +26,12 @@ struct BackendConfig {
     bool cachePrompt = true;
     int modelDiscoveryTimeoutMs = 1200;
 
+    // ── Generation ────────────────────────────────────────────────────────
+    double temperature = 0.01;      // First-pass sampling temperature. 0.0 = greedy; keep low for faithful subtitles.
+    int numPredict = 64;            // Max new tokens per response (~64 covers most subtitle lines).
+    double retryTemperature = 0.3;  // Retry-pass temperature. Deliberately looser than first pass so the model can
+                                    // escape a degenerate first output (repetition / copied Han) instead of reproducing it.
+
     // ── Repetition penalties ──────────────────────────────────────────────
     // Applied over the last repeatLastN tokens; discourages repeated phrases
     // and multi-candidate looping that instruction-tuned models sometimes produce.

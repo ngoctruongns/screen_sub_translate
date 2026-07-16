@@ -27,6 +27,12 @@ OcrSubtitleFilter::Decision OcrSubtitleFilter::process(const QString &ocrText)
         return decision;
     }
 
+    if (ocrText.trimmed().size() <= 1) {
+        resetCandidateState();
+        decision.rejectedForQuality = true;
+        return decision;
+    }
+
     if (countHanChars(ocrText) < tuning::kMinHanCharsForCandidate) {
         resetCandidateState();
         decision.rejectedForQuality = true;

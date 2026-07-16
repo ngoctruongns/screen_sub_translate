@@ -64,6 +64,9 @@ private:
     void endSubtitleSegment() const;
     void dispatchLatestOcr();
     void applyDefaultNoiseConfig();
+    void handleDispatchCandidate(const OcrSubtitleFilter::Decision &decision);
+    void flushPendingIncompleteSubtitle();
+    static bool isIncompleteSubtitlePhrase(const QString &text);
     Qt::Edges hitTestEdges(const QPoint &localPos) const;
     void updateCursorForPosition(const QPoint &localPos);
     void applyResize(const QPoint &globalPos);
@@ -105,6 +108,8 @@ private:
     OcrSubtitleFilter ocrSubtitleFilter_;
     bool subtitleVisible_ = false;
     QElapsedTimer lastNonEmptySubtitleTimer_;
+    QString pendingIncompleteSubtitle_;
+    QElapsedTimer pendingIncompleteSubtitleTimer_;
 
     QRect lastSentScanZone_;
 

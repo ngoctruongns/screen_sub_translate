@@ -166,6 +166,9 @@ BackendConfig defaultBackendConfig()
     config.autoDiscoverModel = true;
     config.cachePrompt = true;
     config.modelDiscoveryTimeoutMs = 1200;
+    config.temperature = tuning::kTranslateTemperature;
+    config.numPredict = tuning::kTranslateNumPredict;
+    config.retryTemperature = tuning::kTranslateRetryTemperature;
     config.repeatLastN = 128;
     config.repeatPenalty = 1.15;
     config.frequencyPenalty = 1.15;
@@ -203,6 +206,12 @@ BackendConfig loadBackendConfig(const QString &configPath)
         jsonStringOrDefault(root, QStringLiteral("glossaryFile"), config.glossaryFilePath));
     config.autoDiscoverModel = jsonBoolOrDefault(root, QStringLiteral("autoDiscoverModel"), true);
     config.cachePrompt = jsonBoolOrDefault(root, QStringLiteral("cachePrompt"), true);
+    config.temperature = std::clamp(
+        jsonDoubleOrDefault(root, QStringLiteral("temperature"), config.temperature), 0.0, 2.0);
+    config.numPredict = std::max(1,
+        jsonIntOrDefault(root, QStringLiteral("numPredict"), config.numPredict));
+    config.retryTemperature = std::clamp(
+        jsonDoubleOrDefault(root, QStringLiteral("retryTemperature"), config.retryTemperature), 0.0, 2.0);
     config.repeatLastN = std::max(0, jsonIntOrDefault(root, QStringLiteral("repeatLastN"), 128));
     config.modelDiscoveryTimeoutMs = std::max(200,
         jsonIntOrDefault(root, QStringLiteral("modelDiscoveryTimeoutMs"), 1200));

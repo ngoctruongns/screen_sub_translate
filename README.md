@@ -58,7 +58,7 @@ Translation retry policy:
 - The prompt contains strict output rules, matching glossary entries for the current source line, recent Chinese dialogue context, and the current source line. `movie_context.txt` is intentionally not injected into the first-pass prompt by default because broad user-provided context can be repeated or paraphrased by small local models.
 - The raw model output is reduced to the best Vietnamese candidate, sanitized, then checked by `evaluateTranslationQuality()`.
 - If the first pass fails and `kEnableRetryPasses` is enabled, the app retries once with `translationRetryPrompt()`. The retry prompt includes the quality issue hint, the same matching glossary block, recent Chinese dialogue context, the source line, and the previous raw translation.
-- Retry parameters are fixed in `translate_client.cpp`: `temperature = 0.0`, `top_k = 20`, `top_p = 0.8`, `min_p = 0.1`.
+- Retry parameters are fixed in `src/tuning_params.h`: `temperature = 0.02`, `top_k = 30`, `top_p = 0.8`, `min_p = 0.1`.
 - If retry also fails, the result is rejected and logged as `TRANSLATE_ERROR`.
 
 ### Runtime Flow
@@ -283,14 +283,17 @@ Fields:
 - `repeatPenalty`: llama.cpp `repeat_penalty` option.
 - `frequencyPenalty`: llama.cpp `frequency_penalty` option.
 - `repeatLastN`: llama.cpp `repeat_last_n` option.
+- `temperature`: first-pass sampling temperature (default `0.01`). Overrides the code default.
+- `numPredict`: max new tokens per response (default `64`). Overrides the code default.
+- `retryTemperature`: temperature for the single retry pass (default `0.3`, looser than first pass). Overrides the code default.
 - `contextFile`: optional movie context file path. The file is still loaded for compatibility, but the current default runtime translation prompt does not inject it into per-line requests to reduce context leakage.
 - `glossaryFile`: glossary JSON path
 
 Notes:
 
-- Core first-pass generation knobs are still fixed in code defaults (`kTranslateTemperature`, `kTranslateNumPredict`) inside `src/tuning_params.h`.
+- First-pass generation knobs `temperature` and `numPredict` are now runtime-overridable via `translation_backend.json`; the values in `src/tuning_params.h` (`kTranslateTemperature`, `kTranslateNumPredict`) are only the code defaults used when the JSON omits them.
 - Runtime JSON options such as `repeatPenalty`, `frequencyPenalty`, and `repeatLastN` are intended for backend/runtime tuning without rebuilding the app.
-- Retry generation uses fixed conservative parameters in `translate_client.cpp`: `temperature = 0.0`, `top_k = 20`, `top_p = 0.8`, `min_p = 0.1`.
+- Retry generation temperature is now `retryTemperature` in `translation_backend.json` (default `0.3`); the remaining retry knobs stay fixed in `src/tuning_params.h`: `top_k = 30`, `top_p = 0.8`, `min_p = 0.1`.
 
 Examples:
 
@@ -428,7 +431,7 @@ Implemented across translation modules:
 
 - **Retry decoding parameters** (`translate_client.cpp`):
   - Retry requests use fixed conservative sampling parameters:
-    `temperature = 0.0`, `top_k = 20`, `top_p = 0.8`, `min_p = 0.1`.
+    `temperature = 0.02`, `top_k = 30`, `top_p = 0.8`, `min_p = 0.1`.
   - If the retry result still fails quality checks, the client emits `translationError()` with the corresponding quality issue message.
 
 - **Glossary normalization** (`translation_text_processor.cpp`):
@@ -479,30 +482,34 @@ All tuning constants are centralized in `src/tuning_params.h`. Key parameters:
 - `kTranslateBaseUrl`: `"http://127.0.0.1:8080"`
 - `kTranslateApiMode`: `"auto"`
 - `kTranslateModel`: `""` (empty for auto-discovery)
-- `kTranslateTemperature`: `0.01` (first-pass sampling temperature)
-- `kTranslateNumPredict`: `64` (max tokens)
+- `kTranslateTemperature`: `0.01` (first-pass sampling temperature; JSON default, override with `temperature`)
+- `kTranslateNumPredict`: `64` (max tokens; JSON default, override with `numPredict`)
 
 **Translation Context and Retry**:
 - `kEnableRetryPasses`: `true`
-- `kTranslateRetryTemperature`: `0.0`
-- `kTranslateRetryTopK`: `20`
+- `kTranslateRetryTemperature`: `0.3` (JSON default, override with `retryTemperature`; looser than first pass)
+- `kTranslateRetryTopK`: `30`
 - `kTranslateRetryTopP`: `0.8`
 - `kTranslateRetryMinP`: `0.1`
+- `kTranslateRequestTimeoutMs`: `15000` (abort a stalled translation request so a frozen backend cannot wedge the pipeline)
+- `kTranslationCacheSize`: `96` (LRU cache of successful translations keyed by source line)
 
 **OCR Configuration**:
-- `kOcrModelPath`: `"../models/paddle/ch_PP-OCRv4_rec_infer.onnx"`
-- `kOcrCharsetPath`: `"../models/paddle/ppocr_keys_v1.txt"`
-- `kUseCudaExecutionProvider`: `false`
+- `kPaddleRecOnnxPath`: `"../models/paddle/ch_PP-OCRv4_rec_infer.onnx"`
+- `kPaddleCharsetPath`: `"../models/paddle/ppocr_keys_v1.txt"`
+- `kUseCudaExecutionProvider`: `true` (falls back to CPU with a warning if the CUDA EP is unavailable)
 
 **OCR Acceptance Gates**:
-- `kOcrMinTextLength`: `2`
-- `kOcrStableRequiredMs`: `120` ms
-- `kOcrStableRequiredFramesSeen`: `2`
+- `kMinOcrLength`: `1`
+- `kMinHanCharsForCandidate`: `1`
+- `kMinCandidateStableMs`: `150` ms
+- Short-text gates: `kShortCandidateStableMs` `150` ms / `kVeryShortCandidateStableMs` `350` ms and `kShortCandidateMinFrames` / `kVeryShortCandidateMinFrames`
 
 **Capture Settings**:
-- `kCaptureIntervalMs`: `60` ms
-- `kCaptureFrameDiffRatioThreshold`: `0.008`
-- `kCaptureContrastThreshold`: `20.0`
+- `kCaptureIntervalMs`: `50` ms
+- `kChangeThreshold`: `1.65` (mean frame-diff gate)
+- `kMinChangedRatio`: `0.009` (changed-pixel ratio gate)
+- `kMinStdDev`: `8.5` (low-contrast frame rejection)
 
 **Translation Context**:
 - `kTranslatePromptContextMaxChars`: `900` for loading `movie_context.txt`; the loaded movie context is currently not injected into normal per-line translation prompts by default.

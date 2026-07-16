@@ -1,5 +1,9 @@
 #pragma once
 
+#include <optional>
+
+#include <QHash>
+#include <QList>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -39,6 +43,12 @@ private:
     void rememberTranslationContext(const QString &sourceText, const QString &translatedText);
     QString applyGlossaryAliasNormalization(const QString &translatedText) const;
 
+    // Bounded LRU cache of successful translations, keyed by the trimmed source line.
+    // Repeated subtitles (very common in film dialogue) are served instantly without a
+    // backend round-trip. Order list front = least-recently-used.
+    std::optional<QString> lookupTranslationCache(const QString &sourceText);
+    void insertTranslationCache(const QString &sourceText, const QString &translatedText);
+
     QNetworkAccessManager *networkManager_ = nullptr;
     QPointer<QNetworkReply> activeReply_;
 
@@ -61,9 +71,15 @@ private:
     double topP_ = 0.85;
     double minP_ = 0.06;
     int topK_ = 40;
+    double temperature_ = 0.01;       // First-pass temperature (from JSON config, default kTranslateTemperature).
+    int numPredict_ = 64;             // Max new tokens (from JSON config, default kTranslateNumPredict).
+    double retryTemperature_ = 0.3;   // Retry-pass temperature (from JSON config, default kTranslateRetryTemperature).
     QString cachedContextBlock_;  // Loaded once at init, reused for prefix cache hit
     QVector<QPair<QString, QString>> glossaryPairs_; // Han source term -> canonical Vietnamese term
     QVector<QPair<QString, QString>> aliasPairs_; // alias -> canonical Vietnamese name
     QVector<TranslationContextEntry> recentTranslationHistory_;
+
+    QHash<QString, QString> translationCache_;   // trimmed source -> final Vietnamese
+    QList<QString> translationCacheOrder_;        // LRU order (front = oldest)
 
 };

@@ -1,46 +1,114 @@
 #pragma once
 
+// Centralized tuning constants, ordered to follow the runtime pipeline:
+//   Capture -> OCR engine -> OCR subtitle filter -> Translation (AI model) -> Display.
+// Legacy OcrBatchEval-only parameters are kept at the very end.
+
 namespace tuning
 {
 
-    // Candidate quality gate and dynamic stability.
-    // Tuned P1: Allow shorter text with lower frame/time requirements for better detection
-    inline constexpr int kMinHanCharsForCandidate = 1;
-    inline constexpr int kVeryShortCandidateStableMs = 350; // len <= 1: reduced from 520ms for faster detection
-    inline constexpr int kShortCandidateStableMs = 150;     // len <= 3: reduced from 260ms for faster detection
-    inline constexpr int kVeryShortCandidateMinFrames = 2;  // len <= 1: reduced from 3 for shorter text
-    inline constexpr int kShortCandidateMinFrames = 1;      // len <= 3: reduced from 2 for shorter text
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. CAPTURE (screen grab + change/noise gate)  — capture_worker.cpp
+    // ─────────────────────────────────────────────────────────────────────────
+    inline constexpr int kCaptureIntervalMs = 50;          // Capture worker loop interval.
+    inline constexpr int kOcrKeepaliveIntervalMs = 220;    // Force an OCR dispatch even without frame change, at least this often.
 
-    // PaddleOCR ONNX Runtime (C++) configuration.
-    inline constexpr bool kUseCudaExecutionProvider = true;
+    // Frame-diff / noise gate deciding whether a captured frame is worth OCR-ing
+    // (single fixed configuration, equivalent to the previous Balanced profile).
+    inline constexpr double kChangeThreshold = 1.65;       // Mean frame-diff threshold.
+    inline constexpr double kMinChangedRatio = 0.009;      // Minimum changed-pixel ratio.
+    inline constexpr double kMinStdDev = 8.5;              // Reject low-contrast frames below this std dev.
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2. OCR ENGINE (PaddleOCR ONNX Runtime, C++)  — ocr_engine.cpp
+    // ─────────────────────────────────────────────────────────────────────────
+    inline constexpr bool kUseCudaExecutionProvider = true; // Try CUDA EP first; falls back to CPU with a warning.
     inline constexpr const char *kPaddleRecOnnxPath = "../models/paddle/ch_PP-OCRv4_rec_infer.onnx";
     inline constexpr const char *kPaddleCharsetPath = "../models/paddle/ppocr_keys_v1.txt";
+    inline constexpr int kPaddleInputHeight = 48;          // Recognition input height (fixed).
+    inline constexpr int kPaddleInputWidth = 320;          // Recognition input width (padded).
 
-    // Local translation backend defaults loaded through config file.
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3. OCR SUBTITLE FILTER (stabilization)  — ocr_subtitle_filter.cpp
+    // ─────────────────────────────────────────────────────────────────────────
+    inline constexpr int kMinOcrLength = 1;                // Minimum accepted candidate length.
+    inline constexpr int kMinCandidateStableMs = 150;      // Base stable time before a candidate can dispatch.
+    inline constexpr int kMinHanCharsForCandidate = 1;     // Minimum Han chars for a candidate to be considered.
+
+    // Dynamic stability for short candidates: shorter text needs longer/steadier confirmation.
+    // Tuned P1: allow shorter text with lower frame/time requirements for faster detection.
+    inline constexpr int kVeryShortCandidateStableMs = 350; // len <= 1: reduced from 520ms for faster detection.
+    inline constexpr int kShortCandidateStableMs = 150;     // len <= 3: reduced from 260ms for faster detection.
+    inline constexpr int kVeryShortCandidateMinFrames = 2;  // len <= 1: reduced from 3 for shorter text.
+    inline constexpr int kShortCandidateMinFrames = 1;      // len <= 3: reduced from 2 for shorter text.
+
+    // Subtitle dispatch dedupe / lifecycle (avoid translating the same on-screen subtitle repeatedly).
+    inline constexpr int kSubtitleDisappearTimeoutMs = 1000; // Empty OCR longer than this => subtitle disappeared.
+    inline constexpr int kSubtitleSwitchCooldownMs = 200;   // Minimum time between dispatching different subtitles.
+    inline constexpr int kSubtitleResendCooldownMs = 2200;  // Minimum time before resending the same subtitle.
+    inline constexpr int kRecentSubtitleWindowSize = 4;     // Recent subtitle keys / translation history window for dedupe.
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4. TRANSLATION — AI MODEL / BACKEND  — translate_client.cpp, translation_backend_adapter.cpp
+    // ─────────────────────────────────────────────────────────────────────────
+    // Local translation backend defaults (overridable via the JSON config file).
     inline constexpr const char *kTranslateBackendConfigPath = "../translate/translation_backend.json";
     inline constexpr const char *kTranslateBaseUrl = "http://127.0.0.1:8080";
-    inline constexpr const char *kTranslateModel = ""; // Optional. Empty means discover/use backend default when possible.
+    inline constexpr const char *kTranslateModel = "";       // Optional. Empty => discover/use backend default when possible.
     inline constexpr const char *kTranslateApiMode = "auto"; // auto | llamacpp | openai | ollama
     inline constexpr const char *kTranslateContextFilePath = "../translate/movie_context.txt";
     inline constexpr const char *kTranslateGlossaryFilePath = "../translate/glossary.json";
-    inline constexpr double kTranslateTemperature = 0.01; // Sampling temperature: 0.0 = greedy/deterministic; keep ≤0.1 for translation.
-    inline constexpr int kTranslateNumPredict = 64;        // Max new tokens per response. ~64 covers most subtitle lines with headroom.
-    inline constexpr int kTranslatePromptContextMaxChars = 900;
-    inline constexpr int kTranslateHistoryWindowSize = 2;
-    inline constexpr int kTranslateHistoryEntryMaxCharsHan = 42;
-    inline constexpr int kTranslateHistoryEntryMaxCharsVie = 82;
-    inline constexpr int kTranslationCacheSize = 96;
 
-    // When true, the client retries once with the same translation prompt and stricter deterministic sampling
-    // if the first output fails quality checks.
-    // Disabling drops bad responses outright — useful for latency testing but hurts real-world translation quality.
+    // First-pass generation.
+    inline constexpr double kTranslateTemperature = 0.01;   // Sampling temperature: 0.0 = greedy; keep <=0.1 for translation.
+    inline constexpr int kTranslateNumPredict = 64;         // Max new tokens per response (~64 covers most subtitle lines).
+    inline constexpr int kTranslateRequestTimeoutMs = 15000; // Abort a stalled request so a frozen backend can't wedge the pipeline.
+    inline constexpr int kTranslationCacheSize = 96;        // LRU cache of successful translations keyed by source line.
+
+    // Prompt context and recent-dialogue history.
+    inline constexpr int kTranslatePromptContextMaxChars = 900; // Max chars loaded from movie_context.txt.
+    inline constexpr int kTranslateHistoryWindowSize = 2;       // Number of recent source lines injected as context.
+    inline constexpr int kTranslateHistoryEntryMaxCharsHan = 42; // Truncation for a Chinese history entry.
+    inline constexpr int kTranslateHistoryEntryMaxCharsVie = 82; // Truncation for a Vietnamese history entry.
+
+    // Single retry pass: if the first output fails quality checks, retry once.
+    // Disabling drops bad responses outright — useful for latency testing but hurts translation quality.
+    // NOTE: kTranslateTemperature / kTranslateNumPredict / kTranslateRetryTemperature are DEFAULTS only;
+    // they can be overridden at runtime via translation_backend.json (temperature / numPredict / retryTemperature).
     inline constexpr bool kEnableRetryPasses = true;
-    inline constexpr double kTranslateRetryTemperature = 0.02;
+    inline constexpr double kTranslateRetryTemperature = 0.3; // Looser than first pass so retry can escape a degenerate first output.
     inline constexpr int kTranslateRetryTopK = 30;
     inline constexpr double kTranslateRetryTopP = 0.8;
     inline constexpr double kTranslateRetryMinP = 0.1;
 
-    // Params for translation quality checks and retry logic.
+    // ─────────────────────────────────────────────────────────────────────────
+    // 5. TRANSLATION — QUALITY CHECKS  — translation_text_processor.cpp
+    // ─────────────────────────────────────────────────────────────────────────
+    inline constexpr int kTranslateLineScoreMin = 0;       // Minimum score for selectBestVietnameseLine() to accept a line.
+
+    // Ratio-based short-translation guard: suspicious when (output word count / source Han count) < ratio,
+    // applied only when the source has at least kMinHanCharsForRatioCheck Han chars.
+    inline constexpr double kMinTranslationWordRatio = 0.40;
+    inline constexpr int kMinHanCharsForRatioCheck = 5;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 6. DISPLAY QUEUE  — overlay_window.cpp
+    // ─────────────────────────────────────────────────────────────────────────
+    // Display duration is clamped to [kDisplayMinMs, kDisplayMaxMs].
+    // Formula: clamp(kDisplayBaseMs + charCount * kDisplayMsPerChar, min, max)
+    inline constexpr int kDisplayMinMs        = 300;   // Minimum display time per entry (ms).
+    inline constexpr int kDisplayMaxMs        = 3000;  // Maximum display time per entry (ms).
+    inline constexpr int kDisplayBaseMs       = 250;   // Base display time before per-char contribution (ms).
+    inline constexpr int kDisplayMsPerChar    = 70;    // Additional ms per displayed character.
+    inline constexpr int kDisplayMaxLatencyMs = 2500;  // Drop entry if it has been queued longer than this (ms).
+    inline constexpr int kDisplayQueueMaxSize = 5;     // Max queue depth before overflow handling.
+    inline constexpr int kDisplayTickMs       = 60;    // Timer interval for advancing the display queue (ms).
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 7. LEGACY — ONNX MarianMT translator parameters
+    // NOTE: used ONLY by tools/ocr_batch_eval.cpp (OcrBatchEval). The runtime overlay
+    // translation path uses the local LLM HTTP API and does not reference these. Do not use at runtime.
+    // ─────────────────────────────────────────────────────────────────────────
     inline constexpr const char *kTranslateModelDir = "../models/translate";
     inline constexpr int64_t kTranslateDecoderStartId = 65000;
     inline constexpr int64_t kTranslateEosId = 0;
@@ -49,47 +117,6 @@ namespace tuning
     inline constexpr int kTranslateRuntimeMaxDecodeSteps = 120;
     inline constexpr int kTranslateRuntimeNumBeams = 6;
     inline constexpr int kTranslateRuntimeMaxInputTokens = 64;
-    inline constexpr int kTranslateMaxDecodeSteps = 120;
-    inline constexpr int kTranslateNumBeams = 6;
     inline constexpr double kTranslateLengthPenalty = 1.0;
-    inline constexpr int kPaddleInputHeight = 48;
-    inline constexpr int kPaddleInputWidth = 320;
-    inline constexpr int kTranslateLineScoreMin = 0; // Minimum score for a line to be considered valid translation output
-
-    // Single fixed OCR noise gate configuration (equivalent to previous Balanced profile).
-    inline constexpr double kChangeThreshold = 1.65;
-    inline constexpr double kMinChangedRatio = 0.009;
-    inline constexpr double kMinStdDev = 8.5;
-    inline constexpr int kMinOcrLength = 1;
-    inline constexpr int kMinCandidateStableMs = 150;
-
-    // Subtitle dispatch dedupe (avoid translating the same on-screen subtitle repeatedly).
-    inline constexpr int kSubtitleDisappearTimeoutMs = 800;  // Time after which an empty OCR result is considered a subtitle disappearance.
-    inline constexpr int kSubtitleSwitchCooldownMs = 200;    // Minimum time between dispatching different subtitles.
-    inline constexpr int kSubtitleResendCooldownMs = 2200;   // Minimum time before resending the same subtitle.
-
-    // Ratio-based short-translation guard.
-    // A translation is suspicious when (output word count / source Han char count) < this ratio.
-    // Only applied when the source has at least kMinHanCharsForRatioCheck Han chars.
-    inline constexpr double kMinTranslationWordRatio = 0.40;
-    inline constexpr int kMinHanCharsForRatioCheck = 5;
-
-    // Number of recent subtitles to track for deduplication.
-    inline constexpr int kRecentSubtitleWindowSize = 4;
-
-    // Translation display queue parameters.
-    // Display duration is clamped to [kDisplayMinMs, kDisplayMaxMs].
-    // Formula: clamp(kDisplayBaseMs + charCount * kDisplayMsPerChar, min, max)
-    inline constexpr int kDisplayMinMs        = 300;   // Minimum display time per entry (ms)
-    inline constexpr int kDisplayMaxMs        = 3000;  // Maximum display time per entry (ms)
-    inline constexpr int kDisplayBaseMs       = 250;   // Base display time before per-char contribution (ms)
-    inline constexpr int kDisplayMsPerChar    = 70;    // Additional ms per displayed character
-    inline constexpr int kDisplayMaxLatencyMs = 2500;  // Drop entry if it has been queued longer than this (ms)
-    inline constexpr int kDisplayQueueMaxSize = 5;     // Max queue depth before overflow handling
-    inline constexpr int kDisplayTickMs       = 60;    // Timer interval for advancing the display queue (ms)
-
-    // Capture interval for the capture worker thread.
-    inline constexpr int kCaptureIntervalMs = 50;
-    inline constexpr int kOcrKeepaliveIntervalMs = 220;
 
 } // namespace tuning

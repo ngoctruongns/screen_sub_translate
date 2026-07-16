@@ -37,6 +37,17 @@
         "刘师长": "Sư trưởng Lưu",
         "彭总": "Bành tổng",
         "重庆": "Trùng Khánh",
+        "北平": "Bắc Bình",
+        "华北战场": "chiến trường Hoa Bắc",
+        "华北": "Hoa Bắc",
+        "八路军": "Bát Lộ Quân",
+        "百团大战": "Bách Đoàn Đại Chiến",
+        "多田骏": "Tada Hayao",
+        "中共军队": "quân đội Trung Cộng",
+        "新四军": "Tân Tứ Quân",
+        "国民党": "Quốc Dân Đảng",
+        "共产党": "Đảng Cộng sản",
+        "国军": "Quốc quân",
         "破坏": "phá hoại"
     },
     "aliases": {
@@ -84,10 +95,7 @@
         "Chiang Kai-shek": "Tưởng Giới Thạch",
         "Chiang Kaishek": "Tưởng Giới Thạch",
         "Vua Si Quang": "Vương Hy Quang",
-        "Tong Pu": "Đồng Bồ",
         "Tongpu": "Đồng Bồ",
-        "Fenyi": "Phần Ly",
-        "Nie": "Nhiếp",
         "Liu-Deng": "Lưu Đặng",
         "Liu Deng": "Lưu Đặng"
     }

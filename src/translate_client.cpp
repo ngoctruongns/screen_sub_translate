@@ -66,6 +66,9 @@ void TranslateClient::initializeTranslationBackend()
     topP_ = runtimeConfig.topP;
     minP_ = runtimeConfig.minP;
     topK_ = runtimeConfig.topK;
+    temperature_ = runtimeConfig.temperature;
+    numPredict_ = runtimeConfig.numPredict;
+    retryTemperature_ = runtimeConfig.retryTemperature;
 
     const TranslationBackend::ApiMode mode =
         TranslationBackend::resolveApiMode(backendApiMode_, backendBaseUrl_);
@@ -116,6 +119,14 @@ void TranslateClient::requestTranslation(const QString &sourceText)
 
     if (!TranslationTextProcessor::isLikelyChineseSubtitle(normalized)) {
         emit translationError(QStringLiteral("Skipped non-Chinese OCR candidate"));
+        return;
+    }
+
+    // Serve repeated subtitle lines from cache without hitting the backend.
+    const std::optional<QString> cached = lookupTranslationCache(normalized);
+    if (cached.has_value()) {
+        rememberTranslationContext(normalized, cached.value());
+        emit translationReady(cached.value(), normalized);
         return;
     }
 
@@ -175,6 +186,47 @@ void TranslateClient::rememberTranslationContext(const QString &sourceText,
     }
 }
 
+std::optional<QString> TranslateClient::lookupTranslationCache(const QString &sourceText)
+{
+    const QString key = sourceText.trimmed();
+    const auto it = translationCache_.constFind(key);
+    if (it == translationCache_.constEnd()) {
+        return std::nullopt;
+    }
+
+    // Mark as most-recently-used.
+    translationCacheOrder_.removeOne(key);
+    translationCacheOrder_.append(key);
+    return it.value();
+}
+
+void TranslateClient::insertTranslationCache(const QString &sourceText, const QString &translatedText)
+{
+    if (tuning::kTranslationCacheSize <= 0) {
+        return;
+    }
+
+    const QString key = sourceText.trimmed();
+    if (key.isEmpty() || translatedText.trimmed().isEmpty()) {
+        return;
+    }
+
+    if (translationCache_.contains(key)) {
+        translationCache_[key] = translatedText;
+        translationCacheOrder_.removeOne(key);
+        translationCacheOrder_.append(key);
+        return;
+    }
+
+    while (translationCacheOrder_.size() >= tuning::kTranslationCacheSize &&
+           !translationCacheOrder_.isEmpty()) {
+        translationCache_.remove(translationCacheOrder_.takeFirst());
+    }
+
+    translationCache_.insert(key, translatedText);
+    translationCacheOrder_.append(key);
+}
+
 void TranslateClient::startBackendRequest(const QString &sourceText)
 {
     const QString dialogueContext = recentDialogueContext();
@@ -203,15 +255,10 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
 {
     inFlightText_ = sourceText;
 
+    // Model discovery is performed once during initializeTranslationBackend(). Doing it here
+    // would run a nested synchronous QEventLoop inside onReplyFinished() (reentrancy) and block
+    // the UI thread on every request, so it is intentionally not repeated in this hot path.
     const TranslationBackend::ApiMode mode = TranslationBackend::resolveApiMode(backendApiMode_, backendBaseUrl_);
-    if (backendModel_.isEmpty() && autoDiscoverModel_) {
-        const std::optional<QString> discovered = TranslationBackend::discoverModel(backendBaseUrl_, mode, modelDiscoveryTimeoutMs_);
-        if (discovered.has_value()) {
-            backendModel_ = discovered.value();
-            qDebug() << "TranslateClient: discovered model=" << backendModel_
-                     << "mode=" << TranslationBackend::apiModeName(mode);
-        }
-    }
 
     if (backendModel_.isEmpty() && (mode == TranslationBackend::ApiMode::Ollama || mode == TranslationBackend::ApiMode::OpenAI)) {
         emit translationError(QStringLiteral("No translation model configured/discovered for selected API mode"));
@@ -219,7 +266,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         return;
     }
 
-    const double temperature = isRetryPass ? tuning::kTranslateRetryTemperature : tuning::kTranslateTemperature;
+    const double temperature = isRetryPass ? retryTemperature_ : temperature_;
     const int topK = isRetryPass ? tuning::kTranslateRetryTopK : topK_;
     const double topP = isRetryPass ? tuning::kTranslateRetryTopP : topP_;
     const double minP = isRetryPass ? tuning::kTranslateRetryMinP : minP_;
@@ -229,6 +276,9 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
+    // Guard against a frozen/unreachable backend wedging the pipeline: a timed-out reply
+    // finishes with an error, clears activeReply_, and lets pendingText_ proceed.
+    request.setTransferTimeout(tuning::kTranslateRequestTimeoutMs);
 
     QJsonObject payload;
     if (mode == TranslationBackend::ApiMode::Ollama) {
@@ -240,7 +290,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
 
         QJsonObject options;
         options.insert(QStringLiteral("temperature"), temperature);
-        options.insert(QStringLiteral("num_predict"), tuning::kTranslateNumPredict);
+        options.insert(QStringLiteral("num_predict"), numPredict_);
         options.insert(QStringLiteral("top_k"), topK);
         options.insert(QStringLiteral("top_p"), topP);
         options.insert(QStringLiteral("min_p"), minP);
@@ -251,7 +301,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
             payload.insert(QStringLiteral("model"), backendModel_);
         }
         payload.insert(QStringLiteral("temperature"), temperature);
-        payload.insert(QStringLiteral("max_tokens"), tuning::kTranslateNumPredict);
+        payload.insert(QStringLiteral("max_tokens"), numPredict_);
         payload.insert(QStringLiteral("top_p"), topP);
 
         QJsonArray messages;
@@ -265,7 +315,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
     } else {
         payload.insert(QStringLiteral("prompt"), prompt);
         payload.insert(QStringLiteral("temperature"), temperature);
-        payload.insert(QStringLiteral("n_predict"), tuning::kTranslateNumPredict); // max token output
+        payload.insert(QStringLiteral("n_predict"), numPredict_); // max token output
         payload.insert(QStringLiteral("stream"), false);    // Disable streaming for simplicity
         payload.insert(QStringLiteral("cache_prompt"), cachePrompt_); // Allow model to cache prompt for faster subsequent calls
 
@@ -372,6 +422,7 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                     emit translationError(TranslationTextProcessor::translationIssueMessage(finalIssue));
                 } else {
                     rememberTranslationContext(sourceText, finalText);
+                    insertTranslationCache(sourceText, finalText);
                     emit translationReady(finalText, sourceText);
                 }
             } else if (tuning::kEnableRetryPasses && !isRetryPass) {
