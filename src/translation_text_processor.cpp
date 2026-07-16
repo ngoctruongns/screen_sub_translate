@@ -130,6 +130,120 @@ int vietnameseAccentCount(const QString &text)
     return count;
 }
 
+bool hasVietnameseDiacritic(const QString &text)
+{
+    for (const QChar ch : text) {
+        if (isVietnameseAccentChar(ch)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isVowelBaseChar(const QChar ch)
+{
+    const ushort u = ch.unicode();
+    return u == 'a' || u == 'e' || u == 'i' || u == 'o' || u == 'u' || u == 'y';
+}
+
+// Strip Vietnamese diacritics/tones down to the bare Latin skeleton (đ -> d).
+// Lets us test a token against Vietnamese syllable structure regardless of tone marks.
+QString toVietnameseBaseLetters(const QString &token)
+{
+    const QString decomposed = token.toLower().normalized(QString::NormalizationForm_D);
+    QString out;
+    out.reserve(decomposed.size());
+    for (const QChar ch : decomposed) {
+        if (ch.category() == QChar::Mark_NonSpacing) {
+            continue; // Drop combining tone/diacritic marks.
+        }
+        if (ch == QChar(0x0111)) { // đ (does not decompose)
+            out.append(QLatin1Char('d'));
+            continue;
+        }
+        out.append(ch);
+    }
+    return out;
+}
+
+// Heuristic: does a diacritic-stripped token fit Vietnamese syllable structure
+// (onset + vowel nucleus + optional coda)? Multi-syllable English words such as
+// "prostration"/"surprising"/"however" fail this, while Vietnamese syllables
+// written without tone marks ("chung", "khong", "truong") pass.
+bool isPlausibleVietnameseSyllable(const QString &base)
+{
+    if (base.isEmpty()) {
+        return false;
+    }
+
+    static const QSet<QString> onset3 = {QStringLiteral("ngh")};
+    static const QSet<QString> onset2 = {
+        QStringLiteral("ch"), QStringLiteral("gh"), QStringLiteral("gi"),
+        QStringLiteral("kh"), QStringLiteral("ng"), QStringLiteral("nh"),
+        QStringLiteral("ph"), QStringLiteral("qu"), QStringLiteral("th"),
+        QStringLiteral("tr")};
+    static const QString onset1 = QStringLiteral("bcdghklmnpqrstvx");
+    static const QSet<QString> coda = {
+        QStringLiteral("c"), QStringLiteral("ch"), QStringLiteral("m"),
+        QStringLiteral("n"), QStringLiteral("ng"), QStringLiteral("nh"),
+        QStringLiteral("p"), QStringLiteral("t"),
+        QStringLiteral("i"), QStringLiteral("o"), QStringLiteral("u"), QStringLiteral("y")};
+
+    const int n = base.size();
+    int pos = 0;
+
+    // Onset: longest match wins (ngh > ng > n).
+    if (n - pos >= 3 && onset3.contains(base.mid(pos, 3))) {
+        pos += 3;
+    } else if (n - pos >= 2 && onset2.contains(base.mid(pos, 2))) {
+        pos += 2;
+    } else if (n - pos >= 1 && onset1.contains(base.at(pos))) {
+        pos += 1;
+    }
+
+    // Nucleus: at least one vowel.
+    const int vowelStart = pos;
+    while (pos < n && isVowelBaseChar(base.at(pos))) {
+        ++pos;
+    }
+    if (pos == vowelStart) {
+        return false;
+    }
+
+    // Coda: optional, must be a valid final cluster.
+    if (pos == n) {
+        return true;
+    }
+    return coda.contains(base.mid(pos));
+}
+
+// Detect an isolated non-Vietnamese Latin word leaking into the output
+// (e.g. "prostration", "surprising"). Capitalized tokens are treated as proper
+// names (allowed by the rules) and skipped; tokens carrying Vietnamese diacritics
+// are certainly Vietnamese and skipped. High precision on purpose: short tokens
+// that coincide with a Vietnamese syllable shape are left alone.
+bool containsForeignLatinWord(const QString &text)
+{
+    static const QRegularExpression kToken(QStringLiteral("[A-Za-zÀ-ỹĐđ]+"));
+    auto it = kToken.globalMatch(text);
+    while (it.hasNext()) {
+        const QString token = it.next().captured(0);
+        if (token.size() < 3) {
+            continue;
+        }
+        if (token.at(0).isUpper()) {
+            continue; // Likely a proper name.
+        }
+        if (hasVietnameseDiacritic(token)) {
+            continue; // Certainly Vietnamese.
+        }
+        if (!isPlausibleVietnameseSyllable(toVietnameseBaseLetters(token))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Function calc score for translate line
 int calculateLineScore(const QString &line)
 {
@@ -929,7 +1043,7 @@ TranslationIssue evaluateTranslationQuality(const QString &sourceText, const QSt
         return TranslationIssue::Repeated;
     }
 
-    if (containsUnexpectedEnglish(translatedText)) {
+    if (containsUnexpectedEnglish(translatedText) || containsForeignLatinWord(translatedText)) {
         return TranslationIssue::UnexpectedEnglish;
     }
 
