@@ -251,7 +251,8 @@ void TranslateClient::startBackendRequest(const QString &sourceText)
 
 void TranslateClient::startBackendPromptRequest(const QString &sourceText,
                                                 const QString &prompt,
-                                                bool isRetryPass)
+                                                bool isRetryPass,
+                                                const QString &priorSalvage)
 {
     inFlightText_ = sourceText;
 
@@ -353,6 +354,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
     reply->setProperty("sourceText", sourceText);
     reply->setProperty("localApiMode", TranslationBackend::apiModeName(mode));
     reply->setProperty("retryPass", isRetryPass);
+    reply->setProperty("priorSalvage", priorSalvage);
     activeReply_ = reply;
 }
 
@@ -406,6 +408,10 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 issue = TranslationTextProcessor::evaluateTranslationQuality(sourceText, translated);
             }
 
+            const QString priorSalvage = reply->property("priorSalvage").toString();
+
+            // ResidualHan (a mostly-Vietnamese line with a few stray Han) is cheaply
+            // recoverable by stripping the Han, so treat it as a success path directly.
             const bool canFallbackByRemovingHan =
                 isRetryPass && issue == TranslationTextProcessor::TranslationIssue::ResidualHan;
 
@@ -419,7 +425,9 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 if (finalText.trimmed().isEmpty() ||
                     finalIssue == TranslationTextProcessor::TranslationIssue::Empty ||
                     finalIssue == TranslationTextProcessor::TranslationIssue::TooShort) {
-                    emit translationError(TranslationTextProcessor::translationIssueMessage(finalIssue));
+                    // A clean-looking line can still collapse after post-processing; try to
+                    // salvage rather than drop the subtitle.
+                    emitBestEffortOrError(sourceText, rawTranslated, priorSalvage, finalIssue);
                 } else {
                     rememberTranslationContext(sourceText, finalText);
                     insertTranslationCache(sourceText, finalText);
@@ -433,6 +441,10 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                 const QString dialogueContext = recentDialogueContext();
                 const QString glossaryBlock =
                     TranslationTextProcessor::buildGlossaryBlockForSource(sourceText, glossaryPairs_);
+                // Carry the best Vietnamese fragment from this pass forward: if the retry
+                // comes back worse (or empty), we can still fall back to it.
+                const QString firstPassSalvage =
+                    TranslationTextProcessor::salvageVietnameseFragment(rawTranslated);
                 reply->deleteLater();
                 startBackendPromptRequest(sourceText,
                                           TranslationTextProcessor::translationRetryPrompt(sourceText,
@@ -440,10 +452,12 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                                                                                            rawTranslated,
                                                                                            glossaryBlock,
                                                                                            issue),
-                                          true);
+                                          true,
+                                          firstPassSalvage);
                 return;
             } else {
-                emit translationError(TranslationTextProcessor::translationIssueMessage(issue));
+                // Retry already spent (or disabled) and still failing: recover what we can.
+                emitBestEffortOrError(sourceText, rawTranslated, priorSalvage, issue);
             }
 
             reply->deleteLater();
@@ -455,4 +469,35 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
         pendingText_.clear();
         requestTranslation(next);
     }
+}
+
+void TranslateClient::emitBestEffortOrError(const QString &sourceText,
+                                            const QString &rawTranslated,
+                                            const QString &priorSalvage,
+                                            TranslationTextProcessor::TranslationIssue issue)
+{
+    // Prefer a fragment recovered from this pass; fall back to the earlier pass's fragment
+    // when this pass produced nothing Vietnamese-looking at all.
+    QString salvaged = TranslationTextProcessor::salvageVietnameseFragment(rawTranslated);
+    if (salvaged.trimmed().isEmpty()) {
+        salvaged = priorSalvage;
+    }
+
+    salvaged = TranslationTextProcessor::postProcessTranslation(salvaged);
+    salvaged = applyGlossaryAliasNormalization(salvaged);
+
+    if (salvaged.trimmed().isEmpty()) {
+        emit translationError(TranslationTextProcessor::translationIssueMessage(issue));
+        return;
+    }
+
+    qWarning() << "TranslateClient: emitting best-effort salvaged translation\n"
+               << "issue=" << TranslationTextProcessor::translationIssueMessage(issue) << "\n"
+               << "source=" << TranslationTextProcessor::shortText(sourceText, 40) << "\n"
+               << "salvaged=" << TranslationTextProcessor::shortText(salvaged, 80);
+
+    rememberTranslationContext(sourceText, salvaged);
+    // Intentionally NOT cached: salvaged output is degraded, so a future clean pass on the
+    // same source line should be free to replace it.
+    emit translationReady(salvaged, sourceText);
 }

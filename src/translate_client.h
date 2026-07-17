@@ -10,6 +10,8 @@
 #include <QVector>
 #include <QPair>
 
+#include "translation_text_processor.h"
+
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -38,7 +40,15 @@ private:
 
     void initializeTranslationBackend();
     void startBackendRequest(const QString &sourceText);
-    void startBackendPromptRequest(const QString &sourceText, const QString &prompt, bool isRetryPass);
+    void startBackendPromptRequest(const QString &sourceText, const QString &prompt, bool isRetryPass,
+                                   const QString &priorSalvage = QString());
+    // Last resort when a pass fails the quality gate and no (further) retry is possible:
+    // recover the best Vietnamese fragment from the raw output (or the earlier pass's
+    // salvage) and emit it, so the subtitle degrades instead of vanishing. Emits
+    // translationError only when nothing usable can be recovered.
+    void emitBestEffortOrError(const QString &sourceText, const QString &rawTranslated,
+                               const QString &priorSalvage,
+                               TranslationTextProcessor::TranslationIssue issue);
     QString recentDialogueContext() const;
     void rememberTranslationContext(const QString &sourceText, const QString &translatedText);
     QString applyGlossaryAliasNormalization(const QString &translatedText) const;

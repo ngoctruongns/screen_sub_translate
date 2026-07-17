@@ -244,6 +244,39 @@ bool containsForeignLatinWord(const QString &text)
     return false;
 }
 
+// Drop isolated non-Vietnamese Latin words (e.g. "prostration", "stupefied") from a
+// line while leaving Vietnamese syllables, proper names, and numbers intact. Used by
+// salvage so an otherwise-Vietnamese line with a couple of English leftovers can still
+// be recovered. Uses the same high-precision test as containsForeignLatinWord().
+QString removeForeignLatinWords(QString text)
+{
+    static const QRegularExpression kToken(QStringLiteral("[A-Za-zÀ-ỹĐđ]+"));
+    QVector<QPair<int, int>> removals; // (start, length), collected in order.
+    auto it = kToken.globalMatch(text);
+    while (it.hasNext()) {
+        const auto match = it.next();
+        const QString token = match.captured(0);
+        if (token.size() < 3 || token.at(0).isUpper() || hasVietnameseDiacritic(token)) {
+            continue;
+        }
+        if (!isPlausibleVietnameseSyllable(toVietnameseBaseLetters(token))) {
+            removals.append({match.capturedStart(0), match.capturedLength(0)});
+        }
+    }
+
+    // Remove from the tail so earlier offsets stay valid.
+    for (int i = removals.size() - 1; i >= 0; --i) {
+        text.remove(removals.at(i).first, removals.at(i).second);
+    }
+    return text;
+}
+
+// Cheap "how much real Vietnamese is here" score, shared by salvage candidate ranking.
+int vietnameseContentScore(const QString &text)
+{
+    return vietnameseAccentCount(text) * 8 + latinWordCount(text) * 3;
+}
+
 // Function calc score for translate line
 int calculateLineScore(const QString &line)
 {
@@ -631,6 +664,52 @@ QString selectBestVietnameseLine(const QString &text)
         qDebug() << "selectBestVietnameseLine: best line score too low, bestScore=" << bestScore
                  << "line=" << bestLine;
         return QString();
+    }
+
+    return bestLine;
+}
+
+QString salvageVietnameseFragment(const QString &rawText)
+{
+    QStringList lines = splitCandidateLines(rawText);
+    if (lines.isEmpty()) {
+        lines = QStringList{rawText};
+    }
+
+    QString bestLine;
+    int bestScore = -1;
+
+    for (QString line : lines) {
+        line = line.trimmed();
+        if (line.isEmpty() || containsModelMetaText(line)) {
+            continue;
+        }
+
+        // Strip everything that made the line fail the gate, keeping Vietnamese words.
+        QString cleaned = removeHanCharacters(line);
+        cleaned = removeForeignLatinWords(cleaned);
+        cleaned = normalizeTranslation(cleaned);
+        cleaned = normalizePunctuation(cleaned);
+        cleaned = normalizeWhitespace(cleaned);
+        if (cleaned.isEmpty()) {
+            continue;
+        }
+
+        const int score = vietnameseContentScore(cleaned);
+        if (score > bestScore) {
+            bestScore = score;
+            bestLine = cleaned;
+        }
+    }
+
+    if (bestLine.isEmpty()) {
+        return {};
+    }
+
+    // Require the fragment to look like real Vietnamese: at least one diacritic, or a
+    // few Latin words (covers accent-light lines). Otherwise it is likely stray noise.
+    if (!hasVietnameseDiacritic(bestLine) && latinWordCount(bestLine) < 3) {
+        return {};
     }
 
     return bestLine;

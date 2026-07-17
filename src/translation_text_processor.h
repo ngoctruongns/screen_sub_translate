@@ -45,6 +45,13 @@ QString sanitizeFinalTranslation(QString text);
 QString removeHanCharacters(QString text);
 QString postProcessTranslation(QString text);
 
+// Best-effort recovery: extract the richest usable Vietnamese fragment from a raw
+// backend output that failed the quality gate (mixed Han/English/meta text). Returns
+// an empty string only when nothing Vietnamese-looking survives cleaning. Used as a
+// last resort so a hard-to-translate line degrades to a partial subtitle instead of
+// disappearing entirely.
+QString salvageVietnameseFragment(const QString &rawText);
+
 // Glossary
 AliasData loadAliasRules(const QString &path);
 QString loadPromptContext(const QString &path);
