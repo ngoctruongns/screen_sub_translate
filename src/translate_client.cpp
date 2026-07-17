@@ -295,7 +295,10 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         options.insert(QStringLiteral("top_k"), topK);
         options.insert(QStringLiteral("top_p"), topP);
         options.insert(QStringLiteral("min_p"), minP);
-        options.insert(QStringLiteral("stop"), QJsonArray{QStringLiteral("\n\n"), QStringLiteral("###")});
+        // No "\n\n" stop here: the chat template ends the turn on its own, and reasoning
+        // models (Qwen3) emit "<think></think>\n\n<answer>" — a "\n\n" stop truncates the
+        // reply right after the (empty) think block, leaving no translation.
+        options.insert(QStringLiteral("stop"), QJsonArray{QStringLiteral("###")});
         payload.insert(QStringLiteral("options"), options);
     } else if (mode == TranslationBackend::ApiMode::OpenAI) {
         if (!backendModel_.isEmpty()) {
@@ -312,7 +315,9 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         messages.append(userMsg);
         payload.insert(QStringLiteral("messages"), messages);
         payload.insert(QStringLiteral("stream"), false);
-        payload.insert(QStringLiteral("stop"), QJsonArray{QStringLiteral("\n\n"), QStringLiteral("###")});
+        // No "\n\n" stop: see the Ollama branch — it would cut Qwen3's reply right after
+        // the empty "<think></think>" block, before the actual translation.
+        payload.insert(QStringLiteral("stop"), QJsonArray{QStringLiteral("###")});
     } else {
         payload.insert(QStringLiteral("prompt"), prompt);
         payload.insert(QStringLiteral("temperature"), temperature);
@@ -388,6 +393,11 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
 
             // Print to debug raw translate
             qDebug() << "Raw translation output:" << rawTranslated;
+
+            // Strip reasoning-model scaffolding (<think>...</think>) before any quality
+            // checks so downstream logic only sees the actual translation.
+            rawTranslated = TranslationTextProcessor::stripReasoningBlocks(rawTranslated);
+
             if (rawTranslated.trimmed().isEmpty()) {
                 qWarning().noquote() << "TranslateClient: empty raw response body:"
                                      << QString::fromUtf8(responseData);

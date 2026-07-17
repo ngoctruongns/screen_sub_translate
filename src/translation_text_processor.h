@@ -38,6 +38,11 @@ bool isOverExpandedTranslation(const QString &sourceText, const QString &transla
 TranslationIssue evaluateTranslationQuality(const QString &sourceText, const QString &translatedText);
 QString translationIssueMessage(TranslationIssue issue);
 
+// Remove <think>...</think> reasoning blocks (Qwen3 and other reasoning models) and any
+// stray think tags, so the downstream pipeline only sees the actual answer. Safe to call
+// on output from non-reasoning backends (no-op when no tags are present).
+QString stripReasoningBlocks(QString text);
+
 // Text sanitization
 QString selectBestVietnameseLine(const QString &text);
 QString normalizeTranslation(QString text);

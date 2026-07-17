@@ -627,6 +627,27 @@ bool containsRepeatedSubtitleFragments(const QString &text)
     return false;
 }
 
+QString stripReasoningBlocks(QString text)
+{
+    // Balanced blocks, including empty "<think></think>" and multi-line reasoning.
+    static const QRegularExpression kThinkBlock(
+        QStringLiteral("<think>.*?</think>"),
+        QRegularExpression::DotMatchesEverythingOption);
+    text.remove(kThinkBlock);
+
+    // An unterminated block (answer truncated inside the reasoning) — drop from the tag on.
+    const int danglingOpen = text.indexOf(QStringLiteral("<think>"));
+    if (danglingOpen >= 0) {
+        text.truncate(danglingOpen);
+    }
+
+    // Any leftover stray tags.
+    static const QRegularExpression kThinkTag(QStringLiteral("</?think>"));
+    text.remove(kThinkTag);
+
+    return text.trimmed();
+}
+
 QString selectBestVietnameseLine(const QString &text)
 {
     QStringList lines = splitCandidateLines(text);
