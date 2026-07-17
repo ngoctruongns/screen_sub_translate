@@ -2,7 +2,6 @@
 
 // Centralized tuning constants, ordered to follow the runtime pipeline:
 //   Capture -> OCR engine -> OCR subtitle filter -> Translation (AI model) -> Display.
-// Legacy OcrBatchEval-only parameters are kept at the very end.
 
 namespace tuning
 {
@@ -112,20 +111,5 @@ namespace tuning
     inline constexpr int kDisplayMaxLatencyMs = 2500;  // Drop entry if it has been queued longer than this (ms).
     inline constexpr int kDisplayQueueMaxSize = 5;     // Max queue depth before overflow handling.
     inline constexpr int kDisplayTickMs       = 60;    // Timer interval for advancing the display queue (ms).
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // 7. LEGACY — ONNX MarianMT translator parameters
-    // NOTE: used ONLY by tools/ocr_batch_eval.cpp (OcrBatchEval). The runtime overlay
-    // translation path uses the local LLM HTTP API and does not reference these. Do not use at runtime.
-    // ─────────────────────────────────────────────────────────────────────────
-    inline constexpr const char *kTranslateModelDir = "../models/translate";
-    inline constexpr int64_t kTranslateDecoderStartId = 65000;
-    inline constexpr int64_t kTranslateEosId = 0;
-    inline constexpr int64_t kTranslateSourceLangId = -1;
-    inline constexpr int64_t kTranslateTargetLangId = -1;
-    inline constexpr int kTranslateRuntimeMaxDecodeSteps = 120;
-    inline constexpr int kTranslateRuntimeNumBeams = 6;
-    inline constexpr int kTranslateRuntimeMaxInputTokens = 64;
-    inline constexpr double kTranslateLengthPenalty = 1.0;
 
 } // namespace tuning

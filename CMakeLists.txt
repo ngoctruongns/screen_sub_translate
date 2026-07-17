@@ -16,14 +16,6 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent Network)
 
-find_library(SENTENCEPIECE_LIBRARY
-	sentencepiece
-	PATHS /usr/lib /usr/local/lib
-)
-if(NOT SENTENCEPIECE_LIBRARY)
-	message(FATAL_ERROR "Could not find libsentencepiece. Install with: sudo apt install libsentencepiece-dev")
-endif()
-message(STATUS "Using SentencePiece library: ${SENTENCEPIECE_LIBRARY}")
 find_package(OpenCV REQUIRED)
 
 # Find ONNX Runtime from environment variables (for example from ~/.zshrc).
@@ -100,7 +92,6 @@ target_link_libraries(ScreenSubTranslator PRIVATE
 	Qt6::Network
 	${OpenCV_LIBS}
 	${ONNXRUNTIME_LIBRARY}
-	${SENTENCEPIECE_LIBRARY}
 )
 
 target_include_directories(OcrBatchEval PRIVATE
@@ -113,5 +104,4 @@ target_link_libraries(OcrBatchEval PRIVATE
 	Qt6::Core
 	${OpenCV_LIBS}
 	${ONNXRUNTIME_LIBRARY}
-	${SENTENCEPIECE_LIBRARY}
 )
