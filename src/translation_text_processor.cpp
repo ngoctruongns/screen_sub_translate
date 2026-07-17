@@ -689,6 +689,14 @@ QString salvageVietnameseFragment(const QString &rawText)
         QString cleaned = removeHanCharacters(line);
         cleaned = removeForeignLatinWords(cleaned);
         cleaned = normalizeTranslation(cleaned);
+
+        // Meta-text often leaves stray full-width / CJK punctuation and empty quote pairs
+        // behind once the Han runs are removed (e.g. `... nhiều ，""`). Drop CJK symbols,
+        // full-width forms, and quote characters before the final punctuation pass.
+        static const QRegularExpression kStrayPunct(
+            QStringLiteral("[\\x{3000}-\\x{303F}\\x{FF00}-\\x{FFEF}\"'`]+"));
+        cleaned.remove(kStrayPunct);
+
         cleaned = normalizePunctuation(cleaned);
         cleaned = normalizeWhitespace(cleaned);
         if (cleaned.isEmpty()) {
@@ -706,9 +714,14 @@ QString salvageVietnameseFragment(const QString &rawText)
         return {};
     }
 
-    // Require the fragment to look like real Vietnamese: at least one diacritic, or a
-    // few Latin words (covers accent-light lines). Otherwise it is likely stray noise.
-    if (!hasVietnameseDiacritic(bestLine) && latinWordCount(bestLine) < 3) {
+    // A single word recovered from a line that already failed the quality gate is almost
+    // always noise (e.g. "Thử" salvaged from "企图趁我抗日军民)"), so require at least two
+    // words; without a diacritic require more, since accent-free text is weaker evidence.
+    const int words = latinWordCount(bestLine);
+    if (words < 2) {
+        return {};
+    }
+    if (!hasVietnameseDiacritic(bestLine) && words < 3) {
         return {};
     }
 

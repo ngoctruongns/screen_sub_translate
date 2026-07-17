@@ -11,8 +11,8 @@
     "retryTemperature  : temperature for the single retry pass. Looser than first pass (e.g. 0.3) helps the model escape a degenerate first output."
   ],
 
-  "apiMode": "auto",
-  "baseUrl": "http://127.0.0.1:8080",
+  "apiMode": "openai",
+  "baseUrl": "http://127.0.0.1:8080/v1",
   "model": "",
   "autoDiscoverModel": true,
   "modelDiscoveryTimeoutMs": 1200,
