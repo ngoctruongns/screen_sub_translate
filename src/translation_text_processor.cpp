@@ -407,8 +407,13 @@ QStringList splitCandidateLines(const QString &text)
 {
     QString normalized = text;
 
-    // Split normal line/sentence separators.
-    normalized.replace(QRegularExpression(QStringLiteral("[\\r\\n.]+")), QStringLiteral("\n"));
+    // Collapse hard line breaks.
+    normalized.replace(QRegularExpression(QStringLiteral("[\\r\\n]+")), QStringLiteral("\n"));
+
+    // Treat '.' as a sentence separator, EXCEPT between two digits: Vietnamese groups
+    // thousands with dots (e.g. "46.000"), so splitting there would strip part of a number.
+    normalized.replace(QRegularExpression(QStringLiteral("(?<![0-9])\\.+|\\.+(?![0-9])")),
+                       QStringLiteral("\n"));
 
     // Avoid splitting every Vietnamese hyphenated word blindly.
     normalized.replace(QRegularExpression(QStringLiteral("\\s*[-–—]\\s*(?=[A-Za-z]{2,}\\b)")),
