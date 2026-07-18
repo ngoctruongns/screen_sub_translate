@@ -88,8 +88,8 @@ export LD_LIBRARY_PATH=$ONNXRUNTIME_ROOT/lib:$LD_LIBRARY_PATH
 
 ```text
 models/paddle/
-├── ch_PP-OCRv4_rec_infer.onnx
-└── ppocr_keys_v1.txt
+├── ch_PP-OCRv4_rec_server_infer.onnx   # or the mobile / PP-OCRv5 model — see src/tuning_params.h
+└── ppocr_keys_v1.txt                   # PP-OCRv5 needs ppocrv5_dict.txt instead
 ```
 
 ### Compile

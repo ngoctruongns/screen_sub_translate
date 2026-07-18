@@ -22,7 +22,16 @@ namespace tuning
     // 2. OCR ENGINE (PaddleOCR ONNX Runtime, C++)  — ocr_engine.cpp
     // ─────────────────────────────────────────────────────────────────────────
     inline constexpr bool kUseCudaExecutionProvider = true; // Try CUDA EP first; falls back to CPU with a warning.
-    inline constexpr const char *kPaddleRecOnnxPath = "../models/paddle/ch_PP-OCRv4_rec_infer.onnx";
+
+    // Recognition model + its matching character dictionary. These MUST come as a pair.
+    //   - PP-OCRv4 server (default below): higher accuracy than the mobile model on stylised
+    //     fonts / noisy backgrounds; same input (3x48xW) and same dict (ppocr_keys_v1.txt),
+    //     so it is a drop-in replacement — just place the .onnx file at this path.
+    //   - PP-OCRv4 mobile (previous): "ch_PP-OCRv4_rec_infer.onnx" + ppocr_keys_v1.txt.
+    //   - PP-OCRv5 server (best): "PP-OCRv5_server_rec_infer.onnx" and REQUIRES the v5 dict
+    //     "ppocrv5_dict.txt" instead of ppocr_keys_v1.txt (larger, multi-lang). Swap BOTH.
+    // ~10-60 MB on disk; negligible VRAM next to the translation model.
+    inline constexpr const char *kPaddleRecOnnxPath = "../models/paddle/ch_PP-OCRv4_rec_server_infer.onnx";
     inline constexpr const char *kPaddleCharsetPath = "../models/paddle/ppocr_keys_v1.txt";
     inline constexpr int kPaddleInputHeight = 48;          // Recognition input height (fixed).
     inline constexpr int kPaddleInputWidth = 480;          // Recognition input width (padded). Wider = less horizontal
