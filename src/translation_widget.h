@@ -27,6 +27,9 @@ public:
     void setTextColor(const QColor &color);
     QColor textColor() const { return textColor_; }
 
+    void setFontSize(int pixelSize);
+    int fontSize() const { return fontSizePx_; }
+
 protected:
     void resizeEvent(QResizeEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
@@ -36,10 +39,13 @@ protected:
 
 private:
     void applyLabelStyle();
+    void applyLabelFont();
     void updateLabelLayout();
     void saveTextColor() const;
+    void saveFontSize() const;
 
     QLabel *label_ = nullptr;
     QColor textColor_;
+    int fontSizePx_ = 30;
     bool hovered_ = false;
 };

@@ -4,6 +4,7 @@
 
 #include <QColorDialog>
 #include <QEnterEvent>
+#include <QFont>
 #include <QFontMetrics>
 #include <QGraphicsDropShadowEffect>
 #include <QLabel>
@@ -31,6 +32,11 @@ const ColorPreset kColorPresets[] = {
     {"Cream", QColor(255, 224, 163)},
     {"Soft green", QColor(124, 255, 176)},
 };
+
+constexpr int kDefaultFontSizePx = 30;
+constexpr int kMinFontSizePx = 12;
+constexpr int kMaxFontSizePx = 96;
+const int kFontSizePresets[] = {22, 26, 30, 36, 42};
 } // namespace
 
 TranslationWidget::TranslationWidget(QWidget *parent) : OverlayFrame(parent)
@@ -42,11 +48,14 @@ TranslationWidget::TranslationWidget(QWidget *parent) : OverlayFrame(parent)
         settings.beginGroup(QStringLiteral("overlay"));
         textColor_ = settings.value(QStringLiteral("translationTextColor"),
                                     kDefaultTextColor).value<QColor>();
+        fontSizePx_ = settings.value(QStringLiteral("translationFontSizePx"),
+                                     kDefaultFontSizePx).toInt();
         settings.endGroup();
     }
     if (!textColor_.isValid()) {
         textColor_ = kDefaultTextColor;
     }
+    fontSizePx_ = std::clamp(fontSizePx_, kMinFontSizePx, kMaxFontSizePx);
 
     label_ = new QLabel(
         QStringLiteral("Right-click: options | Drag to move | Drag edges to resize"),
@@ -57,6 +66,7 @@ TranslationWidget::TranslationWidget(QWidget *parent) : OverlayFrame(parent)
     // and resizable through the label.
     label_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     applyLabelStyle();
+    applyLabelFont();
 
     // Drop shadow keeps the text panel legible over bright scenes.
     auto *shadow = new QGraphicsDropShadowEffect(label_);
@@ -74,17 +84,27 @@ void TranslationWidget::applyLabelStyle()
         return;
     }
     // Transparent window; the panel behind the text is the label's own background,
-    // sized to the text in updateLabelLayout().
+    // sized to the text in updateLabelLayout(). Font size/weight live on the QFont
+    // (see applyLabelFont) so QFontMetrics in updateLabelLayout stays accurate.
     label_->setStyleSheet(QStringLiteral("QLabel {"
                                          "background-color: rgba(20, 20, 20, 170);"
                                          "color: rgb(%1, %2, %3);"
-                                         "font-size: 30px;"
-                                         "font-weight: 700;"
                                          "border-radius: 8px;"
                                          "}")
                               .arg(textColor_.red())
                               .arg(textColor_.green())
                               .arg(textColor_.blue()));
+}
+
+void TranslationWidget::applyLabelFont()
+{
+    if (!label_) {
+        return;
+    }
+    QFont f = label_->font();
+    f.setPixelSize(fontSizePx_);
+    f.setBold(true);
+    label_->setFont(f);
 }
 
 void TranslationWidget::updateLabelLayout()
@@ -155,6 +175,26 @@ void TranslationWidget::saveTextColor() const
     settings.endGroup();
 }
 
+void TranslationWidget::setFontSize(int pixelSize)
+{
+    const int clamped = std::clamp(pixelSize, kMinFontSizePx, kMaxFontSizePx);
+    if (clamped == fontSizePx_) {
+        return;
+    }
+    fontSizePx_ = clamped;
+    applyLabelFont();
+    updateLabelLayout();
+    saveFontSize();
+}
+
+void TranslationWidget::saveFontSize() const
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("overlay"));
+    settings.setValue(QStringLiteral("translationFontSizePx"), fontSizePx_);
+    settings.endGroup();
+}
+
 void TranslationWidget::resizeEvent(QResizeEvent *event)
 {
     OverlayFrame::resizeEvent(event);
@@ -214,4 +254,12 @@ void TranslationWidget::buildContextMenu(QMenu &menu)
             setTextColor(picked);
         }
     });
+
+    QMenu *sizeMenu = menu.addMenu(QStringLiteral("Text size"));
+    for (const int size : kFontSizePresets) {
+        QAction *action = sizeMenu->addAction(QStringLiteral("%1 px").arg(size));
+        action->setCheckable(true);
+        action->setChecked(size == fontSizePx_);
+        connect(action, &QAction::triggered, this, [this, size]() { setFontSize(size); });
+    }
 }

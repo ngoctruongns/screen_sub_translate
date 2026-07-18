@@ -220,7 +220,7 @@ Longer terms are matched first. Restart the app after editing.
 2. Two independent, frameless windows appear: the **OCR capture window** and the **translation window** (fully transparent, with a dark panel drawn only behind the current text). Both are invisible at rest and show an outline on hover so they don't cover the movie; hover either to drag or resize it from its edges. They can overlap.
 3. Position the capture window so it tightly covers **only** the subtitle text (avoid logos, player UI, black bars).
 4. Keep the video playing — Vietnamese lines appear in the translation window; the background panel hugs the text and disappears when there is none.
-5. **Right-click** either window for options, including **Quit** (there is no title bar). Right-click the translation window → **Text color** to change the subtitle colour (presets or custom). Window positions, sizes, and text colour are remembered between runs.
+5. **Right-click** either window for options, including **Quit** (there is no title bar). Right-click the translation window → **Text color** to change the subtitle colour (presets or custom) and **Text size** to change the font size. Window positions, sizes, text colour, and font size are remembered between runs.
 
 > Avoid overlapping the translation window onto the capture window: the screen grab would then capture the Vietnamese text and feed it back into OCR.
 
