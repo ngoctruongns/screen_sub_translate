@@ -122,7 +122,7 @@ namespace tuning
     // Display duration is clamped to [kDisplayMinMs, kDisplayMaxMs].
     // Formula: clamp(kDisplayBaseMs + charCount * kDisplayMsPerChar, min, max)
     inline constexpr int kDisplayMinMs        = 300;   // Minimum display time per entry (ms).
-    inline constexpr int kDisplayMaxMs        = 3000;  // Maximum display time per entry (ms).
+    inline constexpr int kDisplayMaxMs        = 3500;  // Maximum display time per entry (ms).
     inline constexpr int kDisplayBaseMs       = 250;   // Base display time before per-char contribution (ms).
     inline constexpr int kDisplayMsPerChar    = 70;    // Additional ms per displayed character.
     inline constexpr int kDisplayMaxLatencyMs = 2500;  // Drop entry if it has been queued longer than this (ms).

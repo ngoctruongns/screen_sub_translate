@@ -230,7 +230,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, float confidence, int req
 
         // Drop garbled low-confidence reads before they reach the filter/translation.
         if (confidence < tuning::kMinOcrConfidence) {
-            qDebug() << "OCR_LOW_CONFIDENCE: text=" << ocrText << "confidence=" << confidence;
+            // qDebug() << "OCR_LOW_CONFIDENCE: text=" << ocrText << "confidence=" << confidence;
             if (latestFrameRequestId_ > requestId) {
                 dispatchLatestOcr();
             }
