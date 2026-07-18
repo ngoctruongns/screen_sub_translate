@@ -321,10 +321,29 @@ void OverlayWindow::flushPendingIncompleteSubtitle()
         return;
     }
 
-    appendSubtitleLog(QStringLiteral("OCR_DROPPED_INCOMPLETE"), pendingIncompleteSubtitle_, QString());
-    qDebug() << "OCR_DROPPED_INCOMPLETE: text=" << pendingIncompleteSubtitle_;
+    QString text = pendingIncompleteSubtitle_.trimmed();
     pendingIncompleteSubtitle_.clear();
     pendingIncompleteSubtitleTimer_.invalidate();
+
+    // The trailing pause separator only marked the line as "maybe continued"; strip it so
+    // the backend sees a finished clause.
+    while (!text.isEmpty() &&
+           (text.endsWith(QChar(0xFF0C)) || text.endsWith(QChar(',')) || text.endsWith(QChar(0x3001)))) {
+        text.chop(1);
+        text = text.trimmed();
+    }
+
+    if (text.isEmpty()) {
+        return;
+    }
+
+    // No continuation ever arrived (scene cut, or the trailing comma was spurious OCR).
+    // Translate the held fragment instead of dropping it — a clause that merely ended with
+    // a comma is still worth showing.
+    appendSubtitleLog(QStringLiteral("OCR_FLUSHED_INCOMPLETE"), text, QString());
+    qDebug() << "OCR_FLUSHED_INCOMPLETE: text=" << text;
+    translateClient_.requestTranslation(text);
+    lastOcrText_ = text;
 }
 
 bool OverlayWindow::isIncompleteSubtitlePhrase(const QString &text)
