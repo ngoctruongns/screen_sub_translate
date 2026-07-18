@@ -39,7 +39,7 @@ main.cpp                              App entry point
 src/
   overlay_window.{h,cpp}              Controller: worker coordination, display queue, owns the two overlay windows
   overlay_frame.{h,cpp}              Base frameless overlay window: drag, edge-resize, right-click menu, geometry signal
-  capture_zone_widget.{h,cpp}        Independent OCR capture window (transparent interior, corner/edge markers)
+  capture_zone_widget.{h,cpp}        Independent OCR capture window (transparent interior, hover outline)
   translation_widget.{h,cpp}         Independent translation window (translucent panel, shadowed subtitle text)
   capture_worker.{h,cpp}             Screen capture thread, change/contrast gate, OCR preprocessing
   ocr_engine.{h,cpp}                 PaddleOCR ONNX Runtime inference (C++)
@@ -217,7 +217,7 @@ Longer terms are matched first. Restart the app after editing.
 ## Using the overlay
 
 1. Start the backend, then run `./ScreenSubTranslator` from `build/`.
-2. Two independent, frameless windows appear: the **OCR capture window** (faint orange corner/edge markers) and the **translation window** (fully transparent, with a dark panel drawn only behind the current text). Drag or resize each from its edges; they can overlap. Hover the translation window to see its resize outline.
+2. Two independent, frameless windows appear: the **OCR capture window** and the **translation window** (fully transparent, with a dark panel drawn only behind the current text). Both are invisible at rest and show an outline on hover so they don't cover the movie; hover either to drag or resize it from its edges. They can overlap.
 3. Position the capture window so it tightly covers **only** the subtitle text (avoid logos, player UI, black bars).
 4. Keep the video playing — Vietnamese lines appear in the translation window; the background panel hugs the text and disappears when there is none.
 5. **Right-click** either window for options, including **Quit** (there is no title bar). Right-click the translation window → **Text color** to change the subtitle colour (presets or custom). Window positions, sizes, and text colour are remembered between runs.
