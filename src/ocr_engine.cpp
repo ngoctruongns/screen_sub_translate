@@ -257,11 +257,10 @@ QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, fl
         return QString();
     }
 
-    std::string out;
-    out.reserve(static_cast<size_t>(timeSteps) * 2);
-
-    double confidenceSum = 0.0;
-    int emittedChars = 0;
+    std::vector<std::string> pieces;
+    std::vector<double> confs;
+    pieces.reserve(static_cast<size_t>(timeSteps));
+    confs.reserve(static_cast<size_t>(timeSteps));
 
     int prev = -1;
     for (int t = 0; t < timeSteps; ++t)
@@ -282,8 +281,6 @@ QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, fl
 
         if (bestIdx != 0 && bestIdx != prev && bestIdx < static_cast<int>(charset_.size()))
         {
-            out += charset_[bestIdx];
-
             // Per-character confidence. PP-OCRv4 rec normally outputs post-softmax
             // probabilities (row sums to ~1) -> use the winning probability directly.
             // If the export emits raw logits instead, softmax this step on the fly:
@@ -302,12 +299,36 @@ QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, fl
                 }
                 stepConf = (denom > 0.0) ? (1.0 / denom) : 0.0;
             }
-            confidenceSum += stepConf;
-            ++emittedChars;
+            pieces.push_back(charset_[bestIdx]);
+            confs.push_back(stepConf);
         }
         prev = bestIdx;
     }
 
+    // Trim leading/trailing low-confidence characters. Dark margins/background that
+    // slip into the crop get decoded as a stray edge character (typically 嶺) with
+    // far lower confidence than real glyphs. Only the edges are trimmed, so a real
+    // line is left intact; interior characters are never dropped.
+    int lo = 0;
+    int hi = static_cast<int>(pieces.size());
+    while (lo < hi && confs[lo] < tuning::kOcrEdgeMinConfidence)
+    {
+        ++lo;
+    }
+    while (hi > lo && confs[hi - 1] < tuning::kOcrEdgeMinConfidence)
+    {
+        --hi;
+    }
+
+    std::string out;
+    double confidenceSum = 0.0;
+    for (int i = lo; i < hi; ++i)
+    {
+        out += pieces[i];
+        confidenceSum += confs[i];
+    }
+
+    const int emittedChars = hi - lo;
     if (outConfidence != nullptr && emittedChars > 0)
     {
         *outConfidence = static_cast<float>(confidenceSum / emittedChars);

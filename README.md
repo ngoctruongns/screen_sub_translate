@@ -23,7 +23,7 @@ flowchart LR
 ```
 
 - **Capture** runs on its own thread and only forwards frames that changed enough (frame-diff + contrast gates), so a static screen costs almost nothing.
-- **OCR** runs on its own thread. A read is accepted only after it is stable across a few frames and passes a **per-character confidence gate** (`kMinOcrConfidence`), which drops garbled reads before they reach the model.
+- **OCR** runs on its own thread. Leading/trailing characters with low per-character confidence are trimmed (`kOcrEdgeMinConfidence`): dark margins or background that slip into the crop otherwise decode as a stray edge character (typically 嶺) that would leak into the translation. A read is then accepted only after it is stable across a few frames and passes a **per-character confidence gate** (`kMinOcrConfidence`), which drops garbled reads before they reach the model.
 - **Stabilization/dedupe** (`ocr_subtitle_filter`) turns noisy per-frame reads into one candidate and avoids re-translating a subtitle that is still on screen.
 - **Translation** is async. Each accepted line is turned into a strict prompt (rules + matching glossary + recent Chinese lines). Output goes through candidate selection → sanitize → quality check.
   - On failure, **one retry** runs with looser sampling and an issue-specific hint.

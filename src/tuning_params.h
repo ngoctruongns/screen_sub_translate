@@ -45,6 +45,14 @@ namespace tuning
     // raise toward 0.8 to drop more garbage, lower if valid subtitles get dropped.
     inline constexpr float kMinOcrConfidence = 0.55f;
 
+    // Trim leading/trailing recognized characters whose individual confidence is
+    // below this. Dark margins/background that slip into the crop (a loose capture
+    // window, or bright background elements widening the auto-crop) decode as a
+    // stray edge character — typically 嶺 — with far lower confidence than real
+    // glyphs (~0.98). Trimming only the edges leaves the real line intact.
+    // Set to 0 to disable. TUNE ON REAL FOOTAGE if valid edge chars get dropped.
+    inline constexpr float kOcrEdgeMinConfidence = 0.80f;
+
     // ─────────────────────────────────────────────────────────────────────────
     // 3. OCR SUBTITLE FILTER (stabilization)  — ocr_subtitle_filter.cpp
     // ─────────────────────────────────────────────────────────────────────────
