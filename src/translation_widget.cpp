@@ -14,13 +14,14 @@ TranslationWidget::TranslationWidget(QWidget *parent) : OverlayFrame(parent)
     // Let the parent frame receive the mouse so the whole bubble stays draggable
     // and resizable through the label.
     label_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    // Transparent background: only the green text shows, so short or empty lines
+    // don't cover the movie underneath.
     label_->setStyleSheet("QLabel {"
-                          "background-color: rgba(0, 0, 0, 165);"
+                          "background-color: transparent;"
                           "color: rgb(0, 255, 100);"
                           "font-size: 30px;"
                           "font-weight: 700;"
-                          "border-radius: 10px;"
-                          "padding: 12px 16px;"
+                          "padding: 6px 10px;"
                           "}");
     label_->setGeometry(rect());
 }
