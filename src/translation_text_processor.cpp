@@ -457,7 +457,7 @@ QString normalizeWhitespace(QString text)
 bool isLikelyChineseSubtitle(const QString &text)
 {
     int cjkCount = 0;
-    int letterOrDigitCount = 0;
+    int latinLetterCount = 0;
     for (const QChar ch : text) {
         if (ch.isSpace()) {
             continue;
@@ -465,13 +465,16 @@ bool isLikelyChineseSubtitle(const QString &text)
 
         if (isHanChar(ch)) {
             ++cjkCount;
-        }
-        if (ch.isLetterOrNumber()) {
-            ++letterOrDigitCount;
+        } else if (ch.isLetter()) {
+            // Only Latin/other letters signal English or garbled OCR. Digits are NOT
+            // counted against "Chineseness": Chinese subtitles legitimately carry long
+            // numbers (unit numbers like "363741师团", years, quantities). Counting them
+            // used to reject such lines as non-Chinese and skip translation entirely.
+            ++latinLetterCount;
         }
     }
 
-    return cjkCount >= 2 && cjkCount * 2 >= std::max(1, letterOrDigitCount);
+    return cjkCount >= 2 && cjkCount * 2 >= std::max(1, latinLetterCount);
 }
 
 bool containsHanCharacters(const QString &text)
