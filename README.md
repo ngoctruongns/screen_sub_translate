@@ -6,7 +6,8 @@ A Qt6 desktop overlay that translates **on-screen Chinese subtitles into Vietnam
 
 ## Demo
 
-https://github.com/user-attachments/assets/REPLACE-WITH-UPLOADED-VIDEO
+https://github.com/user-attachments/assets/214c5682-b3bf-4e6d-ba5b-7ff9da1f5a35
+> Live Chinese → Vietnamese translation over an unsubtitled film
 
 ### Screenshots
 ![Demo Screenshot Placeholder](test/translate.png)
