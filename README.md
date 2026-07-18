@@ -37,7 +37,10 @@ The overlay never blocks: capture, OCR, translation and logging all run off the 
 ```text
 main.cpp                              App entry point
 src/
-  overlay_window.{h,cpp}              UI window, scan frame, worker coordination, display queue, hotkeys
+  overlay_window.{h,cpp}              Controller: worker coordination, display queue, owns the two overlay windows
+  overlay_frame.{h,cpp}              Base frameless overlay window: drag, edge-resize, right-click menu, geometry signal
+  capture_zone_widget.{h,cpp}        Independent OCR capture window (transparent interior, corner/edge markers)
+  translation_widget.{h,cpp}         Independent translation window (translucent panel, shadowed green text)
   capture_worker.{h,cpp}             Screen capture thread, change/contrast gate, OCR preprocessing
   ocr_engine.{h,cpp}                 PaddleOCR ONNX Runtime inference (C++)
   ocr_worker.{h,cpp}                 OCR thread; runs the engine, feeds the subtitle filter
@@ -91,6 +94,33 @@ models/paddle/
 ├── ch_PP-OCRv4_rec_server_infer.onnx   # or the mobile / PP-OCRv5 model — see src/tuning_params.h
 └── ppocr_keys_v1.txt                   # PP-OCRv5 needs ppocrv5_dict.txt instead
 ```
+
+PaddleOCR ships models in PaddlePaddle format; convert the recognition model to ONNX
+with `paddle2onnx`. The **server** rec model is a drop-in upgrade over mobile — same
+`3x48xW` input and same `ppocr_keys_v1.txt` dict, markedly better on stylised/noisy
+subtitles, negligible VRAM.
+
+```bash
+pip install paddlepaddle paddle2onnx
+
+# PP-OCRv4 server rec (Chinese)
+wget https://paddleocr.bj.bcebos.com/PP-OCRv4/chinese/ch_PP-OCRv4_rec_server_infer.tar
+tar -xf ch_PP-OCRv4_rec_server_infer.tar
+
+paddle2onnx \
+  --model_dir ch_PP-OCRv4_rec_server_infer \
+  --model_filename inference.pdmodel \
+  --params_filename inference.pdiparams \
+  --save_file ch_PP-OCRv4_rec_server_infer.onnx \
+  --opset_version 14 --enable_onnx_checker True
+
+# Place ch_PP-OCRv4_rec_server_infer.onnx in models/paddle/; keep ppocr_keys_v1.txt.
+```
+
+**PP-OCRv5 (highest accuracy)** uses a different, larger dictionary — swap **both** the
+model and the dict: convert `PP-OCRv5_server_rec_infer` the same way (its Paddle 3.0
+package uses `--model_filename inference.json`), download `ppocrv5_dict.txt`, and point
+`kPaddleRecOnnxPath` / `kPaddleCharsetPath` in `src/tuning_params.h` at the v5 pair.
 
 ### Compile
 
@@ -187,13 +217,16 @@ Longer terms are matched first. Restart the app after editing.
 ## Using the overlay
 
 1. Start the backend, then run `./ScreenSubTranslator` from `build/`.
-2. Drag/resize the red scan frame so it tightly covers **only** the subtitle text (avoid logos, player UI, black bars).
-3. Keep the video playing — Vietnamese lines appear in the overlay bubble.
-4. **Right-click** for options; **Alt+T** toggles the translation position (above/below the source subtitle).
+2. Two independent, frameless windows appear: the **OCR capture window** (faint orange corner/edge markers) and the **translation window** (translucent panel with green text). Drag or resize each from its edges; they can overlap.
+3. Position the capture window so it tightly covers **only** the subtitle text (avoid logos, player UI, black bars).
+4. Keep the video playing — Vietnamese lines appear in the translation window.
+5. **Right-click** either window for options, including **Quit** (there is no title bar). Window positions and sizes are remembered between runs.
+
+> Avoid overlapping the translation window onto the capture window: the screen grab would then capture the Vietnamese text and feed it back into OCR.
 
 ## Troubleshooting
 
-- **No translation** — backend not reachable at `baseUrl`, or the scan frame isn't over the subtitle text.
+- **No translation** — backend not reachable at `baseUrl`, or the capture window isn't over the subtitle text.
 - **Empty / truncated output with Qwen3** — thinking is still on; make sure the server runs with `--reasoning-budget 0` (and chat template via `--jinja` + `apiMode: openai`).
 - **Inconsistent names** — add them to `glossary.json` and restart.
 - **High latency** — use a smaller/faster model or enable GPU offload (`-ngl`).
