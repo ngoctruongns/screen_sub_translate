@@ -1,10 +1,10 @@
 #pragma once
 
 #include <QElapsedTimer>
-#include <QPoint>
+#include <QObject>
+#include <QRect>
 #include <QThread>
 #include <QTimer>
-#include <QWidget>
 #include <QQueue>
 
 #include <opencv2/core.hpp>
@@ -16,31 +16,20 @@
 #include "translate_client.h"
 #include "tuning_params.h"
 
-class QLabel;
-class QMoveEvent;
-class QMouseEvent;
-class QPaintEvent;
-class QResizeEvent;
+class CaptureZoneWidget;
+class TranslationWidget;
 
-class OverlayWindow : public QWidget
+// Controller that owns the whole capture -> OCR -> translate -> display pipeline
+// and the two independent overlay windows (the OCR capture zone and the
+// translation display). It is not itself a visible widget; the "tool window" is
+// only a logical bounding box of the two child windows.
+class OverlayWindow : public QObject
 {
     Q_OBJECT
 
-private:
-    enum class ResultPosition { AboveSource, BelowSource };
-
 public:
-    explicit OverlayWindow(QWidget *parent = nullptr);
+    explicit OverlayWindow(QObject *parent = nullptr);
     ~OverlayWindow() override;
-
-protected:
-    void paintEvent(QPaintEvent *event) override;
-    void moveEvent(QMoveEvent *event) override;
-    void resizeEvent(QResizeEvent *event) override;
-
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
 
 private slots:
     void onImageProcessed(const cv::Mat &processedImg);
@@ -50,12 +39,12 @@ private slots:
     void onTranslationError(const QString &error);
 
 private:
-    void setupUi();
-    void setupHotkeys();
+    void setupWidgets();
+    void restoreWidgetGeometry();
+    void saveWidgetGeometry() const;
+    void onZoneGeometryChanged();
+    void recomputeBoundingBox();
     void updateWorkerScanZone();
-    void updateSubtitleLayout();
-    QRect localScanZoneRect() const;
-    void showPositionMenu(const QPoint &globalPos);
     void appendSubtitleLog(const QString &status, const QString &sourceText,
                            const QString &translatedText) const;
     void startSubtitleSegment(const QString &sourceText) const;
@@ -67,10 +56,6 @@ private:
     void handleDispatchCandidate(const OcrSubtitleFilter::Decision &decision, float confidence);
     void flushPendingIncompleteSubtitle();
     static bool isIncompleteSubtitlePhrase(const QString &text);
-    Qt::Edges hitTestEdges(const QPoint &localPos) const;
-    void updateCursorForPosition(const QPoint &localPos);
-    void applyResize(const QPoint &globalPos);
-    QRect computeCaptureZone() const;
 
     // Translation display queue
     struct TranslationEntry {
@@ -82,7 +67,11 @@ private:
     void tickDisplayQueue();
     void showTranslationEntry(const TranslationEntry &entry);
     int  computeDisplayDurationMs(const QString &text) const;
-    QLabel *subtitleLabel_ = nullptr;
+
+    CaptureZoneWidget *captureZone_ = nullptr;
+    TranslationWidget *translation_ = nullptr;
+    QRect boundingBox_;
+
     QThread captureThread_;
     CaptureWorker *captureWorker_ = nullptr;
     QThread ocrThread_;
@@ -95,14 +84,6 @@ private:
     int latestFrameRequestId_ = 0;
     int inFlightOcrRequestId_ = 0;
     bool ocrBusy_ = false;
-    bool dragging_ = false;
-    bool resizing_ = false;
-    Qt::Edges activeResizeEdges_ = Qt::Edges();
-    QRect initialGeometry_;
-    QPoint initialMouseGlobalPos_;
-    QPoint dragOffset_;
-    ResultPosition resultPosition_ = ResultPosition::BelowSource;
-    const int resizeMarginPx_ = 10;
     int minOcrLength_ = tuning::kMinOcrLength;
     int minCandidateStableMs_ = tuning::kMinCandidateStableMs;
     OcrSubtitleFilter ocrSubtitleFilter_;

@@ -1,21 +1,18 @@
 #include "overlay_window.h"
 
 #include <algorithm>
-#include <cstdlib>
 
-#include <QAction>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
-#include <QFontMetrics>
-#include <QKeySequence>
-#include <QLabel>
-#include <QMenu>
+#include <QGuiApplication>
 #include <QMetaObject>
-#include <QMouseEvent>
-#include <QPainter>
-#include <QShortcut>
-#include <QTextStream>
+#include <QScreen>
+#include <QSettings>
+
+#include "capture_zone_widget.h"
+#include "overlay_frame.h"
+#include "translation_widget.h"
 
 namespace
 {
@@ -40,21 +37,30 @@ QString joinSubtitleFragments(const QString &left, const QString &right)
     return merged + next;
 }
 
+QRect defaultCaptureGeometry()
+{
+    const QScreen *screen = QGuiApplication::primaryScreen();
+    const QRect avail = screen ? screen->availableGeometry() : QRect(0, 0, 1920, 1080);
+    const int w = std::min(900, avail.width() - 40);
+    const int h = 120;
+    const int x = avail.x() + (avail.width() - w) / 2;
+    const int y = avail.y() + static_cast<int>(avail.height() * 0.78);
+    return QRect(x, y, w, h);
+}
+
+QRect defaultTranslationGeometry()
+{
+    const QRect cap = defaultCaptureGeometry();
+    return QRect(cap.x(), cap.bottom() + 12, cap.width(), 90);
+}
+
 } // namespace
 
-OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
+OverlayWindow::OverlayWindow(QObject *parent) : QObject(parent)
 {
     qRegisterMetaType<cv::Mat>("cv::Mat");
 
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
-    setAttribute(Qt::WA_TranslucentBackground, true);
-    setMouseTracking(true);
-    setMinimumSize(500, 120);
-    resize(1200, 200);
-
-    setupUi();
-    setupHotkeys();
-    move(400, 850);
+    setupWidgets();
 
     const QString logDir = QDir::cleanPath(
         QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("../logs")));
@@ -73,7 +79,7 @@ OverlayWindow::OverlayWindow(QWidget *parent) : QWidget(parent)
     QMetaObject::invokeMethod(subtitleLogger_, "initialize", Qt::BlockingQueuedConnection);
     appendSubtitleLog(QStringLiteral("SESSION_START"), QString(), QString());
 
-    captureWorker_ = new CaptureWorker(computeCaptureZone());
+    captureWorker_ = new CaptureWorker(captureZone_->captureRect());
     captureWorker_->moveToThread(&captureThread_);
     ocrWorker_ = new OcrWorker();
     ocrWorker_->moveToThread(&ocrThread_);
@@ -115,90 +121,73 @@ OverlayWindow::~OverlayWindow()
     }
     loggerThread_.quit();
     loggerThread_.wait();
+
+    delete captureZone_;
+    delete translation_;
 }
 
-void OverlayWindow::paintEvent(QPaintEvent *event)
+void OverlayWindow::setupWidgets()
 {
-    QWidget::paintEvent(event);
+    captureZone_ = new CaptureZoneWidget();
+    translation_ = new TranslationWidget();
 
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(QColor(100, 100, 0, 50), 2, Qt::DashLine));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 8, 8);
+    restoreWidgetGeometry();
 
-    const QRect scanZone = localScanZoneRect();
-    painter.setPen(QPen(QColor(255, 180, 0, 50), 1, Qt::DashLine));
-    painter.drawRect(scanZone);
+    connect(captureZone_, &OverlayFrame::geometryChanged, this, &OverlayWindow::onZoneGeometryChanged);
+    connect(translation_, &OverlayFrame::geometryChanged, this, &OverlayWindow::onZoneGeometryChanged);
+
+    recomputeBoundingBox();
+
+    captureZone_->show();
+    translation_->show();
 }
 
-void OverlayWindow::moveEvent(QMoveEvent *event)
+void OverlayWindow::restoreWidgetGeometry()
 {
-    QWidget::moveEvent(event);
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("overlay"));
+    captureZone_->setGeometry(
+        settings.value(QStringLiteral("captureZone"), defaultCaptureGeometry()).toRect());
+    translation_->setGeometry(
+        settings.value(QStringLiteral("translation"), defaultTranslationGeometry()).toRect());
+    settings.endGroup();
+}
+
+void OverlayWindow::saveWidgetGeometry() const
+{
+    if (!captureZone_ || !translation_) {
+        return;
+    }
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("overlay"));
+    settings.setValue(QStringLiteral("captureZone"), captureZone_->geometry());
+    settings.setValue(QStringLiteral("translation"), translation_->geometry());
+    settings.endGroup();
+}
+
+void OverlayWindow::onZoneGeometryChanged()
+{
     updateWorkerScanZone();
+    recomputeBoundingBox();
+    saveWidgetGeometry();
 }
 
-void OverlayWindow::resizeEvent(QResizeEvent *event)
+void OverlayWindow::recomputeBoundingBox()
 {
-    QWidget::resizeEvent(event);
-    updateSubtitleLayout();
-    updateWorkerScanZone();
-}
-
-void OverlayWindow::mousePressEvent(QMouseEvent *event)
-{
-    if (event->button() == Qt::RightButton) {
-        showPositionMenu(event->globalPosition().toPoint());
-        event->accept();
+    if (!captureZone_ || !translation_) {
         return;
     }
-
-    if (event->button() == Qt::LeftButton) {
-        activeResizeEdges_ = hitTestEdges(event->position().toPoint());
-        initialGeometry_ = geometry();
-        initialMouseGlobalPos_ = event->globalPosition().toPoint();
-
-        if (activeResizeEdges_ != Qt::Edges()) {
-            resizing_ = true;
-        } else {
-            dragging_ = true;
-            dragOffset_ = event->globalPosition().toPoint() - frameGeometry().topLeft();
-        }
-        event->accept();
+    // The "tool window" is purely the logical bounding box that encloses both
+    // independent overlay windows; it is recomputed whenever either one moves.
+    const QRect box = captureZone_->geometry().united(translation_->geometry());
+    if (box == boundingBox_) {
         return;
     }
-    QWidget::mousePressEvent(event);
-}
-
-void OverlayWindow::mouseMoveEvent(QMouseEvent *event)
-{
-    if (resizing_ && (event->buttons() & Qt::LeftButton)) {
-        applyResize(event->globalPosition().toPoint());
-        event->accept();
-        return;
-    }
-
-    if (dragging_ && (event->buttons() & Qt::LeftButton)) {
-        move(event->globalPosition().toPoint() - dragOffset_);
-        event->accept();
-        return;
-    }
-
-    updateCursorForPosition(event->position().toPoint());
-    QWidget::mouseMoveEvent(event);
-}
-
-void OverlayWindow::mouseReleaseEvent(QMouseEvent *event)
-{
-    if (event->button() == Qt::LeftButton) {
-        dragging_ = false;
-        resizing_ = false;
-        activeResizeEdges_ = Qt::Edges();
-        unsetCursor();
-        event->accept();
-        return;
-    }
-    QWidget::mouseReleaseEvent(event);
+    boundingBox_ = box;
+    appendSubtitleLog(QStringLiteral("BOUNDING_BOX"),
+                      QStringLiteral("%1,%2 %3x%4")
+                          .arg(box.x()).arg(box.y()).arg(box.width()).arg(box.height()),
+                      QString());
 }
 
 void OverlayWindow::onImageProcessed(const cv::Mat &processedImg)
@@ -413,245 +402,19 @@ void OverlayWindow::onTranslationError(const QString &error)
     appendSubtitleLog(QStringLiteral("TRANSLATE_ERROR"), lastOcrText_, error);
 }
 
-void OverlayWindow::setupUi()
-{
-    subtitleLabel_ = new QLabel(
-        QStringLiteral("Right-click: options | Alt+T Toggle position"),
-        this);
-    subtitleLabel_->setAlignment(Qt::AlignCenter);
-    subtitleLabel_->setWordWrap(true);
-    subtitleLabel_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-    subtitleLabel_->setStyleSheet("QLabel {"
-                                  "background-color: rgba(0, 0, 0, 165);"
-                                  "color: rgb(0, 255, 100);"
-                                  "font-size: 30px;"
-                                  "font-weight: 700;"
-                                  "border-radius: 10px;"
-                                  "padding: 12px 16px;"
-                                  "}");
-    updateSubtitleLayout();
-}
-
-void OverlayWindow::setupHotkeys()
-{
-    auto *positionToggleShortcut = new QShortcut(QKeySequence(QStringLiteral("Alt+T")), this);
-
-    connect(positionToggleShortcut, &QShortcut::activated, this, [this]() {
-        resultPosition_ = (resultPosition_ == ResultPosition::AboveSource)
-                              ? ResultPosition::BelowSource
-                              : ResultPosition::AboveSource;
-        updateSubtitleLayout();
-        updateWorkerScanZone();
-        appendSubtitleLog(QStringLiteral("POSITION_TOGGLED"), QStringLiteral("hotkey"),
-                          resultPosition_ == ResultPosition::AboveSource ? QStringLiteral("Above")
-                                                                         : QStringLiteral("Below"));
-    });
-}
-
 void OverlayWindow::updateWorkerScanZone()
 {
-    if (!captureWorker_) {
+    if (!captureWorker_ || !captureZone_) {
         return;
     }
 
-    const QRect newZone = computeCaptureZone();
+    const QRect newZone = captureZone_->captureRect();
     if (newZone == lastSentScanZone_) {
         return;
     }
     lastSentScanZone_ = newZone;
     QMetaObject::invokeMethod(captureWorker_, "setScanZone", Qt::QueuedConnection,
                               Q_ARG(QRect, newZone));
-    update();
-}
-
-void OverlayWindow::updateSubtitleLayout()
-{
-    if (!subtitleLabel_) {
-        return;
-    }
-
-    const int outerMargin = 12;
-    const int bubblePaddingH = 32;
-    const int bubblePaddingV = 20;
-    const int maxWidth = static_cast<int>(width() - outerMargin * 2 - 8);
-    const int maxHeight = static_cast<int>(height() * 0.42);
-
-    const QString text =
-        subtitleLabel_->text().isEmpty() ? QStringLiteral("...") : subtitleLabel_->text();
-
-    const QFontMetrics fm(subtitleLabel_->font());
-    const int candidateWidth =
-        std::max(120, static_cast<int>(text.size()) * std::max(10, fm.averageCharWidth()));
-    const int bubbleWidth = std::clamp(candidateWidth + bubblePaddingH, 180, maxWidth);
-
-    const QRect textRect = fm.boundingRect(QRect(0, 0, bubbleWidth - bubblePaddingH, 2000),
-                                           Qt::TextWordWrap | Qt::AlignCenter, text);
-    const int bubbleHeight = std::clamp(textRect.height() + bubblePaddingV, 46, maxHeight);
-
-    const QRect scanRect = localScanZoneRect();
-    const int x = (width() - bubbleWidth) / 2;
-    int y = outerMargin;
-
-    if (resultPosition_ == ResultPosition::AboveSource) {
-        y = std::max(outerMargin, scanRect.top() - bubbleHeight - 8);
-    } else {
-        y = height() - bubbleHeight - outerMargin;
-    }
-
-    subtitleLabel_->setGeometry(x, y, bubbleWidth, bubbleHeight);
-}
-
-QRect OverlayWindow::localScanZoneRect() const
-{
-    const int margin = 8;
-    const int gap = 8;
-    const int labelH = subtitleLabel_ ? subtitleLabel_->height() : 52;
-    const int left = margin;
-    const int widthLocal = std::max(50, width() - margin * 2);
-
-    int top = margin;
-    int heightLocal = height() - margin * 2;
-
-    if (resultPosition_ == ResultPosition::AboveSource) {
-        top = margin + labelH + gap;
-        heightLocal = height() - top - margin;
-    } else {
-        top = margin;
-        heightLocal = height() - margin * 2 - labelH - gap;
-    }
-
-    heightLocal = std::max(40, heightLocal);
-    return QRect(left, top, widthLocal, heightLocal);
-}
-
-void OverlayWindow::showPositionMenu(const QPoint &globalPos)
-{
-    QMenu menu(this);
-    QMenu *positionMenu = menu.addMenu(QStringLiteral("Translation Position"));
-    QAction *aboveAction =
-        positionMenu->addAction(QStringLiteral("Show Translation Above Source Subtitle"));
-    aboveAction->setCheckable(true);
-    aboveAction->setChecked(resultPosition_ == ResultPosition::AboveSource);
-
-    QAction *belowAction =
-        positionMenu->addAction(QStringLiteral("Show Translation Below Source Subtitle"));
-    belowAction->setCheckable(true);
-    belowAction->setChecked(resultPosition_ == ResultPosition::BelowSource);
-
-    menu.addSeparator();
-    QAction *togglePositionAction = menu.addAction(QStringLiteral("Toggle Position (Alt+T)"));
-
-    QAction *picked = menu.exec(globalPos);
-    if (picked == nullptr) {
-        return;
-    }
-
-    if (picked == aboveAction) {
-        resultPosition_ = ResultPosition::AboveSource;
-        updateSubtitleLayout();
-        updateWorkerScanZone();
-        appendSubtitleLog(QStringLiteral("POSITION_CHANGED"), QStringLiteral("menu"),
-                          QStringLiteral("Above"));
-    } else if (picked == belowAction) {
-        resultPosition_ = ResultPosition::BelowSource;
-        updateSubtitleLayout();
-        updateWorkerScanZone();
-        appendSubtitleLog(QStringLiteral("POSITION_CHANGED"), QStringLiteral("menu"),
-                          QStringLiteral("Below"));
-    } else if (picked == togglePositionAction) {
-        resultPosition_ = (resultPosition_ == ResultPosition::AboveSource)
-                              ? ResultPosition::BelowSource
-                              : ResultPosition::AboveSource;
-        updateSubtitleLayout();
-        updateWorkerScanZone();
-        appendSubtitleLog(QStringLiteral("POSITION_CHANGED"), QStringLiteral("menu-toggle"),
-                          resultPosition_ == ResultPosition::AboveSource ? QStringLiteral("Above")
-                                                                         : QStringLiteral("Below"));
-    }
-}
-
-Qt::Edges OverlayWindow::hitTestEdges(const QPoint &localPos) const
-{
-    Qt::Edges edges;
-    if (localPos.x() <= resizeMarginPx_) {
-        edges |= Qt::LeftEdge;
-    }
-    if (localPos.x() >= width() - resizeMarginPx_) {
-        edges |= Qt::RightEdge;
-    }
-    if (localPos.y() <= resizeMarginPx_) {
-        edges |= Qt::TopEdge;
-    }
-    if (localPos.y() >= height() - resizeMarginPx_) {
-        edges |= Qt::BottomEdge;
-    }
-    return edges;
-}
-
-void OverlayWindow::updateCursorForPosition(const QPoint &localPos)
-{
-    const Qt::Edges edges = hitTestEdges(localPos);
-    if ((edges & Qt::TopEdge && edges & Qt::LeftEdge) ||
-        (edges & Qt::BottomEdge && edges & Qt::RightEdge)) {
-        setCursor(Qt::SizeFDiagCursor);
-    } else if ((edges & Qt::TopEdge && edges & Qt::RightEdge) ||
-               (edges & Qt::BottomEdge && edges & Qt::LeftEdge)) {
-        setCursor(Qt::SizeBDiagCursor);
-    } else if (edges & (Qt::LeftEdge | Qt::RightEdge)) {
-        setCursor(Qt::SizeHorCursor);
-    } else if (edges & (Qt::TopEdge | Qt::BottomEdge)) {
-        setCursor(Qt::SizeVerCursor);
-    } else {
-        unsetCursor();
-    }
-}
-
-void OverlayWindow::applyResize(const QPoint &globalPos)
-{
-    QRect next = initialGeometry_;
-    const QPoint delta = globalPos - initialMouseGlobalPos_;
-
-    if (activeResizeEdges_ & Qt::LeftEdge) {
-        next.setLeft(next.left() + delta.x());
-    }
-    if (activeResizeEdges_ & Qt::RightEdge) {
-        next.setRight(next.right() + delta.x());
-    }
-    if (activeResizeEdges_ & Qt::TopEdge) {
-        next.setTop(next.top() + delta.y());
-    }
-    if (activeResizeEdges_ & Qt::BottomEdge) {
-        next.setBottom(next.bottom() + delta.y());
-    }
-
-    if (next.width() < minimumWidth()) {
-        if (activeResizeEdges_ & Qt::LeftEdge) {
-            next.setLeft(next.right() - minimumWidth());
-        } else {
-            next.setWidth(minimumWidth());
-        }
-    }
-
-    if (next.height() < minimumHeight()) {
-        if (activeResizeEdges_ & Qt::TopEdge) {
-            next.setTop(next.bottom() - minimumHeight());
-        } else {
-            next.setHeight(minimumHeight());
-        }
-    }
-
-    setGeometry(next);
-}
-
-QRect OverlayWindow::computeCaptureZone() const
-{
-    const QRect full = frameGeometry();
-    const QRect localZone = localScanZoneRect();
-    const int zoneX = full.x() + localZone.x();
-    const int zoneY = full.y() + localZone.y();
-    const int zoneW = localZone.width();
-    const int zoneH = localZone.height();
-    return QRect(zoneX, zoneY, zoneW, zoneH);
 }
 
 void OverlayWindow::appendSubtitleLog(const QString &status, const QString &sourceText,
@@ -777,8 +540,8 @@ void OverlayWindow::tickDisplayQueue()
         showTranslationEntry(translationQueue_.dequeue());
     } else if (!subtitleVisible_) {
         // Queue is drained and the source subtitle has disappeared — clear the overlay.
-        if (!subtitleLabel_->text().isEmpty()) {
-            subtitleLabel_->clear();
+        if (translation_ && !translation_->text().isEmpty()) {
+            translation_->clear();
             appendSubtitleLog(QStringLiteral("DISPLAY_CLEARED"), QString(), QString());
         }
     }
@@ -793,9 +556,9 @@ void OverlayWindow::showTranslationEntry(const TranslationEntry &entry)
     currentDisplayTimer_.restart();
     displayingTranslation_    = true;
 
-    subtitleLabel_->setText(entry.translatedText);
-    updateSubtitleLayout();
-    updateWorkerScanZone();
+    if (translation_) {
+        translation_->setText(entry.translatedText);
+    }
 
     // appendSubtitleLog(QStringLiteral("DISPLAY_SHOW"), entry.sourceText,
     //                   entry.translatedText + QString(" dur=%1ms").arg(currentDisplayDurationMs_));

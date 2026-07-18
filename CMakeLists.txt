@@ -57,6 +57,9 @@ add_executable(ScreenSubTranslator
 	src/ocr_engine.cpp
 	src/ocr_subtitle_filter.cpp
 	src/ocr_worker.cpp
+	src/overlay_frame.cpp
+	src/capture_zone_widget.cpp
+	src/translation_widget.cpp
 	src/overlay_window.cpp
 	src/subtitle_logger.cpp
 	src/translate_client.cpp
