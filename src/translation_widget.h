@@ -1,15 +1,18 @@
 #pragma once
 
+#include <QColor>
 #include <QString>
 
 #include "overlay_frame.h"
 
 class QLabel;
+class QMenu;
 class QResizeEvent;
 
-// Independent, resizable window that displays the translated subtitle. The
-// bubble fills the whole window; text word-wraps within the user-chosen size
-// instead of auto-sizing to the text length.
+// Independent, resizable window that displays the translated subtitle. The whole
+// window is transparent; only a small panel sized to the current text is drawn
+// behind it for contrast, so empty or short lines don't cover the movie. The
+// text colour is user-selectable and persisted.
 class TranslationWidget : public OverlayFrame
 {
     Q_OBJECT
@@ -21,13 +24,22 @@ public:
     QString text() const;
     void clear();
 
+    void setTextColor(const QColor &color);
+    QColor textColor() const { return textColor_; }
+
 protected:
     void resizeEvent(QResizeEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
+    void buildContextMenu(QMenu &menu) override;
 
 private:
+    void applyLabelStyle();
+    void updateLabelLayout();
+    void saveTextColor() const;
+
     QLabel *label_ = nullptr;
+    QColor textColor_;
     bool hovered_ = false;
 };

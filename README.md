@@ -40,7 +40,7 @@ src/
   overlay_window.{h,cpp}              Controller: worker coordination, display queue, owns the two overlay windows
   overlay_frame.{h,cpp}              Base frameless overlay window: drag, edge-resize, right-click menu, geometry signal
   capture_zone_widget.{h,cpp}        Independent OCR capture window (transparent interior, corner/edge markers)
-  translation_widget.{h,cpp}         Independent translation window (translucent panel, shadowed green text)
+  translation_widget.{h,cpp}         Independent translation window (translucent panel, shadowed subtitle text)
   capture_worker.{h,cpp}             Screen capture thread, change/contrast gate, OCR preprocessing
   ocr_engine.{h,cpp}                 PaddleOCR ONNX Runtime inference (C++)
   ocr_worker.{h,cpp}                 OCR thread; runs the engine, feeds the subtitle filter
@@ -217,10 +217,10 @@ Longer terms are matched first. Restart the app after editing.
 ## Using the overlay
 
 1. Start the backend, then run `./ScreenSubTranslator` from `build/`.
-2. Two independent, frameless windows appear: the **OCR capture window** (faint orange corner/edge markers) and the **translation window** (translucent panel with green text). Drag or resize each from its edges; they can overlap.
+2. Two independent, frameless windows appear: the **OCR capture window** (faint orange corner/edge markers) and the **translation window** (fully transparent, with a dark panel drawn only behind the current text). Drag or resize each from its edges; they can overlap. Hover the translation window to see its resize outline.
 3. Position the capture window so it tightly covers **only** the subtitle text (avoid logos, player UI, black bars).
-4. Keep the video playing — Vietnamese lines appear in the translation window.
-5. **Right-click** either window for options, including **Quit** (there is no title bar). Window positions and sizes are remembered between runs.
+4. Keep the video playing — Vietnamese lines appear in the translation window; the background panel hugs the text and disappears when there is none.
+5. **Right-click** either window for options, including **Quit** (there is no title bar). Right-click the translation window → **Text color** to change the subtitle colour (presets or custom). Window positions, sizes, and text colour are remembered between runs.
 
 > Avoid overlapping the translation window onto the capture window: the screen grab would then capture the Vietnamese text and feed it back into OCR.
 
