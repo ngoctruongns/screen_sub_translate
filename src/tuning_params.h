@@ -73,6 +73,17 @@ namespace tuning
     inline constexpr int kSubtitleResendCooldownMs = 2200;  // Minimum time before resending the same subtitle.
     inline constexpr int kRecentSubtitleWindowSize = 4;     // Recent subtitle keys / translation history window for dedupe.
 
+    // Incomplete-subtitle hold (a line ending in a comma is held to be merged with its
+    // continuation). Only SHORT lead-in clauses (connectives / adverbials) really need
+    // merging; a long clause ending in a comma is already a self-contained unit and is
+    // dispatched immediately. This also stops a spurious trailing comma (OCR margin
+    // hallucination) on a long line from delaying translation.
+    // Hold on trailing comma only when the clause has at most this many Han chars.
+    inline constexpr int kMaxIncompleteHoldHanChars = 4;
+    // ...and only after the incomplete read is stable across at least this many frames,
+    // so a one-frame comma flicker never triggers a hold.
+    inline constexpr int kMinIncompleteHoldFrames = 2;
+
     // ─────────────────────────────────────────────────────────────────────────
     // 4. TRANSLATION — AI MODEL / BACKEND  — translate_client.cpp, translation_backend_adapter.cpp
     // ─────────────────────────────────────────────────────────────────────────

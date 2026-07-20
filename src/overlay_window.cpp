@@ -37,6 +37,20 @@ QString joinSubtitleFragments(const QString &left, const QString &right)
     return merged + next;
 }
 
+int hanContentCount(const QString &text)
+{
+    int count = 0;
+    for (const QChar ch : text) {
+        const ushort u = ch.unicode();
+        const bool isHan = (u >= 0x3400 && u <= 0x4DBF) || (u >= 0x4E00 && u <= 0x9FFF) ||
+                           (u >= 0xF900 && u <= 0xFAFF);
+        if (isHan) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 QRect defaultCaptureGeometry()
 {
     const QScreen *screen = QGuiApplication::primaryScreen();
@@ -279,7 +293,8 @@ void OverlayWindow::handleDispatchCandidate(const OcrSubtitleFilter::Decision &d
         pendingIncompleteSubtitleTimer_.invalidate();
     }
 
-    if (isIncompleteSubtitlePhrase(dispatchText)) {
+    if (isIncompleteSubtitlePhrase(dispatchText) &&
+        decision.seenFrames >= tuning::kMinIncompleteHoldFrames) {
         pendingIncompleteSubtitle_ = dispatchText;
         pendingIncompleteSubtitleTimer_.restart();
         appendSubtitleLog(QStringLiteral("OCR_HELD_INCOMPLETE"), dispatchText,
@@ -342,10 +357,16 @@ bool OverlayWindow::isIncompleteSubtitlePhrase(const QString &text)
         return false;
     }
 
+    // A trailing comma only signals "maybe continued" for a SHORT lead-in clause. A long
+    // clause ending in a comma already carries a full unit, so translate it now instead of
+    // waiting; this also avoids holding a long line whose trailing comma is an OCR margin
+    // hallucination.
     if (trimmed.endsWith(QChar(0xFF0C)) || trimmed.endsWith(QChar(',')) || trimmed.endsWith(QChar(0x3001))) {
-        return true;
+        return hanContentCount(trimmed) <= tuning::kMaxIncompleteHoldHanChars;
     }
 
+    // Grammatical mid-phrase suffixes are held regardless of length: the clause is cut
+    // mid-construction and cannot be translated correctly on its own.
     static const QStringList kIncompleteSuffixes = {
         QStringLiteral("当作一"),
         QStringLiteral("作为一"),
