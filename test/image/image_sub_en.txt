@@ -17,13 +17,13 @@
 #
 # Replace the placeholder lines below with your 10 real images.
 
-- image_en1:
-- image_en2:
-- image_en3:
-- image_en4:
-- image_en5:
-- image_en6:
-- image_en7:
-- image_en8:
-- image_en9:
-- image_en10:
+- image_en1: You hear that?
+- image_en2: The lush hawthorn trees
+- image_en3: Do you want more?
+- image_en4: that's all we can get for now
+- image_en5: You never expect it.
+- image_en6: the sides of Huaihe River are the richest.
+- image_en7: You know the situation now.
+- image_en8: We're trying to deal with them all.
+- image_en9: For the sake of our country's security,
+- image_en10: we have to give it further thought.
