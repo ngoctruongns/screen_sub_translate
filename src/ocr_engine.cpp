@@ -12,6 +12,7 @@
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
+#include <QStringList>
 #include <QTextStream>
 
 #include <opencv2/core.hpp>
@@ -208,6 +209,7 @@ bool OcrEngine::setLanguage(SourceLanguage language)
 bool OcrEngine::loadModel(const tuning::LanguageProfile &profile)
 {
     initialized_ = false;
+    classCountChecked_ = false;
     session_.reset();
     inputNames_.clear();
     outputNames_.clear();
@@ -301,17 +303,30 @@ bool OcrEngine::loadCharset(const QString &charsetPath)
 
     while (!in.atEnd())
     {
-        const QString line = in.readLine().trimmed();
-        if (!line.isEmpty())
+        // Only the line terminator is stripped, never surrounding whitespace: a dictionary
+        // entry can legitimately BE a space character, and trimming it away would erase the
+        // entry and shift every later class index by one.
+        QString line = in.readLine();
+        while (line.endsWith(QLatin1Char('\r')) || line.endsWith(QLatin1Char('\n')))
         {
-            charset_.push_back(toUtf8(line));
+            line.chop(1);
         }
+        charset_.push_back(toUtf8(line));
     }
 
-    return charset_.size() > 1;
+    // PaddleOCR builds its class list as ['blank'] + <dictionary lines> + [' '] whenever the
+    // model was trained with use_space_char: true — which both the Chinese and the English
+    // PP-OCRv4/v5 recognition models are. The space is NOT a line in the dictionary file; it
+    // is appended after it. Without this the final class index has no mapping, decodeCtc's
+    // bounds check drops it, and every space silently disappears from the output. That went
+    // unnoticed for Chinese only because normalizeHanText() strips all whitespace anyway.
+    charset_.push_back(" ");
+
+    return charset_.size() > 2;
 }
 
-QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, float *outConfidence) const
+QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, float *outConfidence,
+                             QString *outPerCharacter) const
 {
     if (outConfidence != nullptr)
     {
@@ -393,6 +408,28 @@ QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, fl
     {
         out += pieces[i];
         confidenceSum += confs[i];
+    }
+
+    // Every decoded character with its score, including the ones the edge gate removed
+    // (marked with a leading '~'). Reading this is how edgeMinConfidence gets chosen from
+    // data instead of guessed: a hallucinated edge character scores visibly below the rest.
+    if (outPerCharacter != nullptr)
+    {
+        QStringList parts;
+        parts.reserve(static_cast<int>(pieces.size()));
+        for (int i = 0; i < static_cast<int>(pieces.size()); ++i)
+        {
+            QString glyph = QString::fromUtf8(pieces[i].c_str());
+            if (glyph == QStringLiteral(" "))
+            {
+                glyph = QStringLiteral("space");
+            }
+            parts.append(QStringLiteral("%1[%2]%3")
+                             .arg(i >= lo && i < hi ? QString() : QStringLiteral("~"),
+                                  glyph,
+                                  QString::number(confs[i], 'f', 2)));
+        }
+        *outPerCharacter = parts.join(QLatin1Char(' '));
     }
 
     const int emittedChars = hi - lo;
@@ -561,9 +598,29 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
         const int classes = static_cast<int>(dims[dims.size() - 1]);
         const float *logits = outputTensors[0].GetTensorData<float>();
 
+        // One-time sanity check. Decoding maps a class index straight to charset_[index], so
+        // a charset that does not match the model produces silent corruption rather than an
+        // error: indices past the end are dropped, and a missing entry shifts every later
+        // character. Report the mismatch once instead of leaving it to be inferred from
+        // garbled output.
+        if (!classCountChecked_)
+        {
+            classCountChecked_ = true;
+            if (classes != static_cast<int>(charset_.size()))
+            {
+                qWarning() << "OcrEngine: charset/model mismatch —" << profile_->charsetPath
+                           << "gives" << charset_.size() << "classes but the model outputs"
+                           << classes
+                           << ". Characters will be dropped or shifted. Check that the .onnx"
+                           << "and the dictionary are the matched pair for this language.";
+            }
+        }
+
         float confidence = 0.0f;
-        const QString decoded = decodeCtc(logits, timeSteps, classes, &confidence);
-        return {normalizeRecognizedText(decoded), confidence};
+        QString perCharacter;
+        const QString decoded = decodeCtc(logits, timeSteps, classes, &confidence,
+                                          perCharacterDebug_ ? &perCharacter : nullptr);
+        return {normalizeRecognizedText(decoded), confidence, perCharacter};
     }
     catch (const std::exception &e)
     {

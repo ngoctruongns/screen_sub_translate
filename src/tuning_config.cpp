@@ -364,13 +364,14 @@ LanguageProfile defaultChineseProfile()
 //   - inputWidth is much larger than the Chinese one: an English subtitle line runs 3–4x
 //     more characters than its Han equivalent, and squashing it into 480px destroys the
 //     thin strokes that separate similar glyphs.
-//   - The confidence gates sit differently from Chinese: with only ~96 classes the softmax
-//     is far less diluted, so genuine reads score higher — but so does noise, hence the
-//     higher floor. The edge gate is looser because narrow legitimate glyphs ('I', 'l', '.')
-//     score lower than any Han glyph does.
-//
-// The confidence numbers below are STARTING POINTS, not measured values — tune them on real
-// footage with OcrBatchEval before trusting them.
+//   - minOcrConfidence sits higher than Chinese: with only ~96 classes the softmax is far
+//     less diluted, so genuine reads score higher — but so does noise.
+//   - edgeMinConfidence is DISABLED (0). The Chinese value exists to cut one specific
+//     artifact: a dark margin in the crop decodes as a stray glyph (typically 嶺) scoring
+//     far below the ~0.98 of a real Han character. English has no equivalent margin
+//     artifact, and narrow but legitimate glyphs ("t", "'", ",", "l") score low enough to
+//     be trimmed, which measurably cost real characters at both ends of the line on the
+//     first evaluation run. Raise it only if margin noise is actually observed.
 LanguageProfile defaultEnglishProfile()
 {
     LanguageProfile p;
@@ -378,7 +379,7 @@ LanguageProfile defaultEnglishProfile()
     p.charsetPath = QStringLiteral("../models/paddle/en_dict.txt");
     p.inputWidth = 800;
     p.minOcrConfidence = 0.60f;
-    p.edgeMinConfidence = 0.70f;
+    p.edgeMinConfidence = 0.0f;
 
     p.minContentUnits = 1;
     p.veryShortCandidateChars = 3;

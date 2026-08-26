@@ -130,7 +130,10 @@
   "english": {
     "_doc": [
       "English source pipeline. 'Source units' = whitespace-delimited words, NOT characters.",
-      "The confidence values here are STARTING POINTS, not measured — tune them with OcrBatchEval en.",
+      "minOcrConfidence here is a STARTING POINT, not measured — tune it with OcrBatchEval en.",
+      "edgeMinConfidence is 0 (off) on purpose: the Chinese value exists to cut dark-margin glyphs,",
+      "which English does not produce, while narrow legitimate glyphs (t, apostrophe, comma) score low",
+      "enough to be trimmed and cost real characters at the ends of the line. Raise only if needed.",
       "inputWidth is 800 vs Chinese 480: an English line runs 3-4x more characters. If ONNX Runtime",
       "rejects the input shape at startup, lower it (the export must support dynamic width).",
       "The candidate-length thresholds are in CHARACTERS and are ~3x the Chinese ones for the same reason.",
@@ -141,7 +144,7 @@
     "charsetPath": "../models/paddle/en_dict.txt",
     "inputWidth": 800,
     "minOcrConfidence": 0.60,
-    "edgeMinConfidence": 0.70,
+    "edgeMinConfidence": 0.0,
 
     "minContentUnits": 1,
     "veryShortCandidateChars": 3,

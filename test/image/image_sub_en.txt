@@ -3,9 +3,10 @@
 # Format — one line per image, exactly as in image_sub.txt:
 #     - <imageId>: <the exact text visible in the image>
 #
-# <imageId> is the PNG filename WITHOUT the extension, read from test/image/<imageId>.png.
-# Any id works; the ids below are only a suggestion. Lines that do not match the
-# "- <id>: <text>" shape are skipped, so these comments are ignored by the parser.
+# The id is the PNG filename WITHOUT the extension, read from test/image/<id>.png.
+# Any id works; the ids below are only a suggestion.
+#
+# Lines starting with '#' are comments, and blank lines are skipped.
 #
 # Transcribe EXACTLY what is on screen, including capitalisation and punctuation.
 # Comparison is case-insensitive and collapses runs of whitespace, but a wrong or missing
@@ -15,12 +16,11 @@
 # Run:  cd build && ./OcrBatchEval en
 # Report: logs/ocr_eval_en.txt
 #
-# Replace the placeholder lines below with your 10 real images.
 
 - image_en1: You hear that?
 - image_en2: The lush hawthorn trees
 - image_en3: Do you want more?
-- image_en4: that's all we can get for now
+- image_en4: that's all we can get for now.
 - image_en5: You never expect it.
 - image_en6: the sides of Huaihe River are the richest.
 - image_en7: You know the situation now.

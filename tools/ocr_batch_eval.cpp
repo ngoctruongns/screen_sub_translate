@@ -40,6 +40,14 @@ std::map<std::string, QString> loadExpected(const std::string &filePath)
             continue;
         }
 
+        // Comment lines are skipped explicitly. Without this, a comment that happens to
+        // contain "- " and ":" — which any line documenting the "- <id>: <text>" format
+        // does — is parsed as a real entry and the tool goes looking for <id>.png.
+        const std::size_t firstNonSpace = line.find_first_not_of(" \t");
+        if (firstNonSpace == std::string::npos || line[firstNonSpace] == '#') {
+            continue;
+        }
+
         const std::size_t dashPos = line.find("- ");
         const std::size_t colonPos = line.find(':');
         if (dashPos == std::string::npos || colonPos == std::string::npos || colonPos <= dashPos + 2) {
@@ -141,6 +149,7 @@ int main(int argc, char *argv[])
     }
 
     OcrEngine engine(language);
+    engine.setPerCharacterDebug(true); // Offline tool: the breakdown is the point of it.
     if (!engine.isReady()) {
         std::cerr << "OCR engine is not ready for "
                   << sourcelang::displayName(language).toStdString()
@@ -212,6 +221,7 @@ int main(int argc, char *argv[])
                << "\n  match: " << (ocrOk ? "YES" : "NO")
                << "\n  confidence: " << result.confidence
                << (wouldPassGate ? "" : "  <-- below minOcrConfidence, dropped at runtime")
+               << "\n  per-char: " << result.perCharacterDebug.toStdString()
                << "\n  prepared: " << preparedPath << "\n\n";
     }
 
@@ -226,12 +236,15 @@ int main(int argc, char *argv[])
     // The usable window for minOcrConfidence: above every wrong read, below every correct
     // one. When it is empty, confidence alone cannot separate them on this image set.
     if (ocrExact > 0 && ocrExact < total) {
-        std::cout << "=> set english/chinese minOcrConfidence between "
-                  << highestWrongConfidence << " and " << lowestCorrectConfidence
-                  << (highestWrongConfidence >= lowestCorrectConfidence
-                          ? "  (NO clean split — confidence alone cannot separate these)"
-                          : "")
-                  << '\n';
+        if (highestWrongConfidence < lowestCorrectConfidence) {
+            std::cout << "=> set minOcrConfidence between " << highestWrongConfidence
+                      << " and " << lowestCorrectConfidence << '\n';
+        } else {
+            std::cout << "=> NO clean split: a wrong read scores " << highestWrongConfidence
+                      << " while a correct one scores only " << lowestCorrectConfidence
+                      << ".\n   No threshold separates them — the fix has to come from the crop,"
+                         " inputWidth, or a better model.\n";
+        }
     }
     std::cout << "Saved preprocessed images to: " << outputDir << '\n';
     std::cout << "Saved OCR report to: " << reportPath << '\n';

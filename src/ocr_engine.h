@@ -20,6 +20,10 @@ public:
     {
         QString text;
         float confidence = 0.0f; // Mean per-character max-softmax probability (0..1).
+        // Per-character breakdown, only filled when setPerCharacterDebug(true). This is the
+        // data needed to choose edgeMinConfidence: it shows what each decoded character
+        // scored, so a hallucinated edge character can be told apart from a real one.
+        QString perCharacterDebug;
     };
 
     explicit OcrEngine(SourceLanguage language = sourcelang::kDefault);
@@ -35,9 +39,14 @@ public:
     OcrResult performOcr(const cv::Mat &inputImg);
     bool isReady() const;
 
+    // Off by default: the breakdown allocates per recognition, which is wasted work in the
+    // live pipeline. The offline evaluator turns it on.
+    void setPerCharacterDebug(bool enabled) { perCharacterDebug_ = enabled; }
+
 private:
     bool loadModel(const tuning::LanguageProfile &profile);
-    QString decodeCtc(const float *logits, int timeSteps, int classes, float *outConfidence) const;
+    QString decodeCtc(const float *logits, int timeSteps, int classes, float *outConfidence,
+                      QString *outPerCharacter) const;
     bool loadCharset(const QString &charsetPath);
 
     // Post-decode cleanup of a raw recognition. The two languages need genuinely
@@ -63,6 +72,11 @@ private:
     std::vector<const char *> inputNames_;
     std::vector<const char *> outputNames_;
     std::vector<std::string> charset_;
+
+    // Set after the first inference of a model, so the charset/class-count mismatch
+    // warning is emitted once per load rather than once per frame.
+    bool classCountChecked_ = false;
+    bool perCharacterDebug_ = false;
 
     // Reused buffers to reduce per-frame allocations in performOcr.
     cv::Mat resizedBuffer_;
