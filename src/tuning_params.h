@@ -80,17 +80,20 @@ namespace tuning
     // ─────────────────────────────────────────────────────────────────────────
     // Bootstrap paths. These are NOT part of config/tuning.json — they say where the other
     // config files live, so they have to be known before any config is read.
+    // config/ is flat: a file that serves one pipeline stage is named after that stage
+    // (translation_*.json); tuning.json is shared and is divided into per-stage sections
+    // instead.
     inline constexpr const char *kTuningConfigPath = "../config/tuning.json";
-    inline constexpr const char *kTranslateBackendConfigPath = "../translate/translation_backend.json";
+    inline constexpr const char *kTranslateBackendConfigPath = "../config/translation_backend.json";
 
-    // Backend defaults, overridable via translation_backend.json (not via tuning.json:
-    // these belong to the backend's own config file).
+    // Backend *connection* defaults, overridable via translation_backend.json. That file
+    // answers "which backend, where, and with which files"; every knob that shapes the
+    // OUTPUT lives in tuning.json instead, so there is exactly one place to tune.
     inline constexpr const char *kTranslateBaseUrl = "http://127.0.0.1:8080";
     inline constexpr const char *kTranslateModel = "";       // Optional. Empty => discover/use backend default when possible.
     inline constexpr const char *kTranslateApiMode = "auto"; // auto | llamacpp | openai | ollama
-    inline constexpr const char *kTranslateContextFilePath = "../translate/movie_context.txt";
-    inline constexpr const char *kTranslateGlossaryFilePath = "../translate/glossary.json";
-    inline constexpr const char *kTranslateGlossaryFilePathEn = "../translate/glossary_en.json";
+    inline constexpr const char *kTranslateGlossaryFilePath = "../config/translation_glossary_zh.json";
+    inline constexpr const char *kTranslateGlossaryFilePathEn = "../config/translation_glossary_en.json";
 
     // First-pass generation.
     inline double kTranslateTemperature = 0.01;   // Sampling temperature: 0.0 = greedy; keep <=0.1 for translation.
@@ -98,15 +101,25 @@ namespace tuning
     inline int kTranslateRequestTimeoutMs = 15000; // Abort a stalled request so a frozen backend can't wedge the pipeline.
     inline int kTranslationCacheSize = 96;        // LRU cache of successful translations keyed by source line.
 
-    // Prompt context and recent-dialogue history.
-    inline int kTranslatePromptContextMaxChars = 900; // Max chars loaded from movie_context.txt.
-    inline int kTranslateHistoryWindowSize = 2;       // Number of recent source lines injected as context.
+    // First-pass sampling filters, applied in order (topK -> topP -> minP).
+    inline int kTranslateTopK = 20;               // Keep only the top-K most probable tokens. 0 = disabled.
+    inline double kTranslateTopP = 0.8;           // Nucleus sampling cutoff; 0.8–0.95 balances quality vs. determinism.
+    inline double kTranslateMinP = 0.1;           // Discard tokens with prob < minP x best_prob. 0.05–0.10 suppresses stray Han.
+
+    // Repetition control, applied over the last kTranslateRepeatLastN tokens.
+    inline double kTranslateRepeatPenalty = 1.05;   // Multiplier on tokens already seen. 1.0 = disabled.
+    inline double kTranslateFrequencyPenalty = 1.15; // Extra penalty scaling with occurrence count.
+    inline int kTranslateRepeatLastN = 128;          // Look-back window (tokens) for the repeat penalty.
+
+    // Ask the backend to cache the prompt prefix across calls (llama.cpp). Cuts latency
+    // because the rules block at the front of every prompt is identical.
+    inline bool kTranslateCachePrompt = true;
+
+    // Recent-dialogue history injected as prompt context.
+    inline int kTranslateHistoryWindowSize = 2;   // Number of recent source lines injected as context.
 
     // Single retry pass: if the first output fails quality checks, retry once.
     // Disabling drops bad responses outright — useful for latency testing but hurts translation quality.
-    // NOTE: kTranslateTemperature / kTranslateNumPredict / kTranslateRetryTemperature can ALSO be
-    // overridden by translation_backend.json (temperature / numPredict / retryTemperature), which is
-    // applied after tuning.json and therefore wins for those three fields.
     inline bool kEnableRetryPasses = true;
     inline double kTranslateRetryTemperature = 0.3; // Looser than first pass so retry can escape a degenerate first output.
     inline int kTranslateRetryTopK = 30;

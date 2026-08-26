@@ -1,0 +1,32 @@
+{
+  "_readme": [
+    "Backend CONNECTION config: which LLM backend, where it lives, and which data files to use.",
+    "",
+    "Everything that shapes the model's OUTPUT — temperature, numPredict, topK/topP/minP,",
+    "penalties, retry behaviour — lives in config/tuning.json (section 'translation'), so there",
+    "is exactly ONE file to tune. Leaving an old copy of those keys here does nothing; the app",
+    "warns about each one on startup.",
+    "",
+    "apiMode        : auto | llamacpp | openai | ollama.",
+    "                 auto: '/v1' -> openai, ':11434' or '/api' -> ollama, else llama.cpp '/completion'.",
+    "baseUrl        : backend base URL. Use '.../v1' for the OpenAI chat endpoint (recommended for",
+    "                 Qwen3, so the chat template applies).",
+    "model          : leave empty to auto-discover (openai/ollama). llama.cpp ignores it when only",
+    "                 one model is loaded.",
+    "sourceLanguage : language to read at startup, 'zh' or 'en'. Only a default — the language",
+    "                 picked from the capture window's right-click menu is remembered and wins.",
+    "glossaryFileZh : glossary used when the source is Chinese; glossaryFileEn when it is English.",
+    "                 The active one follows the selected source language."
+  ],
+
+  "apiMode": "openai",
+  "baseUrl": "http://127.0.0.1:8080/v1",
+  "model": "",
+  "autoDiscoverModel": true,
+  "modelDiscoveryTimeoutMs": 1200,
+
+  "sourceLanguage": "zh",
+
+  "glossaryFileZh": "../config/translation_glossary_zh.json",
+  "glossaryFileEn": "../config/translation_glossary_en.json"
+}

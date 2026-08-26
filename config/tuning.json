@@ -1,6 +1,7 @@
 {
   "_readme": [
-    "Runtime tuning parameters. Edit + restart the app — no rebuild needed.",
+    "Runtime tuning parameters, shared by the whole pipeline — hence the per-stage sections",
+    "below rather than one file per stage. Edit + restart the app; no rebuild needed.",
     "",
     "Everything here is OPTIONAL: delete any key, section, or the whole file and the built-in",
     "default from src/tuning_params.h applies instead. Keys starting with '_' are comments.",
@@ -11,9 +12,9 @@
     "The values below are the shipped defaults, written out in full so you can see the whole",
     "surface at once. Sections: capture, ocrEngine, filter, translation, display, chinese, english.",
     "",
-    "NOT here: backend URL, model, glossary and sampling overrides live in",
-    "translate/translation_backend.json. Where the two overlap (temperature, numPredict,",
-    "retryTemperature) the backend file is applied last and therefore wins."
+    "NOT here: which backend, where it lives, the glossary paths and the startup source",
+    "language — those are connection settings and live in config/translation_backend.json.",
+    "Nothing is duplicated between the two files."
   ],
 
   "capture": {
@@ -47,12 +48,32 @@
   },
 
   "translation": {
-    "_doc": "Prompt/retry behaviour. enableRetryPasses=false drops bad output outright instead of retrying — lower latency, worse quality. lineScoreMin gates candidate selection; raise it to reject weak Vietnamese lines.",
+    "_doc": [
+      "Generation, sampling and retry behaviour — every knob that shapes the model output.",
+      "temperature: 0.0 = greedy; keep <=0.1 for faithful subtitles.",
+      "numPredict: max new tokens per line (~64 covers most subtitles).",
+      "topK -> topP -> minP are applied in that order. minP 0.05-0.10 suppresses stray Han leaking into Vietnamese.",
+      "repeatPenalty/frequencyPenalty/repeatLastN control looping and repeated phrases.",
+      "cachePrompt: let the backend reuse the identical rules prefix across calls (llama.cpp); cuts latency.",
+      "enableRetryPasses=false drops bad output outright instead of retrying — lower latency, worse quality.",
+      "retry* values apply only to the single retry pass, deliberately looser so it can escape a degenerate first output.",
+      "lineScoreMin gates candidate selection; raise it to reject weak Vietnamese lines."
+    ],
     "temperature": 0.01,
     "numPredict": 64,
     "requestTimeoutMs": 15000,
     "cacheSize": 96,
-    "promptContextMaxChars": 900,
+
+    "topK": 20,
+    "topP": 0.8,
+    "minP": 0.1,
+
+    "repeatPenalty": 1.05,
+    "frequencyPenalty": 1.15,
+    "repeatLastN": 128,
+
+    "cachePrompt": true,
+
     "historyWindowSize": 2,
     "enableRetryPasses": true,
     "retryTemperature": 0.3,

@@ -1081,20 +1081,6 @@ AliasData loadAliasRules(const QString &path)
     return result;
 }
 
-QString loadPromptContext(const QString &path)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return {};
-    }
-
-    QString text = QString::fromUtf8(file.readAll()).trimmed();
-    if (text.size() > tuning::kTranslatePromptContextMaxChars) {
-        text = text.left(tuning::kTranslatePromptContextMaxChars).trimmed();
-    }
-    return text;
-}
-
 QString applyAliasNormalization(const QString &translatedText,
                                    const QVector<QPair<QString, QString>> &aliasPairs)
 {
@@ -1240,16 +1226,11 @@ QString retryRules(SourceLanguage language)
 
 // Translation prompt for LLM model, with context and recent dialogue history.
 QString translationPrompt(const QString &sourceText,
-                         const QString &contextBlock,
                          const QString &recentDialogueContext,
                          const QString &glossaryBlock,
                          SourceLanguage language)
 {
     QString prompt = firstPassRules(language);
-
-    if (!contextBlock.isEmpty()) {
-        prompt += QStringLiteral("\nMovie context provided by user:\n") + contextBlock + QStringLiteral("\n");
-    }
 
     if (!glossaryBlock.isEmpty()) {
         prompt += QStringLiteral(

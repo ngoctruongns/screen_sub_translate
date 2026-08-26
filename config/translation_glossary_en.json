@@ -1,6 +1,6 @@
 {
     "_note": [
-        "English -> Vietnamese glossary, the counterpart of glossary.json for the English source pipeline.",
+        "English -> Vietnamese glossary for the translation stage, counterpart of translation_glossary_zh.json.",
         "Matching is WHOLE-WORD and case-insensitive (unlike the Han glossary, which matches on substrings),",
         "so 'war' will not fire inside 'warm'. Only entries whose term appears in the current line are injected.",
         "Keep it lean — a capable model already handles ordinary English. Only add: (1) film-specific ranks,",

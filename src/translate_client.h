@@ -83,7 +83,6 @@ private:
     QString backendModel_;
     QString backendApiMode_;
     QString backendConfigPath_;
-    QString promptContextFilePath_;
     // Glossary file per source language; the active one is selected by sourceLanguage_.
     QString glossaryFilePathZh_;
     QString glossaryFilePathEn_;
@@ -91,18 +90,11 @@ private:
     SourceLanguage sourceLanguage_ = sourcelang::kDefault;
     SourceLanguage configuredSourceLanguage_ = sourcelang::kDefault;
     bool autoDiscoverModel_ = true;
-    bool cachePrompt_ = true;
-    int repeatLastN_ = 64;
     int modelDiscoveryTimeoutMs_ = 1200;
-    double repeatPenalty_ = 1.15;
-    double frequencyPenalty_ = 1.15;
-    double topP_ = 0.85;
-    double minP_ = 0.06;
-    int topK_ = 40;
-    double temperature_ = 0.01;       // First-pass temperature (from JSON config, default kTranslateTemperature).
-    int numPredict_ = 64;             // Max new tokens (from JSON config, default kTranslateNumPredict).
-    double retryTemperature_ = 0.3;   // Retry-pass temperature (from JSON config, default kTranslateRetryTemperature).
-    QString cachedContextBlock_;  // Loaded once at init, reused for prefix cache hit
+
+    // Sampling / penalty / token-budget knobs are NOT cached here: they live in
+    // config/tuning.json, are applied to the tuning:: globals at startup, and are read
+    // directly at request time. Caching them would add a second source of truth.
     QVector<QPair<QString, QString>> glossaryPairs_; // source term (Han or English) -> canonical Vietnamese term
     QVector<QPair<QString, QString>> aliasPairs_; // alias -> canonical Vietnamese name
     QVector<TranslationContextEntry> recentTranslationHistory_;

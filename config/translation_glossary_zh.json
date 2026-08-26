@@ -1,5 +1,6 @@
 {
     "_note": [
+        "Chinese -> Vietnamese glossary for the translation stage (see translation_glossary_en.json for English).",
         "Lean glossary for a strong multilingual model (e.g. Qwen3-8B) that already knows most Sino-Vietnamese readings.",
         "Keep only: (1) non-Sino-Vietnamese names (e.g. Japanese), (2) film-specific units/parties/campaigns needing a fixed Vietnamese form, (3) place/proper names the model was observed to mis-read or leave as pinyin.",
         "Do NOT re-add generic city/country/world-figure names — the model handles those. 'glossary' entries are injected per line; 'aliases' are output-side fixes (not sent to the model)."

@@ -55,23 +55,14 @@ void TranslateClient::initializeTranslationBackend()
     backendBaseUrl_ = runtimeConfig.baseUrl;
     backendModel_ = runtimeConfig.model;
     backendApiMode_ = runtimeConfig.apiMode;
-    promptContextFilePath_ = runtimeConfig.contextFilePath;
     glossaryFilePathZh_ = runtimeConfig.glossaryFilePath;
     glossaryFilePathEn_ = runtimeConfig.glossaryFilePathEn;
     configuredSourceLanguage_ = sourcelang::fromKey(runtimeConfig.sourceLanguage);
     sourceLanguage_ = configuredSourceLanguage_;
     autoDiscoverModel_ = runtimeConfig.autoDiscoverModel;
-    cachePrompt_ = runtimeConfig.cachePrompt;
-    repeatLastN_ = runtimeConfig.repeatLastN;
     modelDiscoveryTimeoutMs_ = runtimeConfig.modelDiscoveryTimeoutMs;
-    repeatPenalty_ = runtimeConfig.repeatPenalty;
-    frequencyPenalty_ = runtimeConfig.frequencyPenalty;
-    topP_ = runtimeConfig.topP;
-    minP_ = runtimeConfig.minP;
-    topK_ = runtimeConfig.topK;
-    temperature_ = runtimeConfig.temperature;
-    numPredict_ = runtimeConfig.numPredict;
-    retryTemperature_ = runtimeConfig.retryTemperature;
+    // Sampling, penalties and the token budget come from config/tuning.json (tuning::), not
+    // from the backend config, and are read at request time.
 
     const TranslationBackend::ApiMode mode =
         TranslationBackend::resolveApiMode(backendApiMode_, backendBaseUrl_);
@@ -87,14 +78,12 @@ void TranslateClient::initializeTranslationBackend()
     glossaryPairs_.clear();
     aliasPairs_.clear();
     if (localInitialized_) {
-        cachedContextBlock_ = TranslationTextProcessor::loadPromptContext(promptContextFilePath_);
         loadGlossaryForCurrentLanguage();
 
         qDebug() << "TranslateClient: local translation backend ready"
                  << "model=" << backendModel_ << "mode=" << TranslationBackend::apiModeName(mode)
                  << "url=" << TranslationBackend::endpointUrl(backendBaseUrl_, mode).toString()
                  << "config=" << backendConfigPath_
-                 << "context=" << promptContextFilePath_
                  << "sourceLanguage=" << sourcelang::displayName(sourceLanguage_);
     } else {
         qWarning() << "TranslateClient: translation backend config invalid"
@@ -292,7 +281,6 @@ void TranslateClient::startBackendRequest(const QString &sourceText)
     // lines remain enabled because they are line-specific and less prone to leakage.
     startBackendPromptRequest(sourceText,
                               TranslationTextProcessor::translationPrompt(sourceText,
-                                                                           QString(),
                                                                            dialogueContext,
                                                                            glossaryBlock,
                                                                            sourceLanguage_),
@@ -317,10 +305,10 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
         return;
     }
 
-    const double temperature = isRetryPass ? retryTemperature_ : temperature_;
-    const int topK = isRetryPass ? tuning::kTranslateRetryTopK : topK_;
-    const double topP = isRetryPass ? tuning::kTranslateRetryTopP : topP_;
-    const double minP = isRetryPass ? tuning::kTranslateRetryMinP : minP_;
+    const double temperature = isRetryPass ? tuning::kTranslateRetryTemperature : tuning::kTranslateTemperature;
+    const int topK = isRetryPass ? tuning::kTranslateRetryTopK : tuning::kTranslateTopK;
+    const double topP = isRetryPass ? tuning::kTranslateRetryTopP : tuning::kTranslateTopP;
+    const double minP = isRetryPass ? tuning::kTranslateRetryMinP : tuning::kTranslateMinP;
 
     const QUrl endpoint = TranslationBackend::endpointUrl(backendBaseUrl_, mode);
     QNetworkRequest request(endpoint);
@@ -341,7 +329,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
 
         QJsonObject options;
         options.insert(QStringLiteral("temperature"), temperature);
-        options.insert(QStringLiteral("num_predict"), numPredict_);
+        options.insert(QStringLiteral("num_predict"), tuning::kTranslateNumPredict);
         options.insert(QStringLiteral("top_k"), topK);
         options.insert(QStringLiteral("top_p"), topP);
         options.insert(QStringLiteral("min_p"), minP);
@@ -355,7 +343,7 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
             payload.insert(QStringLiteral("model"), backendModel_);
         }
         payload.insert(QStringLiteral("temperature"), temperature);
-        payload.insert(QStringLiteral("max_tokens"), numPredict_);
+        payload.insert(QStringLiteral("max_tokens"), tuning::kTranslateNumPredict);
         payload.insert(QStringLiteral("top_p"), topP);
 
         QJsonArray messages;
@@ -371,13 +359,13 @@ void TranslateClient::startBackendPromptRequest(const QString &sourceText,
     } else {
         payload.insert(QStringLiteral("prompt"), prompt);
         payload.insert(QStringLiteral("temperature"), temperature);
-        payload.insert(QStringLiteral("n_predict"), numPredict_); // max token output
+        payload.insert(QStringLiteral("n_predict"), tuning::kTranslateNumPredict); // max token output
         payload.insert(QStringLiteral("stream"), false);    // Disable streaming for simplicity
-        payload.insert(QStringLiteral("cache_prompt"), cachePrompt_); // Allow model to cache prompt for faster subsequent calls
+        payload.insert(QStringLiteral("cache_prompt"), tuning::kTranslateCachePrompt); // Allow model to cache prompt for faster subsequent calls
 
-        payload.insert(QStringLiteral("repeat_penalty"), repeatPenalty_);
-        payload.insert(QStringLiteral("frequency_penalty"), frequencyPenalty_);
-        payload.insert(QStringLiteral("repeat_last_n"), repeatLastN_);
+        payload.insert(QStringLiteral("repeat_penalty"), tuning::kTranslateRepeatPenalty);
+        payload.insert(QStringLiteral("frequency_penalty"), tuning::kTranslateFrequencyPenalty);
+        payload.insert(QStringLiteral("repeat_last_n"), tuning::kTranslateRepeatLastN);
 
         // Sampling parameters — control the token probability distribution.
         // See BackendConfig in translation_backend_adapter.h for tuning notes.

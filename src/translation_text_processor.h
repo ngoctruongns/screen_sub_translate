@@ -89,7 +89,6 @@ QString salvageVietnameseFragment(const QString &rawText);
 
 // Glossary
 AliasData loadAliasRules(const QString &path);
-QString loadPromptContext(const QString &path);
 QString applyAliasNormalization(const QString &translatedText,
                                    const QVector<QPair<QString, QString>> &aliasPairs);
 QString buildGlossaryBlockForSource(const QString &sourceText,
@@ -100,7 +99,6 @@ QString buildGlossaryBlockForSource(const QString &sourceText,
 // must ask for the opposite (Western names stay in Latin script) — so each has its own
 // text rather than one template with substitutions.
 QString translationPrompt(const QString &sourceText,
-                          const QString &contextBlock,
                           const QString &recentDialogueContext,
                           const QString &glossaryBlock,
                           SourceLanguage language);

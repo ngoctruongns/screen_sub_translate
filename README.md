@@ -62,13 +62,11 @@ src/
   tuning_params.h                    All tunable parameters + their built-in defaults
   tuning_config.cpp                  Applies config/tuning.json over those defaults at startup
 tools/ocr_batch_eval.cpp             Offline OCR accuracy evaluator (OcrBatchEval [zh|en])
-config/
-  tuning.json                        Runtime tuning — edit + restart, no rebuild
-translate/
-  translation_backend.json           Backend runtime config (edit this to point at your model)
-  glossary.json                      Chinese-source glossary + output-side aliases
-  glossary_en.json                   English-source glossary + output-side aliases
-  movie_context.txt                  Optional context (loaded but not injected per line by default)
+config/                              Flat: a file serving one pipeline stage is named after it
+  tuning.json                        ALL tuning parameters (shared → split into per-stage sections)
+  translation_backend.json           Backend connection: which LLM, where, which glossary
+  translation_glossary_zh.json       Chinese-source glossary + output-side aliases
+  translation_glossary_en.json       English-source glossary + output-side aliases
 models/paddle/                       OCR model files for both languages (gitignored — add manually)
 ```
 
@@ -211,31 +209,24 @@ Health check: `curl http://127.0.0.1:8080/health`
 
 ## Configuration
 
-### Backend — `translate/translation_backend.json`
+### Backend — `config/translation_backend.json`
 
-Shipped default (matches the llama.cpp + Qwen3 setup above):
+Connection settings only: **which** backend, **where** it lives, and which data files to use.
+Every knob that shapes the model's output lives in [`config/tuning.json`](#tuning--configtuningjson),
+so there is exactly one file to tune and nothing is duplicated between the two.
 
 ```json
 {
-  "sourceLanguage": "zh",
   "apiMode": "openai",
   "baseUrl": "http://127.0.0.1:8080/v1",
   "model": "",
   "autoDiscoverModel": true,
   "modelDiscoveryTimeoutMs": 1200,
-  "cachePrompt": true,
-  "repeatPenalty": 1.05,
-  "frequencyPenalty": 1.15,
-  "repeatLastN": 128,
-  "topK": 20,
-  "topP": 0.8,
-  "minP": 0.1,
-  "temperature": 0.01,
-  "numPredict": 64,
-  "retryTemperature": 0.3,
-  "contextFile": "../translate/movie_context.txt",
-  "glossaryFile": "../translate/glossary.json",
-  "glossaryFileEn": "../translate/glossary_en.json"
+
+  "sourceLanguage": "zh",
+
+  "glossaryFileZh": "../config/translation_glossary_zh.json",
+  "glossaryFileEn": "../config/translation_glossary_en.json"
 }
 ```
 
@@ -244,15 +235,14 @@ Shipped default (matches the llama.cpp + Qwen3 setup above):
 | `apiMode` | `auto` \| `llamacpp` \| `openai` \| `ollama`. `auto`: `/v1`→openai, `:11434` or `/api`→ollama, else llama.cpp `/completion`. |
 | `baseUrl` | Backend base URL. Use `.../v1` for the OpenAI chat endpoint (recommended for Qwen3 so the chat template applies). |
 | `model` | Optional. Leave empty to auto-discover (openai/ollama). llama.cpp ignores it when only one model is loaded. |
-| `autoDiscoverModel` | Query the endpoint for the model name when `model` is empty. |
-| `temperature` / `numPredict` | First-pass sampling temp and max new tokens. |
-| `retryTemperature` | Temperature for the single retry pass (looser). |
-| `topK` / `topP` / `minP` / `repeatPenalty` / `frequencyPenalty` / `repeatLastN` | Sampling knobs passed to the backend. `minP` around `0.1` helps suppress stray Han in the output. |
-| `contextFile` | Path to the optional movie-context file. |
-| `glossaryFile` / `glossaryFileEn` | Glossary for a Chinese source and for an English source. The active one follows the selected language. |
+| `autoDiscoverModel` / `modelDiscoveryTimeoutMs` | Query the endpoint for the model name when `model` is empty, and how long to wait. |
+| `glossaryFileZh` / `glossaryFileEn` | Glossary for a Chinese source and for an English source. The active one follows the selected language. |
 | `sourceLanguage` | Language to read at startup: `zh` or `en`. **Only a default** — once you pick a language from the capture window's menu, that choice is remembered and overrides this field. To make this field take effect again, delete the `sourceLanguage` key under `[overlay]` in `~/.config/ScreenSubTranslator/ScreenSubTranslator.conf`. |
 
-Sampling values and `numPredict` here **override** the code defaults in `tuning_params.h`; retry `topK/topP/minP` stay fixed in code.
+> Sampling and generation keys (`temperature`, `numPredict`, `retryTemperature`, `topK`,
+> `topP`, `minP`, `repeatPenalty`, `frequencyPenalty`, `repeatLastN`, `cachePrompt`) used to
+> live here. They moved to `config/tuning.json` → `translation`. A leftover copy here does
+> nothing, and the app warns about each one on startup.
 
 **Using Ollama instead of llama.cpp** — only these fields differ from the default above:
 
@@ -264,7 +254,7 @@ Sampling values and `numPredict` here **override** the code defaults in `tuning_
 }
 ```
 
-`apiMode: ollama` targets the `/api/generate` endpoint. Set `model` to the name from `ollama list` (leave `autoDiscoverModel: true` to pick the first available). Disable Qwen3 thinking first, e.g. build a variant from a `Modelfile` containing `FROM qwen3:8b` and `SYSTEM /no_think`, then use that name. Keep the remaining sampling fields as in the default config.
+`apiMode: ollama` targets the `/api/generate` endpoint. Set `model` to the name from `ollama list` (leave `autoDiscoverModel: true` to pick the first available). Disable Qwen3 thinking first, e.g. build a variant from a `Modelfile` containing `FROM qwen3:8b` and `SYSTEM /no_think`, then use that name. The other fields stay as in the default config.
 
 ### Tuning — `config/tuning.json`
 
@@ -285,7 +275,7 @@ comments and are ignored.
 | `capture` | Screen-grab interval and the frame-diff / contrast gate |
 | `ocrEngine` | CUDA on/off, model input height |
 | `filter` | Candidate stabilization, dispatch dedupe, subtitle lifecycle |
-| `translation` | Retry behaviour, timeouts, cache, prompt history |
+| `translation` | Sampling (`temperature`, `topK`/`topP`/`minP`), penalties, token budget, retry behaviour, cache, prompt history |
 | `display` | On-screen duration formula, queue depth |
 | `chinese` / `english` | Everything per-language: model + charset paths, input width, confidence gates, length-ratio guards |
 
@@ -300,14 +290,12 @@ path, then one `[tuning]` line per problem:
 An unknown key means a typo — the value you edited is **not** being applied. Always check
 the console after editing; a silent no-op is the most expensive mistake while tuning.
 
-> **Overlap with `translation_backend.json`.** `temperature`, `numPredict` and
-> `retryTemperature` exist in both files. The backend file is applied last and wins for
-> those three. Everything else in `tuning.json` has no counterpart and is unambiguous.
+Not covered here (they live in `config/translation_backend.json`): backend URL,
+model name, model discovery, glossary paths and the startup source language — the settings
+that say *which* backend to talk to rather than *how* it should behave. Nothing is
+duplicated between the two files.
 
-Not covered here (they live in `translate/translation_backend.json`): backend URL, model
-name, sampling knobs, glossary paths and the startup source language.
-
-### Glossary — `translate/glossary.json` (Chinese) and `translate/glossary_en.json` (English)
+### Glossary — `config/translation_glossary_zh.json` and `config/translation_glossary_en.json`
 
 One glossary per source language; the active one follows the selected language. Both keep
 proper names consistent and have the same two sections:
@@ -318,7 +306,7 @@ proper names consistent and have the same two sections:
 **Matching differs by script**, and it matters when writing entries:
 
 - A Han source term matches as a **substring** — the natural unit for a language written without spaces.
-- A Latin source term (so: every entry in `glossary_en.json`) matches as a **whole word, case-insensitively** — `war` will not fire inside `warm`.
+- A Latin source term (so: every entry in `translation_glossary_en.json`) matches as a **whole word, case-insensitively** — `war` will not fire inside `warm`.
 
 Keep both lean — every entry is prompt budget. For Chinese, a capable model already knows
 common Sino-Vietnamese readings, so only add names it gets wrong, film-specific
@@ -328,8 +316,6 @@ ordinary vocabulary needs no entry.
 
 Longer terms are matched first. The glossary reloads on a language switch; otherwise
 restart the app after editing.
-
-`movie_context.txt` is loaded but **not** injected per line by default — broad context tends to leak into small-model output. It stays available for experimentation.
 
 ## Using the overlay
 
@@ -348,8 +334,8 @@ restart the app after editing.
 
 - **No translation** — backend not reachable at `baseUrl`, or the capture window isn't over the subtitle text.
 - **Empty / truncated output with Qwen3** — thinking is still on; make sure the server runs with `--reasoning-budget 0` (and chat template via `--jinja` + `apiMode: openai`).
-- **Inconsistent names** — add them to `glossary.json` (Chinese) or `glossary_en.json` (English) and restart.
-- **A value edited in `config/tuning.json` has no effect** — check the console for `[tuning] unknown key ...`: the key is misspelled or in the wrong section. Also note that `temperature`, `numPredict` and `retryTemperature` are overridden by `translation_backend.json`, which is applied last.
+- **Inconsistent names** — add them to `config/translation_glossary_zh.json` or `config/translation_glossary_en.json` and restart.
+- **A value edited in `config/tuning.json` has no effect** — check the console for `[tuning] unknown key ...`: the key is misspelled or in the wrong section. If you edited a sampling key in `translation_backend.json`, that is why — those moved to `config/tuning.json` and are ignored where they were.
 - **High latency** — use a smaller/faster model or enable GPU offload (`-ngl`).
 - **OCR misses valid lines / accepts garbage** — tune `minOcrConfidence` in the `chinese` / `english` section of `config/tuning.json` and restart; confidence is logged per detection. Use `OcrBatchEval` to find the right threshold.
 - **`No <language> OCR model` in the translation window** — that language's `.onnx` or dict is missing from `models/paddle/`; the console names the exact path it looked for.

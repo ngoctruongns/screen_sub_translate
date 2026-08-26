@@ -14,6 +14,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QStringList>
 #include <QTimer>
 
 #include "tuning_params.h"
@@ -161,24 +162,13 @@ BackendConfig defaultBackendConfig()
     config.baseUrl = QString::fromUtf8(tuning::kTranslateBaseUrl).trimmed();
     config.model = QString::fromUtf8(tuning::kTranslateModel).trimmed();
     config.apiMode = QString::fromUtf8(tuning::kTranslateApiMode).trimmed().toLower();
-    config.contextFilePath = resolveRuntimePath(QString::fromUtf8(tuning::kTranslateContextFilePath));
     config.glossaryFilePath =
         resolveRuntimePath(QString::fromUtf8(tuning::kTranslateGlossaryFilePath));
     config.glossaryFilePathEn =
         resolveRuntimePath(QString::fromUtf8(tuning::kTranslateGlossaryFilePathEn));
     config.sourceLanguage = sourcelang::key(sourcelang::kDefault);
     config.autoDiscoverModel = true;
-    config.cachePrompt = true;
     config.modelDiscoveryTimeoutMs = 1200;
-    config.temperature = tuning::kTranslateTemperature;
-    config.numPredict = tuning::kTranslateNumPredict;
-    config.retryTemperature = tuning::kTranslateRetryTemperature;
-    config.repeatLastN = 128;
-    config.repeatPenalty = 1.15;
-    config.frequencyPenalty = 1.15;
-    config.topP = 0.85;
-    config.minP = 0.06;
-    config.topK = 40;
     return config;
 }
 
@@ -204,32 +194,42 @@ BackendConfig loadBackendConfig(const QString &configPath)
     config.baseUrl = jsonStringOrDefault(root, QStringLiteral("baseUrl"), config.baseUrl);
     config.model = jsonStringOrDefault(root, QStringLiteral("model"), config.model);
     config.apiMode = jsonStringOrDefault(root, QStringLiteral("apiMode"), config.apiMode).toLower();
-    config.contextFilePath = resolveRuntimePath(
-        jsonStringOrDefault(root, QStringLiteral("contextFile"), config.contextFilePath));
     config.glossaryFilePath = resolveRuntimePath(
-        jsonStringOrDefault(root, QStringLiteral("glossaryFile"), config.glossaryFilePath));
+        jsonStringOrDefault(root, QStringLiteral("glossaryFileZh"), config.glossaryFilePath));
     config.glossaryFilePathEn = resolveRuntimePath(
         jsonStringOrDefault(root, QStringLiteral("glossaryFileEn"), config.glossaryFilePathEn));
     config.sourceLanguage =
         jsonStringOrDefault(root, QStringLiteral("sourceLanguage"), config.sourceLanguage);
     config.autoDiscoverModel = jsonBoolOrDefault(root, QStringLiteral("autoDiscoverModel"), true);
-    config.cachePrompt = jsonBoolOrDefault(root, QStringLiteral("cachePrompt"), true);
-    config.temperature = std::clamp(
-        jsonDoubleOrDefault(root, QStringLiteral("temperature"), config.temperature), 0.0, 2.0);
-    config.numPredict = std::max(1,
-        jsonIntOrDefault(root, QStringLiteral("numPredict"), config.numPredict));
-    config.retryTemperature = std::clamp(
-        jsonDoubleOrDefault(root, QStringLiteral("retryTemperature"), config.retryTemperature), 0.0, 2.0);
-    config.repeatLastN = std::max(0, jsonIntOrDefault(root, QStringLiteral("repeatLastN"), 128));
-    config.modelDiscoveryTimeoutMs = std::max(200,
-        jsonIntOrDefault(root, QStringLiteral("modelDiscoveryTimeoutMs"), 1200));
-    config.repeatPenalty = std::max(1.0,
-        jsonDoubleOrDefault(root, QStringLiteral("repeatPenalty"), 1.15));
-    config.frequencyPenalty = std::max(0.0,
-        jsonDoubleOrDefault(root, QStringLiteral("frequencyPenalty"), 1.15));
-    config.topP = std::clamp(jsonDoubleOrDefault(root, QStringLiteral("topP"), 0.85), 0.1, 1.0);
-    config.minP = std::clamp(jsonDoubleOrDefault(root, QStringLiteral("minP"), 0.06), 0.0, 0.5);
-    config.topK = std::max(0, jsonIntOrDefault(root, QStringLiteral("topK"), 40));
+    config.modelDiscoveryTimeoutMs = std::max(1,
+        jsonIntOrDefault(root, QStringLiteral("modelDiscoveryTimeoutMs"), config.modelDiscoveryTimeoutMs));
+
+    // Generation/sampling keys used to live here too. They moved to config/tuning.json so
+    // that every tunable sits in one file; a leftover copy here would silently do nothing,
+    // so say so instead of ignoring it.
+    static const QStringList kMovedToTuningJson = {
+        QStringLiteral("temperature"),      QStringLiteral("numPredict"),
+        QStringLiteral("retryTemperature"), QStringLiteral("topK"),
+        QStringLiteral("topP"),             QStringLiteral("minP"),
+        QStringLiteral("repeatPenalty"),    QStringLiteral("frequencyPenalty"),
+        QStringLiteral("repeatLastN"),      QStringLiteral("cachePrompt"),
+        QStringLiteral("contextFile"),
+    };
+
+    // Renamed for symmetry with glossaryFileEn when config/ was flattened.
+    if (root.contains(QStringLiteral("glossaryFile"))) {
+        qWarning().noquote()
+            << "TranslationBackend: glossaryFile is IGNORED — it was renamed to glossaryFileZh"
+            << "to match glossaryFileEn.";
+    }
+    for (const QString &key : kMovedToTuningJson) {
+        if (root.contains(key)) {
+            qWarning().noquote()
+                << "TranslationBackend:" << key
+                << "in translation_backend.json is IGNORED — it moved to config/tuning.json"
+                << "(section 'translation'). Remove it here to silence this warning.";
+        }
+    }
 
     return config;
 }

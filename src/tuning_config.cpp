@@ -267,7 +267,13 @@ void applyTranslation(QJsonObject s, QStringList *m)
     takeInt(s, QStringLiteral("numPredict"), kTranslateNumPredict, 1, 4096, m);
     takeInt(s, QStringLiteral("requestTimeoutMs"), kTranslateRequestTimeoutMs, 100, 600000, m);
     takeInt(s, QStringLiteral("cacheSize"), kTranslationCacheSize, 0, 10000, m);
-    takeInt(s, QStringLiteral("promptContextMaxChars"), kTranslatePromptContextMaxChars, 0, 100000, m);
+    takeInt(s, QStringLiteral("topK"), kTranslateTopK, 0, 1000, m);
+    takeDouble(s, QStringLiteral("topP"), kTranslateTopP, 0.0, 1.0, m);
+    takeDouble(s, QStringLiteral("minP"), kTranslateMinP, 0.0, 1.0, m);
+    takeDouble(s, QStringLiteral("repeatPenalty"), kTranslateRepeatPenalty, 0.0, 5.0, m);
+    takeDouble(s, QStringLiteral("frequencyPenalty"), kTranslateFrequencyPenalty, 0.0, 5.0, m);
+    takeInt(s, QStringLiteral("repeatLastN"), kTranslateRepeatLastN, 0, 8192, m);
+    takeBool(s, QStringLiteral("cachePrompt"), kTranslateCachePrompt, m);
     takeInt(s, QStringLiteral("historyWindowSize"), kTranslateHistoryWindowSize, 0, 32, m);
     takeBool(s, QStringLiteral("enableRetryPasses"), kEnableRetryPasses, m);
     takeDouble(s, QStringLiteral("retryTemperature"), kTranslateRetryTemperature, 0.0, 2.0, m);
