@@ -162,7 +162,11 @@ BackendConfig defaultBackendConfig()
     config.model = QString::fromUtf8(tuning::kTranslateModel).trimmed();
     config.apiMode = QString::fromUtf8(tuning::kTranslateApiMode).trimmed().toLower();
     config.contextFilePath = resolveRuntimePath(QString::fromUtf8(tuning::kTranslateContextFilePath));
-    config.glossaryFilePath = resolveRuntimePath(QString::fromUtf8(tuning::kTranslateGlossaryFilePath));
+    config.glossaryFilePath =
+        resolveRuntimePath(QString::fromUtf8(tuning::kTranslateGlossaryFilePath));
+    config.glossaryFilePathEn =
+        resolveRuntimePath(QString::fromUtf8(tuning::kTranslateGlossaryFilePathEn));
+    config.sourceLanguage = sourcelang::key(sourcelang::kDefault);
     config.autoDiscoverModel = true;
     config.cachePrompt = true;
     config.modelDiscoveryTimeoutMs = 1200;
@@ -204,6 +208,10 @@ BackendConfig loadBackendConfig(const QString &configPath)
         jsonStringOrDefault(root, QStringLiteral("contextFile"), config.contextFilePath));
     config.glossaryFilePath = resolveRuntimePath(
         jsonStringOrDefault(root, QStringLiteral("glossaryFile"), config.glossaryFilePath));
+    config.glossaryFilePathEn = resolveRuntimePath(
+        jsonStringOrDefault(root, QStringLiteral("glossaryFileEn"), config.glossaryFilePathEn));
+    config.sourceLanguage =
+        jsonStringOrDefault(root, QStringLiteral("sourceLanguage"), config.sourceLanguage);
     config.autoDiscoverModel = jsonBoolOrDefault(root, QStringLiteral("autoDiscoverModel"), true);
     config.cachePrompt = jsonBoolOrDefault(root, QStringLiteral("cachePrompt"), true);
     config.temperature = std::clamp(

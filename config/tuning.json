@@ -1,0 +1,143 @@
+{
+  "_readme": [
+    "Runtime tuning parameters. Edit + restart the app — no rebuild needed.",
+    "",
+    "Everything here is OPTIONAL: delete any key, section, or the whole file and the built-in",
+    "default from src/tuning_params.h applies instead. Keys starting with '_' are comments.",
+    "",
+    "Unknown keys are NOT silently ignored — they are logged as 'unknown key ... (typo?)' on",
+    "startup, so watch the console after editing. Out-of-range values are clamped and logged.",
+    "",
+    "The values below are the shipped defaults, written out in full so you can see the whole",
+    "surface at once. Sections: capture, ocrEngine, filter, translation, display, chinese, english.",
+    "",
+    "NOT here: backend URL, model, glossary and sampling overrides live in",
+    "translate/translation_backend.json. Where the two overlap (temperature, numPredict,",
+    "retryTemperature) the backend file is applied last and therefore wins."
+  ],
+
+  "capture": {
+    "_doc": "Screen grab + change/noise gate. Raise the thresholds if a static screen still triggers OCR; lower them if fast subtitle changes get missed.",
+    "captureIntervalMs": 50,
+    "ocrKeepaliveIntervalMs": 220,
+    "changeThreshold": 1.65,
+    "minChangedRatio": 0.009,
+    "minStdDev": 8.5
+  },
+
+  "ocrEngine": {
+    "_doc": "Set useCudaExecutionProvider to false to force CPU inference (useful to isolate a CUDA/cuDNN problem). paddleInputHeight must match the model: 48 for PP-OCRv4/v5.",
+    "useCudaExecutionProvider": true,
+    "paddleInputHeight": 48
+  },
+
+  "filter": {
+    "_doc": "Turns noisy per-frame reads into one stable candidate. Raise the stable-ms / min-frames values if garbage gets dispatched; lower them if subtitles appear too late.",
+    "minOcrLength": 1,
+    "minCandidateStableMs": 150,
+    "veryShortCandidateStableMs": 350,
+    "shortCandidateStableMs": 150,
+    "veryShortCandidateMinFrames": 2,
+    "shortCandidateMinFrames": 1,
+    "subtitleDisappearTimeoutMs": 1000,
+    "subtitleSwitchCooldownMs": 200,
+    "subtitleResendCooldownMs": 2200,
+    "recentSubtitleWindowSize": 4,
+    "minIncompleteHoldFrames": 2
+  },
+
+  "translation": {
+    "_doc": "Prompt/retry behaviour. enableRetryPasses=false drops bad output outright instead of retrying — lower latency, worse quality. lineScoreMin gates candidate selection; raise it to reject weak Vietnamese lines.",
+    "temperature": 0.01,
+    "numPredict": 64,
+    "requestTimeoutMs": 15000,
+    "cacheSize": 96,
+    "promptContextMaxChars": 900,
+    "historyWindowSize": 2,
+    "enableRetryPasses": true,
+    "retryTemperature": 0.3,
+    "retryTopK": 30,
+    "retryTopP": 0.8,
+    "retryMinP": 0.1,
+    "lineScoreMin": 0
+  },
+
+  "display": {
+    "_doc": "On-screen duration = clamp(baseMs + charCount * msPerChar, minMs, maxMs), measured on the Vietnamese output. Raise msPerChar if lines vanish before you finish reading.",
+    "minMs": 300,
+    "maxMs": 3500,
+    "baseMs": 250,
+    "msPerChar": 70,
+    "maxLatencyMs": 2500,
+    "queueMaxSize": 5,
+    "tickMs": 60
+  },
+
+  "chinese": {
+    "_doc": [
+      "Chinese source pipeline. 'Source units' = Han characters.",
+      "recOnnxPath/charsetPath MUST be a matched pair — a model with the wrong dict decodes to garbage.",
+      "PP-OCRv5: point recOnnxPath at PP-OCRv5_server_rec_infer.onnx AND charsetPath at ppocrv5_dict.txt.",
+      "minOcrConfidence: raise toward 0.8 to drop more garbled reads, lower if valid subtitles get dropped.",
+      "edgeMinConfidence: trims low-confidence first/last characters (dark margins decode as a stray glyph, typically 嶺). 0 disables."
+    ],
+    "recOnnxPath": "../models/paddle/ch_PP-OCRv4_rec_server_infer.onnx",
+    "charsetPath": "../models/paddle/ppocr_keys_v1.txt",
+    "inputWidth": 480,
+    "minOcrConfidence": 0.55,
+    "edgeMinConfidence": 0.80,
+
+    "minContentUnits": 1,
+    "veryShortCandidateChars": 1,
+    "shortCandidateChars": 3,
+
+    "maxIncompleteHoldUnits": 4,
+
+    "historyEntryMaxChars": 42,
+
+    "minTranslationWordRatio": 0.40,
+    "minUnitsForRatioCheck": 5,
+    "shortSourceUnitLimit": 5,
+    "longSourceUnitThreshold": 8,
+    "maxWordRatioShortSource": 4.0,
+    "maxWordRatioLongSource": 3.0,
+    "maxOutputLengthFactor": 12,
+
+    "sourceSrtFileName": "chinese.srt"
+  },
+
+  "english": {
+    "_doc": [
+      "English source pipeline. 'Source units' = whitespace-delimited words, NOT characters.",
+      "The confidence values here are STARTING POINTS, not measured — tune them with OcrBatchEval en.",
+      "inputWidth is 800 vs Chinese 480: an English line runs 3-4x more characters. If ONNX Runtime",
+      "rejects the input shape at startup, lower it (the export must support dynamic width).",
+      "The candidate-length thresholds are in CHARACTERS and are ~3x the Chinese ones for the same reason.",
+      "minTranslationWordRatio compares Vietnamese words to English words, so it sits near 1.0 —",
+      "unlike Chinese, where it compares Vietnamese words to Han characters."
+    ],
+    "recOnnxPath": "../models/paddle/en_PP-OCRv4_rec_infer.onnx",
+    "charsetPath": "../models/paddle/en_dict.txt",
+    "inputWidth": 800,
+    "minOcrConfidence": 0.60,
+    "edgeMinConfidence": 0.70,
+
+    "minContentUnits": 1,
+    "veryShortCandidateChars": 3,
+    "shortCandidateChars": 10,
+
+    "maxIncompleteHoldUnits": 4,
+
+    "historyEntryMaxChars": 96,
+
+    "minTranslationWordRatio": 0.60,
+    "minUnitsForRatioCheck": 4,
+    "shortSourceUnitLimit": 3,
+    "longSourceUnitThreshold": 6,
+    "maxWordRatioShortSource": 3.0,
+    "maxWordRatioLongSource": 2.2,
+    "maxOutputLengthFactor": 3,
+
+    "sourceSrtFileName": "english.srt"
+  }
+}

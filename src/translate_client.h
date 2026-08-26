@@ -10,7 +10,9 @@
 #include <QVector>
 #include <QPair>
 
+#include "source_language.h"
 #include "translation_text_processor.h"
+#include "tuning_params.h"
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -24,6 +26,15 @@ public:
     ~TranslateClient() override;
 
     void requestTranslation(const QString &sourceText);
+
+    // Switches the source language: reloads that language's glossary and drops the
+    // translation cache and dialogue history, both of which are keyed by source lines
+    // that no longer apply. The startup value comes from translation_backend.json;
+    // OverlayWindow overrides it with the user's last UI choice.
+    void setSourceLanguage(SourceLanguage language);
+    SourceLanguage sourceLanguage() const { return sourceLanguage_; }
+    // The language the backend config asked for, used as the startup default.
+    SourceLanguage configuredSourceLanguage() const { return configuredSourceLanguage_; }
 
 signals:
     void translationReady(const QString &translatedText, const QString &sourceText);
@@ -39,6 +50,8 @@ private:
     };
 
     void initializeTranslationBackend();
+    // (Re)loads the glossary + output-side aliases for the active source language.
+    void loadGlossaryForCurrentLanguage();
     void startBackendRequest(const QString &sourceText);
     void startBackendPromptRequest(const QString &sourceText, const QString &prompt, bool isRetryPass,
                                    const QString &priorSalvage = QString());
@@ -71,7 +84,12 @@ private:
     QString backendApiMode_;
     QString backendConfigPath_;
     QString promptContextFilePath_;
-    QString aliasFilePath_;
+    // Glossary file per source language; the active one is selected by sourceLanguage_.
+    QString glossaryFilePathZh_;
+    QString glossaryFilePathEn_;
+
+    SourceLanguage sourceLanguage_ = sourcelang::kDefault;
+    SourceLanguage configuredSourceLanguage_ = sourcelang::kDefault;
     bool autoDiscoverModel_ = true;
     bool cachePrompt_ = true;
     int repeatLastN_ = 64;
@@ -85,7 +103,7 @@ private:
     int numPredict_ = 64;             // Max new tokens (from JSON config, default kTranslateNumPredict).
     double retryTemperature_ = 0.3;   // Retry-pass temperature (from JSON config, default kTranslateRetryTemperature).
     QString cachedContextBlock_;  // Loaded once at init, reused for prefix cache hit
-    QVector<QPair<QString, QString>> glossaryPairs_; // Han source term -> canonical Vietnamese term
+    QVector<QPair<QString, QString>> glossaryPairs_; // source term (Han or English) -> canonical Vietnamese term
     QVector<QPair<QString, QString>> aliasPairs_; // alias -> canonical Vietnamese name
     QVector<TranslationContextEntry> recentTranslationHistory_;
 

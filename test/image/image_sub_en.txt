@@ -1,0 +1,29 @@
+# English OCR ground truth for OcrBatchEval.
+#
+# Format — one line per image, exactly as in image_sub.txt:
+#     - <imageId>: <the exact text visible in the image>
+#
+# <imageId> is the PNG filename WITHOUT the extension, read from test/image/<imageId>.png.
+# Any id works; the ids below are only a suggestion. Lines that do not match the
+# "- <id>: <text>" shape are skipped, so these comments are ignored by the parser.
+#
+# Transcribe EXACTLY what is on screen, including capitalisation and punctuation.
+# Comparison is case-insensitive and collapses runs of whitespace, but a wrong or missing
+# word boundary counts as an error — spacing is what the English model most often gets
+# wrong, so do not "tidy up" the spacing when writing labels.
+#
+# Run:  cd build && ./OcrBatchEval en
+# Report: logs/ocr_eval_en.txt
+#
+# Replace the placeholder lines below with your 10 real images.
+
+- image_en1:
+- image_en2:
+- image_en3:
+- image_en4:
+- image_en5:
+- image_en6:
+- image_en7:
+- image_en8:
+- image_en9:
+- image_en10:

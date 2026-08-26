@@ -13,6 +13,25 @@ void OcrSubtitleFilter::configure(int minOcrLength, int minCandidateStableMs)
     resetCandidateState();
 }
 
+void OcrSubtitleFilter::setLanguage(SourceLanguage language)
+{
+    if (language == language_) {
+        return;
+    }
+
+    language_ = language;
+    profile_ = &tuning::profileFor(language);
+
+    // Candidates and recent-dispatch keys were built under the previous language's
+    // rules (and by a different OCR model), so none of them can be compared against
+    // what comes next.
+    subtitleVisible_ = false;
+    lastDispatchedSubtitleKey_.clear();
+    recentSubtitleKeys_.clear();
+    subtitleDispatchTimer_.invalidate();
+    resetCandidateState();
+}
+
 void OcrSubtitleFilter::onSubtitleDisappeared()
 {
     subtitleVisible_ = false;
@@ -33,7 +52,7 @@ OcrSubtitleFilter::Decision OcrSubtitleFilter::process(const QString &ocrText)
         return decision;
     }
 
-    if (countHanChars(ocrText) < tuning::kMinHanCharsForCandidate) {
+    if (contentUnitCount(ocrText, language_) < profile_->minContentUnits) {
         resetCandidateState();
         decision.rejectedForQuality = true;
         return decision;
@@ -101,34 +120,69 @@ int OcrSubtitleFilter::countHanChars(const QString &text)
     return count;
 }
 
-int OcrSubtitleFilter::requiredStableMsForCandidate(const QString &candidate, int baseStableMs)
+int OcrSubtitleFilter::countLatinWords(const QString &text)
 {
-    if (candidate.size() <= 1) {
+    int count = 0;
+    bool inWord = false;
+    for (const QChar ch : text) {
+        if (ch.isLetterOrNumber()) {
+            if (!inWord) {
+                ++count;
+                inWord = true;
+            }
+        } else {
+            inWord = false;
+        }
+    }
+    return count;
+}
+
+int OcrSubtitleFilter::contentUnitCount(const QString &text, SourceLanguage language)
+{
+    return language == SourceLanguage::English ? countLatinWords(text) : countHanChars(text);
+}
+
+int OcrSubtitleFilter::requiredStableMsForCandidate(const QString &candidate, int baseStableMs) const
+{
+    if (candidate.size() <= profile_->veryShortCandidateChars) {
         return std::max(baseStableMs, tuning::kVeryShortCandidateStableMs);
     }
 
-    if (candidate.size() <= 3) {
+    if (candidate.size() <= profile_->shortCandidateChars) {
         return std::max(baseStableMs, tuning::kShortCandidateStableMs);
     }
 
     return baseStableMs;
 }
 
-int OcrSubtitleFilter::requiredSeenFramesForCandidate(const QString &candidate)
+int OcrSubtitleFilter::requiredSeenFramesForCandidate(const QString &candidate) const
 {
-    if (candidate.size() <= 1) {
+    if (candidate.size() <= profile_->veryShortCandidateChars) {
         return tuning::kVeryShortCandidateMinFrames;
     }
 
-    if (candidate.size() <= 3) {
+    if (candidate.size() <= profile_->shortCandidateChars) {
         return tuning::kShortCandidateMinFrames;
     }
 
     return 1;
 }
 
-int OcrSubtitleFilter::candidateQualityScore(const QString &text)
+int OcrSubtitleFilter::candidateQualityScore(const QString &text) const
 {
+    // Prefer the read that carries the most actual text over one padded with punctuation
+    // noise. For Chinese a Han character is the unit of content; for English it is the
+    // letter, since word count alone is too coarse to separate two near-identical reads.
+    if (language_ == SourceLanguage::English) {
+        int letters = 0;
+        for (const QChar ch : text) {
+            if (ch.isLetterOrNumber()) {
+                ++letters;
+            }
+        }
+        return letters * 2 + text.size();
+    }
+
     return countHanChars(text) * 4 + text.size();
 }
 
@@ -371,8 +425,23 @@ QString OcrSubtitleFilter::mostFrequentCandidate() const
 
 QString OcrSubtitleFilter::subtitleKey(const QString &text) const
 {
+    // Identity of an on-screen subtitle, stripped of everything that can flicker between
+    // frames. An empty key means "not a subtitle" and blocks dispatch, so each language
+    // must keep the characters that actually carry its content.
     QString key;
     key.reserve(text.size());
+
+    if (language_ == SourceLanguage::English) {
+        // Letters and digits, case-folded: punctuation and spacing are the least stable
+        // part of an English recognition and must not make the same line look new.
+        for (const QChar c : text) {
+            if (c.isLetterOrNumber()) {
+                key.append(c.toLower());
+            }
+        }
+        return key;
+    }
+
     for (const QChar c : text) {
         const ushort u = c.unicode();
         const bool isHan = (u >= 0x3400 && u <= 0x9FFF) || (u >= 0xF900 && u <= 0xFAFF);

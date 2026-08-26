@@ -6,9 +6,12 @@
 #include <QDateTime>
 #include <QDir>
 #include <QGuiApplication>
+#include <QDebug>
 #include <QMetaObject>
 #include <QScreen>
+#include <QSet>
 #include <QSettings>
+#include <QStringList>
 
 #include "capture_zone_widget.h"
 #include "overlay_frame.h"
@@ -17,7 +20,7 @@
 namespace
 {
 
-QString joinSubtitleFragments(const QString &left, const QString &right)
+QString joinSubtitleFragments(const QString &left, const QString &right, SourceLanguage language)
 {
     QString merged = left.trimmed();
     const QString next = right.trimmed();
@@ -33,22 +36,14 @@ QString joinSubtitleFragments(const QString &left, const QString &right)
     if (last == QChar(0xFF0C) || last == QChar(',') || last == QChar(0x3001)) {
         merged.chop(1);
     }
+    merged = merged.trimmed();
 
-    return merged + next;
-}
-
-int hanContentCount(const QString &text)
-{
-    int count = 0;
-    for (const QChar ch : text) {
-        const ushort u = ch.unicode();
-        const bool isHan = (u >= 0x3400 && u <= 0x4DBF) || (u >= 0x4E00 && u <= 0x9FFF) ||
-                           (u >= 0xF900 && u <= 0xFAFF);
-        if (isHan) {
-            ++count;
-        }
+    // Han text is written without word spacing, so the two halves butt together; English
+    // needs the separator or the merge fuses two words into one.
+    if (language == SourceLanguage::English) {
+        return merged + QLatin1Char(' ') + next;
     }
-    return count;
+    return merged + next;
 }
 
 QRect defaultCaptureGeometry()
@@ -73,6 +68,11 @@ QRect defaultTranslationGeometry()
 OverlayWindow::OverlayWindow(QObject *parent) : QObject(parent)
 {
     qRegisterMetaType<cv::Mat>("cv::Mat");
+    qRegisterMetaType<SourceLanguage>("SourceLanguage");
+
+    // The backend config supplies the startup language; a language the user picked in a
+    // previous session overrides it.
+    sourceLanguage_ = restoreSourceLanguage();
 
     setupWidgets();
 
@@ -86,6 +86,7 @@ OverlayWindow::OverlayWindow(QObject *parent) : QObject(parent)
 #else
         false,
 #endif
+        sourceLanguage_,
         nullptr);
     subtitleLogger_->moveToThread(&loggerThread_);
     connect(&loggerThread_, &QThread::finished, subtitleLogger_, &QObject::deleteLater);
@@ -95,7 +96,9 @@ OverlayWindow::OverlayWindow(QObject *parent) : QObject(parent)
 
     captureWorker_ = new CaptureWorker(captureZone_->captureRect());
     captureWorker_->moveToThread(&captureThread_);
-    ocrWorker_ = new OcrWorker();
+    // The OCR engine loads its model in the worker's constructor, so the language has to
+    // be known before the worker exists rather than pushed in afterwards.
+    ocrWorker_ = new OcrWorker(sourceLanguage_);
     ocrWorker_->moveToThread(&ocrThread_);
 
     connect(&captureThread_, &QThread::started, captureWorker_, &CaptureWorker::start);
@@ -104,8 +107,14 @@ OverlayWindow::OverlayWindow(QObject *parent) : QObject(parent)
     connect(captureWorker_, &CaptureWorker::imageProcessed, this, &OverlayWindow::onImageProcessed);
     connect(ocrWorker_, &OcrWorker::ocrReady, this, &OverlayWindow::onOcrReady);
     connect(ocrWorker_, &OcrWorker::ocrError, this, &OverlayWindow::onOcrError);
+    connect(ocrWorker_, &OcrWorker::languageChanged, this, &OverlayWindow::onOcrLanguageChanged);
     connect(&translateClient_, &TranslateClient::translationReady, this, &OverlayWindow::onTranslationReady);
     connect(&translateClient_, &TranslateClient::translationError, this, &OverlayWindow::onTranslationError);
+
+    // Align the rest of the pipeline with the restored language (the OCR worker and the
+    // logger already got it through their constructors).
+    ocrSubtitleFilter_.setLanguage(sourceLanguage_);
+    translateClient_.setSourceLanguage(sourceLanguage_);
 
     applyDefaultNoiseConfig();
 
@@ -147,8 +156,12 @@ void OverlayWindow::setupWidgets()
 
     restoreWidgetGeometry();
 
+    captureZone_->setSourceLanguage(sourceLanguage_);
+
     connect(captureZone_, &OverlayFrame::geometryChanged, this, &OverlayWindow::onZoneGeometryChanged);
     connect(translation_, &OverlayFrame::geometryChanged, this, &OverlayWindow::onZoneGeometryChanged);
+    connect(captureZone_, &CaptureZoneWidget::sourceLanguageSelected, this,
+            &OverlayWindow::setSourceLanguage);
 
     recomputeBoundingBox();
 
@@ -177,6 +190,113 @@ void OverlayWindow::saveWidgetGeometry() const
     settings.setValue(QStringLiteral("captureZone"), captureZone_->geometry());
     settings.setValue(QStringLiteral("translation"), translation_->geometry());
     settings.endGroup();
+}
+
+SourceLanguage OverlayWindow::restoreSourceLanguage() const
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("overlay"));
+    const QString stored = settings.value(QStringLiteral("sourceLanguage")).toString();
+    settings.endGroup();
+
+    // No stored choice yet: fall back to whatever translation_backend.json asked for.
+    if (stored.trimmed().isEmpty()) {
+        return translateClient_.configuredSourceLanguage();
+    }
+    return sourcelang::fromKey(stored, translateClient_.configuredSourceLanguage());
+}
+
+void OverlayWindow::saveSourceLanguage() const
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("overlay"));
+    settings.setValue(QStringLiteral("sourceLanguage"), sourcelang::key(sourceLanguage_));
+    settings.endGroup();
+}
+
+void OverlayWindow::setSourceLanguage(SourceLanguage language)
+{
+    if (language == sourceLanguage_) {
+        return;
+    }
+
+    sourceLanguage_ = language;
+    saveSourceLanguage();
+
+    if (captureZone_) {
+        captureZone_->setSourceLanguage(language);
+    }
+
+    // Everything currently in flight belongs to the previous language, so drop it before
+    // the new model produces its first read.
+    resetPipelineState();
+
+    ocrSubtitleFilter_.setLanguage(language);
+    translateClient_.setSourceLanguage(language);
+
+    if (subtitleLogger_) {
+        // Queued like every other logger call: it runs on the logger thread and starts a
+        // fresh source-side .srt for the new language.
+        QMetaObject::invokeMethod(subtitleLogger_, "setSourceLanguage", Qt::QueuedConnection,
+                                  Q_ARG(SourceLanguage, language));
+    }
+
+    if (ocrWorker_) {
+        // Rebuilds the ONNX session on the OCR thread; onOcrLanguageChanged reports the
+        // outcome once it completes.
+        QMetaObject::invokeMethod(ocrWorker_, "setLanguage", Qt::QueuedConnection,
+                                  Q_ARG(SourceLanguage, language));
+    }
+
+    appendSubtitleLog(QStringLiteral("SOURCE_LANGUAGE"), sourcelang::key(language), QString());
+    qDebug() << "OverlayWindow: source language switched to" << sourcelang::displayName(language);
+}
+
+void OverlayWindow::resetPipelineState()
+{
+    // In-flight OCR results for the previous model must not be matched against the new
+    // one: bumping the request id makes any reply that is still in the queue stale.
+    ++latestFrameRequestId_;
+    inFlightOcrRequestId_ = latestFrameRequestId_;
+    ocrBusy_ = false;
+    latestFrameForOcr_.release();
+
+    subtitleVisible_ = false;
+    lastOcrText_.clear();
+    lastTranslation_.clear();
+    pendingIncompleteSubtitle_.clear();
+    pendingIncompleteSubtitleTimer_.invalidate();
+    lastNonEmptySubtitleTimer_.invalidate();
+
+    translationQueue_.clear();
+    displayingTranslation_ = false;
+    currentDisplayDurationMs_ = 0;
+
+    if (translation_ && !translation_->text().isEmpty()) {
+        translation_->clear();
+    }
+}
+
+void OverlayWindow::onOcrLanguageChanged(SourceLanguage language, bool ok)
+{
+    if (ok) {
+        ocrDisabledMessage_.clear();
+        appendSubtitleLog(QStringLiteral("OCR_MODEL_LOADED"), sourcelang::key(language), QString());
+        return;
+    }
+
+    // The model or its dictionary is missing. OCR is disabled until it is available, so
+    // say so in the overlay itself: the alternative is a window that silently never shows
+    // a subtitle again, with the reason buried in the console.
+    ocrDisabledMessage_ =
+        QStringLiteral("No %1 OCR model — check models/paddle (see console for the expected path)")
+            .arg(sourcelang::displayName(language));
+    qWarning() << "OverlayWindow:" << ocrDisabledMessage_;
+    appendSubtitleLog(QStringLiteral("OCR_MODEL_ERROR"), sourcelang::key(language),
+                      ocrDisabledMessage_);
+    if (translation_) {
+        translation_->setText(ocrDisabledMessage_);
+    }
 }
 
 void OverlayWindow::onZoneGeometryChanged()
@@ -243,7 +363,7 @@ void OverlayWindow::onOcrReady(const QString &ocrText, float confidence, int req
         lastNonEmptySubtitleTimer_.restart();
 
         // Drop garbled low-confidence reads before they reach the filter/translation.
-        if (confidence < tuning::kMinOcrConfidence) {
+        if (confidence < tuning::profileFor(sourceLanguage_).minOcrConfidence) {
             // qDebug() << "OCR_LOW_CONFIDENCE: text=" << ocrText << "confidence=" << confidence;
             if (latestFrameRequestId_ > requestId) {
                 dispatchLatestOcr();
@@ -286,14 +406,14 @@ void OverlayWindow::handleDispatchCandidate(const OcrSubtitleFilter::Decision &d
     }
 
     if (!pendingIncompleteSubtitle_.isEmpty()) {
-        dispatchText = joinSubtitleFragments(pendingIncompleteSubtitle_, dispatchText);
+        dispatchText = joinSubtitleFragments(pendingIncompleteSubtitle_, dispatchText, sourceLanguage_);
         appendSubtitleLog(QStringLiteral("OCR_MERGED"), dispatchText,
                           QStringLiteral("prefix=") + pendingIncompleteSubtitle_);
         pendingIncompleteSubtitle_.clear();
         pendingIncompleteSubtitleTimer_.invalidate();
     }
 
-    if (isIncompleteSubtitlePhrase(dispatchText) &&
+    if (isIncompleteSubtitlePhrase(dispatchText, sourceLanguage_) &&
         decision.seenFrames >= tuning::kMinIncompleteHoldFrames) {
         pendingIncompleteSubtitle_ = dispatchText;
         pendingIncompleteSubtitleTimer_.restart();
@@ -350,7 +470,7 @@ void OverlayWindow::flushPendingIncompleteSubtitle()
     lastOcrText_ = text;
 }
 
-bool OverlayWindow::isIncompleteSubtitlePhrase(const QString &text)
+bool OverlayWindow::isIncompleteSubtitlePhrase(const QString &text, SourceLanguage language)
 {
     const QString trimmed = text.trimmed();
     if (trimmed.isEmpty()) {
@@ -360,11 +480,20 @@ bool OverlayWindow::isIncompleteSubtitlePhrase(const QString &text)
     // A trailing comma only signals "maybe continued" for a SHORT lead-in clause. A long
     // clause ending in a comma already carries a full unit, so translate it now instead of
     // waiting; this also avoids holding a long line whose trailing comma is an OCR margin
-    // hallucination.
+    // hallucination. This part is shared: only the unit of measure differs per language.
     if (trimmed.endsWith(QChar(0xFF0C)) || trimmed.endsWith(QChar(',')) || trimmed.endsWith(QChar(0x3001))) {
-        return hanContentCount(trimmed) <= tuning::kMaxIncompleteHoldHanChars;
+        return OcrSubtitleFilter::contentUnitCount(trimmed, language) <=
+               tuning::profileFor(language).maxIncompleteHoldUnits;
     }
 
+    // What counts as "cut mid-construction" is entirely language-specific, so each
+    // language brings its own test.
+    return language == SourceLanguage::English ? isIncompleteEnglishPhrase(trimmed)
+                                               : isIncompleteChinesePhrase(trimmed);
+}
+
+bool OverlayWindow::isIncompleteChinesePhrase(const QString &trimmed)
+{
     // Grammatical mid-phrase suffixes are held regardless of length: the clause is cut
     // mid-construction and cannot be translated correctly on its own.
     static const QStringList kIncompleteSuffixes = {
@@ -382,6 +511,51 @@ bool OverlayWindow::isIncompleteSubtitlePhrase(const QString &text)
     }
 
     return false;
+}
+
+bool OverlayWindow::isIncompleteEnglishPhrase(const QString &trimmed)
+{
+    // An English subtitle split across two cards almost always breaks after a function
+    // word: a conjunction, a preposition, an article or an auxiliary. Translating such a
+    // fragment alone produces a dangling clause, so it is held for its continuation.
+    // Content words are never held — a card ending in a noun or a verb is a complete unit.
+    static const QSet<QString> kTrailingFunctionWords = {
+        QStringLiteral("and"),   QStringLiteral("but"),   QStringLiteral("or"),
+        QStringLiteral("nor"),   QStringLiteral("so"),    QStringLiteral("yet"),
+        QStringLiteral("that"),  QStringLiteral("which"), QStringLiteral("who"),
+        QStringLiteral("whom"),  QStringLiteral("whose"), QStringLiteral("because"),
+        QStringLiteral("since"), QStringLiteral("while"), QStringLiteral("when"),
+        QStringLiteral("where"), QStringLiteral("if"),    QStringLiteral("unless"),
+        QStringLiteral("until"), QStringLiteral("than"),  QStringLiteral("as"),
+        QStringLiteral("to"),    QStringLiteral("of"),    QStringLiteral("in"),
+        QStringLiteral("on"),    QStringLiteral("at"),    QStringLiteral("by"),
+        QStringLiteral("for"),   QStringLiteral("with"),  QStringLiteral("from"),
+        QStringLiteral("into"),  QStringLiteral("onto"),  QStringLiteral("about"),
+        QStringLiteral("the"),   QStringLiteral("a"),     QStringLiteral("an"),
+        QStringLiteral("is"),    QStringLiteral("are"),   QStringLiteral("was"),
+        QStringLiteral("were"),  QStringLiteral("been"),  QStringLiteral("be"),
+        QStringLiteral("have"),  QStringLiteral("has"),   QStringLiteral("had"),
+        QStringLiteral("will"),  QStringLiteral("would"), QStringLiteral("can"),
+        QStringLiteral("could"), QStringLiteral("should"),
+    };
+
+    // A line closed by terminal punctuation is finished no matter what word precedes it.
+    const QChar last = trimmed.back();
+    if (last == QChar('.') || last == QChar('!') || last == QChar('?') || last == QChar(':')) {
+        return false;
+    }
+
+    const int lastSpace = trimmed.lastIndexOf(QChar(' '));
+    if (lastSpace < 0) {
+        return false; // A single word is never held: there is nothing to merge it into.
+    }
+
+    QString lastWord = trimmed.mid(lastSpace + 1).toLower();
+    while (!lastWord.isEmpty() && !lastWord.back().isLetter()) {
+        lastWord.chop(1);
+    }
+
+    return kTrailingFunctionWords.contains(lastWord);
 }
 
 void OverlayWindow::onOcrError(const QString &error, int requestId)
@@ -560,8 +734,14 @@ void OverlayWindow::tickDisplayQueue()
     if (!translationQueue_.isEmpty()) {
         showTranslationEntry(translationQueue_.dequeue());
     } else if (!subtitleVisible_) {
-        // Queue is drained and the source subtitle has disappeared — clear the overlay.
-        if (translation_ && !translation_->text().isEmpty()) {
+        // Queue is drained and the source subtitle has disappeared. Normally that means
+        // clearing the overlay — unless OCR is down for a missing model, in which case the
+        // reason stays on screen rather than being wiped by the next tick.
+        if (!ocrDisabledMessage_.isEmpty()) {
+            if (translation_ && translation_->text() != ocrDisabledMessage_) {
+                translation_->setText(ocrDisabledMessage_);
+            }
+        } else if (translation_ && !translation_->text().isEmpty()) {
             translation_->clear();
             appendSubtitleLog(QStringLiteral("DISPLAY_CLEARED"), QString(), QString());
         }
@@ -571,8 +751,9 @@ void OverlayWindow::tickDisplayQueue()
 void OverlayWindow::showTranslationEntry(const TranslationEntry &entry)
 {
     lastTranslation_          = entry.translatedText;
-    // Base reading time on the displayed Vietnamese text, not the Chinese source: Han lines are
-    // much shorter than their Vietnamese rendering, which otherwise clears subtitles too early.
+    // Base reading time on the displayed Vietnamese text, not the source line: a Han line is
+    // much shorter than its Vietnamese rendering, which otherwise clears subtitles too early.
+    // Measuring the output keeps this correct for either source language.
     currentDisplayDurationMs_ = computeDisplayDurationMs(entry.translatedText);
     currentDisplayTimer_.restart();
     displayingTranslation_    = true;

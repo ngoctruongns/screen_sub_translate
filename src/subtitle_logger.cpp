@@ -8,17 +8,49 @@
 
 #include <algorithm>
 
+#include "tuning_params.h"
+
+namespace
+{
+QString sourceSrtPathFor(const QString &subtitleLogDirPath, SourceLanguage language)
+{
+    return QDir(subtitleLogDirPath)
+        .filePath(tuning::profileFor(language).sourceSrtFileName);
+}
+} // namespace
+
 SubtitleLogger::SubtitleLogger(const QString &debugLogFilePath,
                                const QString &subtitleLogDirPath,
                                bool debugLogEnabled,
+                               SourceLanguage sourceLanguage,
                                QObject *parent)
     : QObject(parent),
       debugLogFilePath_(debugLogFilePath),
       subtitleLogDirPath_(subtitleLogDirPath),
-      chineseSubtitleLogPath_(QDir(subtitleLogDirPath).filePath(QStringLiteral("chinese.srt"))),
+      sourceSubtitleLogPath_(sourceSrtPathFor(subtitleLogDirPath, sourceLanguage)),
       vietnameseSubtitleLogPath_(QDir(subtitleLogDirPath).filePath(QStringLiteral("vietnamese.srt"))),
+      sourceLanguage_(sourceLanguage),
       debugLogEnabled_(debugLogEnabled)
 {
+}
+
+void SubtitleLogger::setSourceLanguage(SourceLanguage sourceLanguage)
+{
+    if (sourceLanguage == sourceLanguage_) {
+        return;
+    }
+
+    // Close out whatever is still open under the old language before switching files,
+    // so the previous .srt is left consistent rather than missing its last segment.
+    closeActiveSegment(QDateTime::currentMSecsSinceEpoch());
+    rewriteSrtFiles();
+
+    sourceLanguage_ = sourceLanguage;
+    sourceSubtitleLogPath_ = sourceSrtPathFor(subtitleLogDirPath_, sourceLanguage);
+
+    // Segments collected so far are in the previous language and must not be rewritten
+    // into the new language's file; initialize() drops them and truncates both files.
+    initialize();
 }
 
 void SubtitleLogger::initialize()
@@ -30,10 +62,10 @@ void SubtitleLogger::initialize()
     QDir subtitleDir;
     subtitleDir.mkpath(subtitleLogDirPath_);
 
-    QFile chineseFile(chineseSubtitleLogPath_);
-    if (chineseFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        chineseFile.resize(0);
-        chineseFile.close();
+    QFile sourceFile(sourceSubtitleLogPath_);
+    if (sourceFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        sourceFile.resize(0);
+        sourceFile.close();
     }
 
     QFile vietnameseFile(vietnameseSubtitleLogPath_);
@@ -137,7 +169,7 @@ void SubtitleLogger::closeActiveSegment(qint64 endedAtMs)
 
 void SubtitleLogger::rewriteSrtFiles() const
 {
-    rewriteSingleSrtFile(chineseSubtitleLogPath_, false);
+    rewriteSingleSrtFile(sourceSubtitleLogPath_, false);
     rewriteSingleSrtFile(vietnameseSubtitleLogPath_, true);
 }
 

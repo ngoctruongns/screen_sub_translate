@@ -65,11 +65,13 @@ add_executable(ScreenSubTranslator
 	src/translate_client.cpp
 	src/translation_backend_adapter.cpp
 	src/translation_text_processor.cpp
+	src/tuning_config.cpp
 )
 
 add_executable(OcrBatchEval
 	tools/ocr_batch_eval.cpp
 	src/ocr_engine.cpp
+	src/tuning_config.cpp
 )
 
 target_include_directories(ScreenSubTranslator PRIVATE

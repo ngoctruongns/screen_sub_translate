@@ -5,6 +5,9 @@
 #include <QQueue>
 #include <QString>
 
+#include "source_language.h"
+#include "tuning_params.h"
+
 class OcrSubtitleFilter
 {
 public:
@@ -19,14 +22,24 @@ public:
     };
 
     void configure(int minOcrLength, int minCandidateStableMs);
+    // Switches the stabilization rules to another source language and drops all
+    // candidate/dedupe state, which is meaningless across a language change.
+    void setLanguage(SourceLanguage language);
+    SourceLanguage language() const { return language_; }
     void onSubtitleDisappeared();
     Decision process(const QString &ocrText);
 
-private:
+    // How much meaning a source line carries, in language-neutral units: Han characters
+    // for Chinese, whitespace-delimited words for English. Public because the display and
+    // incomplete-phrase logic in OverlayWindow measures source lines the same way.
+    static int contentUnitCount(const QString &text, SourceLanguage language);
     static int countHanChars(const QString &text);
-    static int requiredStableMsForCandidate(const QString &candidate, int baseStableMs);
-    static int requiredSeenFramesForCandidate(const QString &candidate);
-    static int candidateQualityScore(const QString &text);
+    static int countLatinWords(const QString &text);
+
+private:
+    int requiredStableMsForCandidate(const QString &candidate, int baseStableMs) const;
+    int requiredSeenFramesForCandidate(const QString &candidate) const;
+    int candidateQualityScore(const QString &text) const;
     static int longestCommonSubstring(const QString &left, const QString &right);
     static int longestCommonSubsequence(const QString &left, const QString &right);
     static int levenshteinDistance(const QString &left, const QString &right);
@@ -38,6 +51,9 @@ private:
     QString mostFrequentCandidate() const;
     QString subtitleKey(const QString &text) const;
     void resetCandidateState();
+
+    SourceLanguage language_ = sourcelang::kDefault;
+    const tuning::LanguageProfile *profile_ = &tuning::profileFor(sourcelang::kDefault);
 
     int minOcrLength_ = 0;
     int minCandidateStableMs_ = 0;

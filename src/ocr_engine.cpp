@@ -29,10 +29,24 @@ bool isAsciiDigit(const ushort u)
     return u >= 0x30 && u <= 0x39;
 }
 
+bool isAsciiLetter(const ushort u)
+{
+    return (u >= 'A' && u <= 'Z') || (u >= 'a' && u <= 'z');
+}
+
 bool isCommonSubtitlePunctuation(const ushort u)
 {
     // Keep punctuation often seen in subtitles (ASCII + CJK full-width variants).
     static const QString punctuation = QStringLiteral("!\"'(),-.:;?[]{}...…、。！（），：；？");
+    return punctuation.contains(QChar(u));
+}
+
+// Punctuation that legitimately appears inside or around an English subtitle line.
+// Deliberately narrower than the Chinese set: no full-width CJK forms, which in an
+// English recognition are always noise.
+bool isEnglishSubtitlePunctuation(const ushort u)
+{
+    static const QString punctuation = QStringLiteral("!\"'(),-.:;?[]…&$%/");
     return punctuation.contains(QChar(u));
 }
 
@@ -153,14 +167,65 @@ cv::Mat cropLikelySubtitleRegion(const cv::Mat &bgr)
 }
 } // namespace
 
-OcrEngine::OcrEngine()
-    : env_(ORT_LOGGING_LEVEL_WARNING, "screen_sub_translate"),
+OcrEngine::OcrEngine(SourceLanguage language)
+    : language_(language),
+      profile_(&tuning::profileFor(language)),
+      env_(ORT_LOGGING_LEVEL_WARNING, "screen_sub_translate"),
       memoryInfo_(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault))
 {
+    loadModel(*profile_);
+}
+
+OcrEngine::~OcrEngine() = default;
+
+bool OcrEngine::setLanguage(SourceLanguage language)
+{
+    if (language == language_ && initialized_)
+    {
+        return true;
+    }
+
+    const tuning::LanguageProfile &profile = tuning::profileFor(language);
+    if (!loadModel(profile))
+    {
+        // Leave the engine un-initialized rather than keeping the previous language's
+        // model: recognizing English with the Chinese model (or vice versa) produces
+        // confident garbage, which is far worse than an explicit "OCR not ready" error.
+        qWarning() << "OcrEngine: failed to switch to" << sourcelang::displayName(language)
+                   << "model; OCR is now disabled until a valid model is available.";
+        language_ = language;
+        profile_ = &profile;
+        return false;
+    }
+
+    language_ = language;
+    profile_ = &profile;
+    qDebug() << "OcrEngine: switched to" << sourcelang::displayName(language)
+             << "model=" << profile.recOnnxPath << "inputWidth=" << profile.inputWidth;
+    return true;
+}
+
+bool OcrEngine::loadModel(const tuning::LanguageProfile &profile)
+{
+    initialized_ = false;
+    session_.reset();
+    inputNames_.clear();
+    outputNames_.clear();
+    charset_.clear();
+    // The padded canvas is sized from the profile, so the reused buffers from the
+    // previous model no longer match; drop them and let performOcr recreate them.
+    resizedBuffer_.release();
+    canvasBuffer_.release();
+    floatImgBuffer_.release();
+    inputTensorValues_.clear();
+
     try
     {
-        sessionOptions_.SetIntraOpNumThreads(1);
-        sessionOptions_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+        // Built fresh per load: appending the CUDA execution provider to a reused
+        // SessionOptions would stack a second provider entry on every language switch.
+        Ort::SessionOptions sessionOptions;
+        sessionOptions.SetIntraOpNumThreads(1);
+        sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
 
         if (tuning::kUseCudaExecutionProvider)
         {
@@ -172,7 +237,7 @@ OcrEngine::OcrEngine()
                 cudaOptions.gpu_mem_limit = std::numeric_limits<size_t>::max();
                 cudaOptions.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
                 cudaOptions.do_copy_in_default_stream = 1;
-                sessionOptions_.AppendExecutionProvider_CUDA(cudaOptions);
+                sessionOptions.AppendExecutionProvider_CUDA(cudaOptions);
             }
             catch (const std::exception &e)
             {
@@ -180,22 +245,22 @@ OcrEngine::OcrEngine()
             }
         }
 
-        const QString modelPath = resolveRuntimePath(QString::fromUtf8(tuning::kPaddleRecOnnxPath));
-        const QString charsetPath = resolveRuntimePath(QString::fromUtf8(tuning::kPaddleCharsetPath));
+        const QString modelPath = resolveRuntimePath(profile.recOnnxPath);
+        const QString charsetPath = resolveRuntimePath(profile.charsetPath);
 
         if (!QFileInfo::exists(modelPath))
         {
             qWarning() << "Failed to load Paddle model file:" << modelPath;
-            return;
+            return false;
         }
 
         if (!loadCharset(charsetPath))
         {
             qWarning() << "Failed to load Paddle charset file:" << charsetPath;
-            return;
+            return false;
         }
 
-        session_ = std::make_unique<Ort::Session>(env_, modelPath.toUtf8().constData(), sessionOptions_);
+        session_ = std::make_unique<Ort::Session>(env_, modelPath.toUtf8().constData(), sessionOptions);
 
         Ort::AllocatorWithDefaultOptions allocator;
         {
@@ -211,15 +276,16 @@ OcrEngine::OcrEngine()
         outputNames_.push_back(outputName_.c_str());
 
         initialized_ = true;
+        return true;
     }
     catch (const std::exception &e)
     {
         qWarning() << "ONNX Runtime init failed:" << e.what();
         initialized_ = false;
+        session_.reset();
+        return false;
     }
 }
-
-OcrEngine::~OcrEngine() = default;
 
 bool OcrEngine::loadCharset(const QString &charsetPath)
 {
@@ -309,13 +375,14 @@ QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, fl
     // slip into the crop get decoded as a stray edge character (typically 嶺) with
     // far lower confidence than real glyphs. Only the edges are trimmed, so a real
     // line is left intact; interior characters are never dropped.
+    const float edgeMinConfidence = profile_->edgeMinConfidence;
     int lo = 0;
     int hi = static_cast<int>(pieces.size());
-    while (lo < hi && confs[lo] < tuning::kOcrEdgeMinConfidence)
+    while (lo < hi && confs[lo] < edgeMinConfidence)
     {
         ++lo;
     }
-    while (hi > lo && confs[hi - 1] < tuning::kOcrEdgeMinConfidence)
+    while (hi > lo && confs[hi - 1] < edgeMinConfidence)
     {
         --hi;
     }
@@ -337,6 +404,11 @@ QString OcrEngine::decodeCtc(const float *logits, int timeSteps, int classes, fl
     return QString::fromUtf8(out.c_str());
 }
 
+QString OcrEngine::normalizeRecognizedText(const QString &text) const
+{
+    return language_ == SourceLanguage::English ? normalizeLatinText(text) : normalizeHanText(text);
+}
+
 QString OcrEngine::normalizeHanText(const QString &text)
 {
     QString t = text.trimmed();
@@ -353,6 +425,41 @@ QString OcrEngine::normalizeHanText(const QString &text)
         }
     }
     return out;
+}
+
+QString OcrEngine::normalizeLatinText(const QString &text)
+{
+    // Unlike the Han path, whitespace must survive: it is the word boundary, and both the
+    // stabilization filter and the translation prompt depend on it. Runs of whitespace are
+    // collapsed to a single space and any character outside the English subtitle alphabet
+    // is dropped (a Han glyph here means the wrong model is loaded, or pure hallucination).
+    QString out;
+    out.reserve(text.size());
+
+    bool pendingSpace = false;
+    for (const QChar c : text.trimmed())
+    {
+        if (c.isSpace())
+        {
+            pendingSpace = !out.isEmpty();
+            continue;
+        }
+
+        const ushort u = c.unicode();
+        if (!isAsciiLetter(u) && !isAsciiDigit(u) && !isEnglishSubtitlePunctuation(u))
+        {
+            continue;
+        }
+
+        if (pendingSpace)
+        {
+            out.append(QLatin1Char(' '));
+            pendingSpace = false;
+        }
+        out.append(c);
+    }
+
+    return out.trimmed();
 }
 
 OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
@@ -383,8 +490,10 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
     }
 
     // Keep text aspect ratio, then pad to model width to reduce CTC hallucinations.
+    // The width comes from the active language profile: an English line runs several
+    // times more characters than its Han equivalent and needs a wider canvas.
     const int targetH = tuning::kPaddleInputHeight;
-    const int targetW = tuning::kPaddleInputWidth;
+    const int targetW = profile_->inputWidth;
 
     const cv::Mat subtitleRegion = cropLikelySubtitleRegion(bgr);
 
@@ -404,7 +513,7 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
     canvasBuffer_.convertTo(floatImgBuffer_, CV_32FC3, 1.0 / 255.0);
 
     constexpr int C = 3;
-    const size_t planeSize = static_cast<size_t>(tuning::kPaddleInputHeight) * tuning::kPaddleInputWidth;
+    const size_t planeSize = static_cast<size_t>(targetH) * targetW;
     const size_t totalInputSize = static_cast<size_t>(C) * planeSize;
     if (inputTensorValues_.size() != totalInputSize)
     {
@@ -422,7 +531,7 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
         }
     }
 
-    const std::array<int64_t, 4> shape = {1, C, tuning::kPaddleInputHeight, tuning::kPaddleInputWidth};
+    const std::array<int64_t, 4> shape = {1, C, targetH, targetW};
     Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
         memoryInfo_, inputTensorValues_.data(), inputTensorValues_.size(), shape.data(), shape.size());
 
@@ -454,7 +563,7 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
 
         float confidence = 0.0f;
         const QString decoded = decodeCtc(logits, timeSteps, classes, &confidence);
-        return {normalizeHanText(decoded), confidence};
+        return {normalizeRecognizedText(decoded), confidence};
     }
     catch (const std::exception &e)
     {

@@ -8,8 +8,11 @@
     "minP              : discard tokens with prob < minP × best_prob. 0.05–0.10 suppresses Han chars leaking into output.",
     "temperature       : first-pass sampling temperature. 0.0 = greedy; keep low (<=0.1) for faithful subtitles.",
     "numPredict        : max new tokens per response (~64 covers most subtitle lines).",
-    "retryTemperature  : temperature for the single retry pass. Looser than first pass (e.g. 0.3) helps the model escape a degenerate first output."
+    "retryTemperature  : temperature for the single retry pass. Looser than first pass (e.g. 0.3) helps the model escape a degenerate first output.",
+    "sourceLanguage    : subtitle language to read at startup: 'zh' (Chinese) or 'en' (English). Only a default — the language picked from the capture window's right-click menu is remembered and wins over this."
   ],
+
+  "sourceLanguage": "zh",
 
   "apiMode": "openai",
   "baseUrl": "http://127.0.0.1:8080/v1",
@@ -31,5 +34,6 @@
   "retryTemperature": 0.3,
 
   "contextFile": "../translate/movie_context.txt",
-  "glossaryFile": "../translate/glossary.json"
+  "glossaryFile": "../translate/glossary.json",
+  "glossaryFileEn": "../translate/glossary_en.json"
 }

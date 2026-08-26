@@ -56,7 +56,10 @@ void TranslateClient::initializeTranslationBackend()
     backendModel_ = runtimeConfig.model;
     backendApiMode_ = runtimeConfig.apiMode;
     promptContextFilePath_ = runtimeConfig.contextFilePath;
-    aliasFilePath_ = runtimeConfig.glossaryFilePath;
+    glossaryFilePathZh_ = runtimeConfig.glossaryFilePath;
+    glossaryFilePathEn_ = runtimeConfig.glossaryFilePathEn;
+    configuredSourceLanguage_ = sourcelang::fromKey(runtimeConfig.sourceLanguage);
+    sourceLanguage_ = configuredSourceLanguage_;
     autoDiscoverModel_ = runtimeConfig.autoDiscoverModel;
     cachePrompt_ = runtimeConfig.cachePrompt;
     repeatLastN_ = runtimeConfig.repeatLastN;
@@ -85,24 +88,66 @@ void TranslateClient::initializeTranslationBackend()
     aliasPairs_.clear();
     if (localInitialized_) {
         cachedContextBlock_ = TranslationTextProcessor::loadPromptContext(promptContextFilePath_);
-        const TranslationTextProcessor::AliasData aliasData =
-            TranslationTextProcessor::loadAliasRules(aliasFilePath_);
-        glossaryPairs_ = aliasData.glossaryPairs;
-        aliasPairs_ = aliasData.aliasPairs;
+        loadGlossaryForCurrentLanguage();
 
         qDebug() << "TranslateClient: local translation backend ready"
                  << "model=" << backendModel_ << "mode=" << TranslationBackend::apiModeName(mode)
                  << "url=" << TranslationBackend::endpointUrl(backendBaseUrl_, mode).toString()
                  << "config=" << backendConfigPath_
                  << "context=" << promptContextFilePath_
-                 << "aliasFile=" << aliasFilePath_
-                 << "glossaryRules=" << glossaryPairs_.size()
-                 << "aliasRules=" << aliasPairs_.size();
+                 << "sourceLanguage=" << sourcelang::displayName(sourceLanguage_);
     } else {
         qWarning() << "TranslateClient: translation backend config invalid"
                    << "baseUrl=" << backendBaseUrl_ << "mode=" << backendApiMode_
                    << "config=" << backendConfigPath_;
     }
+}
+
+void TranslateClient::loadGlossaryForCurrentLanguage()
+{
+    const QString path = (sourceLanguage_ == SourceLanguage::English) ? glossaryFilePathEn_
+                                                                     : glossaryFilePathZh_;
+    const TranslationTextProcessor::AliasData aliasData =
+        TranslationTextProcessor::loadAliasRules(path);
+    glossaryPairs_ = aliasData.glossaryPairs;
+    aliasPairs_ = aliasData.aliasPairs;
+
+    qDebug() << "TranslateClient: glossary loaded"
+             << "language=" << sourcelang::displayName(sourceLanguage_)
+             << "file=" << path
+             << "glossaryRules=" << glossaryPairs_.size()
+             << "aliasRules=" << aliasPairs_.size();
+}
+
+void TranslateClient::setSourceLanguage(SourceLanguage language)
+{
+    if (language == sourceLanguage_) {
+        return;
+    }
+
+    // Cleared BEFORE the abort below: abort() can deliver finished() synchronously, and
+    // onReplyFinished() ends by starting a request for pendingText_ — which would build a
+    // fresh prompt in the language we are leaving, and land after the switch.
+    pendingText_.clear();
+    inFlightText_.clear();
+
+    // A request already on the wire was built from the previous language's prompt. Letting
+    // it land would judge its response against the new language's quality gate and emit a
+    // translation for a line that is no longer on screen, so drop it.
+    if (activeReply_) {
+        activeReply_->abort(); // onReplyFinished() sees OperationCanceledError and discards it.
+    }
+
+    sourceLanguage_ = language;
+
+    // The cache and the dialogue history are keyed by source lines of the previous
+    // language; carrying them across would serve a Chinese translation for an English
+    // line and feed the prompt context lines the model has no use for.
+    translationCache_.clear();
+    translationCacheOrder_.clear();
+    recentTranslationHistory_.clear();
+
+    loadGlossaryForCurrentLanguage();
 }
 
 QString TranslateClient::applyGlossaryAliasNormalization(const QString &translatedText) const
@@ -117,8 +162,9 @@ void TranslateClient::requestTranslation(const QString &sourceText)
         return;
     }
 
-    if (!TranslationTextProcessor::isLikelyChineseSubtitle(normalized)) {
-        emit translationError(QStringLiteral("Skipped non-Chinese OCR candidate"));
+    if (!TranslationTextProcessor::isLikelySourceSubtitle(normalized, sourceLanguage_)) {
+        emit translationError(QStringLiteral("Skipped OCR candidate that is not %1")
+                                  .arg(sourcelang::displayName(sourceLanguage_)));
         return;
     }
 
@@ -157,10 +203,13 @@ QString TranslateClient::recentDialogueContext() const
     lines.reserve(historySize - startIndex);
     for (int i = startIndex; i < historySize; ++i) {
         const TranslationContextEntry &entry = recentTranslationHistory_.at(i);
-        // Only include the Chinese source lines, NOT the Vietnamese translations.
-        // Feeding translated text back risks propagating any dirty/garbage output
-        // from a previous pass as a "correct" example, creating a feedback loop.
-        lines.append(TranslationTextProcessor::shortText(entry.sourceText, tuning::kTranslateHistoryEntryMaxCharsHan));
+        // Only include the source lines, NOT the Vietnamese translations. Feeding
+        // translated text back risks propagating any dirty/garbage output from a
+        // previous pass as a "correct" example, creating a feedback loop.
+        // The truncation length is per-language: an English line needs far more
+        // characters than a Han line to carry the same amount of context.
+        lines.append(TranslationTextProcessor::shortText(
+            entry.sourceText, tuning::profileFor(sourceLanguage_).historyEntryMaxChars));
     }
 
     return lines.join(QStringLiteral(", "));
@@ -239,13 +288,14 @@ void TranslateClient::startBackendRequest(const QString &sourceText)
     }
     // Do not include the user-provided movie context in per-line prompts by default.
     // For small local models, broad natural-language context can leak into the subtitle output,
-    // especially when the OCR source is short or noisy. Glossary entries and recent Chinese
-    // source lines remain enabled because they are line-specific and less prone to leakage.
+    // especially when the OCR source is short or noisy. Glossary entries and recent source
+    // lines remain enabled because they are line-specific and less prone to leakage.
     startBackendPromptRequest(sourceText,
                               TranslationTextProcessor::translationPrompt(sourceText,
                                                                            QString(),
                                                                            dialogueContext,
-                                                                           glossaryBlock),
+                                                                           glossaryBlock,
+                                                                           sourceLanguage_),
                               false);
 }
 
@@ -403,7 +453,8 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                                      << QString::fromUtf8(responseData);
             }
 
-            QString translated = TranslationTextProcessor::selectBestVietnameseLine(rawTranslated);
+            QString translated =
+                TranslationTextProcessor::selectBestVietnameseLine(rawTranslated, sourceLanguage_);
 
             TranslationTextProcessor::TranslationIssue issue = TranslationTextProcessor::TranslationIssue::None;
             if (translated.trimmed().isEmpty() && !rawTranslated.trimmed().isEmpty()) {
@@ -415,23 +466,34 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
             translated = TranslationTextProcessor::sanitizeFinalTranslation(translated);
 
             if (issue == TranslationTextProcessor::TranslationIssue::None) {
-                issue = TranslationTextProcessor::evaluateTranslationQuality(sourceText, translated);
+                issue = TranslationTextProcessor::evaluateTranslationQuality(sourceText, translated,
+                                                                            sourceLanguage_);
             }
 
             const QString priorSalvage = reply->property("priorSalvage").toString();
 
-            // ResidualHan (a mostly-Vietnamese line with a few stray Han) is cheaply
-            // recoverable by stripping the Han, so treat it as a success path directly.
+            // Two cheaply-repairable residues, one per source language: a mostly-Vietnamese
+            // line with a few stray Han (Chinese source) or a few untranslated English words
+            // (English source). Both are fixed by deleting the leftovers rather than by
+            // spending another backend round-trip, so on the retry pass they take the
+            // success path directly.
             const bool canFallbackByRemovingHan =
                 isRetryPass && issue == TranslationTextProcessor::TranslationIssue::ResidualHan;
+            const bool canFallbackByRemovingEnglish =
+                isRetryPass && issue == TranslationTextProcessor::TranslationIssue::ResidualEnglish;
 
-            if (issue == TranslationTextProcessor::TranslationIssue::None || canFallbackByRemovingHan) {
+            if (issue == TranslationTextProcessor::TranslationIssue::None ||
+                canFallbackByRemovingHan || canFallbackByRemovingEnglish) {
                 QString finalText = TranslationTextProcessor::removeHanCharacters(translated);
+                if (canFallbackByRemovingEnglish) {
+                    finalText = TranslationTextProcessor::removeForeignLatinWords(finalText);
+                }
                 finalText = TranslationTextProcessor::postProcessTranslation(finalText);
                 finalText = applyGlossaryAliasNormalization(finalText);
 
                 const TranslationTextProcessor::TranslationIssue finalIssue =
-                    TranslationTextProcessor::evaluateTranslationQuality(sourceText, finalText);
+                    TranslationTextProcessor::evaluateTranslationQuality(sourceText, finalText,
+                                                                        sourceLanguage_);
                 if (finalText.trimmed().isEmpty() ||
                     finalIssue == TranslationTextProcessor::TranslationIssue::Empty ||
                     finalIssue == TranslationTextProcessor::TranslationIssue::TooShort) {
@@ -461,7 +523,8 @@ void TranslateClient::onReplyFinished(QNetworkReply *reply)
                                                                                            dialogueContext,
                                                                                            rawTranslated,
                                                                                            glossaryBlock,
-                                                                                           issue),
+                                                                                           issue,
+                                                                                           sourceLanguage_),
                                           true,
                                           firstPassSalvage);
                 return;

@@ -21,7 +21,12 @@ struct BackendConfig {
     QString model;
     QString apiMode;
     QString contextFilePath;
-    QString glossaryFilePath;
+    QString glossaryFilePath;    // Chinese-source glossary.
+    QString glossaryFilePathEn;  // English-source glossary.
+    // Source language the app starts in ("zh" | "en"). Only a default: once the user picks
+    // a language from the capture window's context menu, that choice is remembered in
+    // QSettings and wins over this field.
+    QString sourceLanguage;
     bool autoDiscoverModel = true;
     bool cachePrompt = true;
     int modelDiscoveryTimeoutMs = 1200;

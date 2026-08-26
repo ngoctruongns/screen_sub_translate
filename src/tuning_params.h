@@ -1,7 +1,24 @@
 #pragma once
 
-// Centralized tuning constants, ordered to follow the runtime pipeline:
+#include <QString>
+#include <QStringList>
+
+#include "source_language.h"
+
+// Centralized tuning parameters, ordered to follow the runtime pipeline:
 //   Capture -> OCR engine -> OCR subtitle filter -> Translation (AI model) -> Display.
+//
+// EVERY value here is a DEFAULT that can be overridden at runtime from `config/tuning.json`,
+// so tuning a value needs an app restart but never a rebuild. loadTuningConfig() applies the
+// file over these defaults; anything the file omits keeps the default below.
+//
+// Values that are the same for every source language are free variables in this namespace.
+// Values that differ per language live in LanguageProfile, one profile per source language,
+// selected at runtime by profileFor().
+//
+// THREADING: these are plain mutable globals, written once by loadTuningConfig() at startup
+// and only read afterwards. Call it from main() BEFORE any worker thread is created; there
+// is no locking, and it is not safe to reload while the pipeline is running.
 
 namespace tuning
 {
@@ -9,135 +26,183 @@ namespace tuning
     // ─────────────────────────────────────────────────────────────────────────
     // 1. CAPTURE (screen grab + change/noise gate)  — capture_worker.cpp
     // ─────────────────────────────────────────────────────────────────────────
-    inline constexpr int kCaptureIntervalMs = 50;          // Capture worker loop interval.
-    inline constexpr int kOcrKeepaliveIntervalMs = 220;    // Force an OCR dispatch even without frame change, at least this often.
+    inline int kCaptureIntervalMs = 50;          // Capture worker loop interval.
+    inline int kOcrKeepaliveIntervalMs = 220;    // Force an OCR dispatch even without frame change, at least this often.
 
-    // Frame-diff / noise gate deciding whether a captured frame is worth OCR-ing
-    // (single fixed configuration, equivalent to the previous Balanced profile).
-    inline constexpr double kChangeThreshold = 1.65;       // Mean frame-diff threshold.
-    inline constexpr double kMinChangedRatio = 0.009;      // Minimum changed-pixel ratio.
-    inline constexpr double kMinStdDev = 8.5;              // Reject low-contrast frames below this std dev.
+    // Frame-diff / noise gate deciding whether a captured frame is worth OCR-ing.
+    inline double kChangeThreshold = 1.65;       // Mean frame-diff threshold.
+    inline double kMinChangedRatio = 0.009;      // Minimum changed-pixel ratio.
+    inline double kMinStdDev = 8.5;              // Reject low-contrast frames below this std dev.
 
     // ─────────────────────────────────────────────────────────────────────────
     // 2. OCR ENGINE (PaddleOCR ONNX Runtime, C++)  — ocr_engine.cpp
     // ─────────────────────────────────────────────────────────────────────────
-    inline constexpr bool kUseCudaExecutionProvider = true; // Try CUDA EP first; falls back to CPU with a warning.
+    inline bool kUseCudaExecutionProvider = true; // Try CUDA EP first; falls back to CPU with a warning.
+    inline int kPaddleInputHeight = 48;           // Recognition input height. 48 for PP-OCRv4/v5; some older models use 32.
 
-    // Recognition model + its matching character dictionary. These MUST come as a pair.
-    //   - PP-OCRv4 server (default below): higher accuracy than the mobile model on stylised
-    //     fonts / noisy backgrounds; same input (3x48xW) and same dict (ppocr_keys_v1.txt),
-    //     so it is a drop-in replacement — just place the .onnx file at this path.
-    //   - PP-OCRv4 mobile (previous): "ch_PP-OCRv4_rec_infer.onnx" + ppocr_keys_v1.txt.
-    //   - PP-OCRv5 server (best): "PP-OCRv5_server_rec_infer.onnx" and REQUIRES the v5 dict
-    //     "ppocrv5_dict.txt" instead of ppocr_keys_v1.txt (larger, multi-lang). Swap BOTH.
-    // ~10-60 MB on disk; negligible VRAM next to the translation model.
-    inline constexpr const char *kPaddleRecOnnxPath = "../models/paddle/ch_PP-OCRv4_rec_server_infer.onnx";
-    inline constexpr const char *kPaddleCharsetPath = "../models/paddle/ppocr_keys_v1.txt";
-    inline constexpr int kPaddleInputHeight = 48;          // Recognition input height (fixed).
-    inline constexpr int kPaddleInputWidth = 480;          // Recognition input width (padded). Wider = less horizontal
-                                                           // squashing on long Han lines. Requires a dynamic-width ONNX
-                                                           // export (most PP-OCRv4 rec exports are); revert to 320 if the
-                                                           // model rejects the input shape.
-
-    // Reject a recognition whose mean per-character confidence (max softmax prob over
-    // the CTC-emitted steps) is below this. Filters garbled reads (e.g. "一居鳞") before
-    // they reach translation. TUNE ON REAL FOOTAGE: confidence is logged per detection;
-    // raise toward 0.8 to drop more garbage, lower if valid subtitles get dropped.
-    inline constexpr float kMinOcrConfidence = 0.55f;
-
-    // Trim leading/trailing recognized characters whose individual confidence is
-    // below this. Dark margins/background that slip into the crop (a loose capture
-    // window, or bright background elements widening the auto-crop) decode as a
-    // stray edge character — typically 嶺 — with far lower confidence than real
-    // glyphs (~0.98). Trimming only the edges leaves the real line intact.
-    // Set to 0 to disable. TUNE ON REAL FOOTAGE if valid edge chars get dropped.
-    inline constexpr float kOcrEdgeMinConfidence = 0.80f;
+    // The recognition model, its charset, the input width and the confidence gates are
+    // all per-language — see LanguageProfile below.
 
     // ─────────────────────────────────────────────────────────────────────────
     // 3. OCR SUBTITLE FILTER (stabilization)  — ocr_subtitle_filter.cpp
     // ─────────────────────────────────────────────────────────────────────────
-    inline constexpr int kMinOcrLength = 1;                // Minimum accepted candidate length.
-    inline constexpr int kMinCandidateStableMs = 150;      // Base stable time before a candidate can dispatch.
-    inline constexpr int kMinHanCharsForCandidate = 1;     // Minimum Han chars for a candidate to be considered.
+    inline int kMinOcrLength = 1;                // Minimum accepted candidate length.
+    inline int kMinCandidateStableMs = 150;      // Base stable time before a candidate can dispatch.
 
     // Dynamic stability for short candidates: shorter text needs longer/steadier confirmation.
-    // Tuned P1: allow shorter text with lower frame/time requirements for faster detection.
-    inline constexpr int kVeryShortCandidateStableMs = 350; // len <= 1: reduced from 520ms for faster detection.
-    inline constexpr int kShortCandidateStableMs = 150;     // len <= 3: reduced from 260ms for faster detection.
-    inline constexpr int kVeryShortCandidateMinFrames = 2;  // len <= 1: reduced from 3 for shorter text.
-    inline constexpr int kShortCandidateMinFrames = 1;      // len <= 3: reduced from 2 for shorter text.
+    // The *length* at which a candidate counts as "short" is per-language (a Han line carries
+    // roughly four times the meaning per character that an English line does) — see
+    // LanguageProfile::veryShortCandidateChars / shortCandidateChars.
+    inline int kVeryShortCandidateStableMs = 350; // Very short text: longer confirmation window.
+    inline int kShortCandidateStableMs = 150;     // Short text.
+    inline int kVeryShortCandidateMinFrames = 2;  // Very short text: minimum stable frames.
+    inline int kShortCandidateMinFrames = 1;      // Short text: minimum stable frames.
 
     // Subtitle dispatch dedupe / lifecycle (avoid translating the same on-screen subtitle repeatedly).
-    inline constexpr int kSubtitleDisappearTimeoutMs = 1000; // Empty OCR longer than this => subtitle disappeared.
-    inline constexpr int kSubtitleSwitchCooldownMs = 200;   // Minimum time between dispatching different subtitles.
-    inline constexpr int kSubtitleResendCooldownMs = 2200;  // Minimum time before resending the same subtitle.
-    inline constexpr int kRecentSubtitleWindowSize = 4;     // Recent subtitle keys / translation history window for dedupe.
+    inline int kSubtitleDisappearTimeoutMs = 1000; // Empty OCR longer than this => subtitle disappeared.
+    inline int kSubtitleSwitchCooldownMs = 200;   // Minimum time between dispatching different subtitles.
+    inline int kSubtitleResendCooldownMs = 2200;  // Minimum time before resending the same subtitle.
+    inline int kRecentSubtitleWindowSize = 4;     // Recent subtitle keys / translation history window for dedupe.
 
     // Incomplete-subtitle hold (a line ending in a comma is held to be merged with its
     // continuation). Only SHORT lead-in clauses (connectives / adverbials) really need
     // merging; a long clause ending in a comma is already a self-contained unit and is
     // dispatched immediately. This also stops a spurious trailing comma (OCR margin
     // hallucination) on a long line from delaying translation.
-    // Hold on trailing comma only when the clause has at most this many Han chars.
-    inline constexpr int kMaxIncompleteHoldHanChars = 4;
-    // ...and only after the incomplete read is stable across at least this many frames,
-    // so a one-frame comma flicker never triggers a hold.
-    inline constexpr int kMinIncompleteHoldFrames = 2;
+    // The length limit is per-language (LanguageProfile::maxIncompleteHoldUnits).
+    //
+    // A hold only happens after the incomplete read is stable across at least this many
+    // frames, so a one-frame comma flicker never triggers one.
+    inline int kMinIncompleteHoldFrames = 2;
 
     // ─────────────────────────────────────────────────────────────────────────
     // 4. TRANSLATION — AI MODEL / BACKEND  — translate_client.cpp, translation_backend_adapter.cpp
     // ─────────────────────────────────────────────────────────────────────────
-    // Local translation backend defaults (overridable via the JSON config file).
+    // Bootstrap paths. These are NOT part of config/tuning.json — they say where the other
+    // config files live, so they have to be known before any config is read.
+    inline constexpr const char *kTuningConfigPath = "../config/tuning.json";
     inline constexpr const char *kTranslateBackendConfigPath = "../translate/translation_backend.json";
+
+    // Backend defaults, overridable via translation_backend.json (not via tuning.json:
+    // these belong to the backend's own config file).
     inline constexpr const char *kTranslateBaseUrl = "http://127.0.0.1:8080";
     inline constexpr const char *kTranslateModel = "";       // Optional. Empty => discover/use backend default when possible.
     inline constexpr const char *kTranslateApiMode = "auto"; // auto | llamacpp | openai | ollama
     inline constexpr const char *kTranslateContextFilePath = "../translate/movie_context.txt";
     inline constexpr const char *kTranslateGlossaryFilePath = "../translate/glossary.json";
+    inline constexpr const char *kTranslateGlossaryFilePathEn = "../translate/glossary_en.json";
 
     // First-pass generation.
-    inline constexpr double kTranslateTemperature = 0.01;   // Sampling temperature: 0.0 = greedy; keep <=0.1 for translation.
-    inline constexpr int kTranslateNumPredict = 64;         // Max new tokens per response (~64 covers most subtitle lines).
-    inline constexpr int kTranslateRequestTimeoutMs = 15000; // Abort a stalled request so a frozen backend can't wedge the pipeline.
-    inline constexpr int kTranslationCacheSize = 96;        // LRU cache of successful translations keyed by source line.
+    inline double kTranslateTemperature = 0.01;   // Sampling temperature: 0.0 = greedy; keep <=0.1 for translation.
+    inline int kTranslateNumPredict = 64;         // Max new tokens per response (~64 covers most subtitle lines).
+    inline int kTranslateRequestTimeoutMs = 15000; // Abort a stalled request so a frozen backend can't wedge the pipeline.
+    inline int kTranslationCacheSize = 96;        // LRU cache of successful translations keyed by source line.
 
     // Prompt context and recent-dialogue history.
-    inline constexpr int kTranslatePromptContextMaxChars = 900; // Max chars loaded from movie_context.txt.
-    inline constexpr int kTranslateHistoryWindowSize = 2;       // Number of recent source lines injected as context.
-    inline constexpr int kTranslateHistoryEntryMaxCharsHan = 42; // Truncation for a Chinese history entry.
-    inline constexpr int kTranslateHistoryEntryMaxCharsVie = 82; // Truncation for a Vietnamese history entry.
+    inline int kTranslatePromptContextMaxChars = 900; // Max chars loaded from movie_context.txt.
+    inline int kTranslateHistoryWindowSize = 2;       // Number of recent source lines injected as context.
 
     // Single retry pass: if the first output fails quality checks, retry once.
     // Disabling drops bad responses outright — useful for latency testing but hurts translation quality.
-    // NOTE: kTranslateTemperature / kTranslateNumPredict / kTranslateRetryTemperature are DEFAULTS only;
-    // they can be overridden at runtime via translation_backend.json (temperature / numPredict / retryTemperature).
-    inline constexpr bool kEnableRetryPasses = true;
-    inline constexpr double kTranslateRetryTemperature = 0.3; // Looser than first pass so retry can escape a degenerate first output.
-    inline constexpr int kTranslateRetryTopK = 30;
-    inline constexpr double kTranslateRetryTopP = 0.8;
-    inline constexpr double kTranslateRetryMinP = 0.1;
+    // NOTE: kTranslateTemperature / kTranslateNumPredict / kTranslateRetryTemperature can ALSO be
+    // overridden by translation_backend.json (temperature / numPredict / retryTemperature), which is
+    // applied after tuning.json and therefore wins for those three fields.
+    inline bool kEnableRetryPasses = true;
+    inline double kTranslateRetryTemperature = 0.3; // Looser than first pass so retry can escape a degenerate first output.
+    inline int kTranslateRetryTopK = 30;
+    inline double kTranslateRetryTopP = 0.8;
+    inline double kTranslateRetryMinP = 0.1;
 
     // ─────────────────────────────────────────────────────────────────────────
     // 5. TRANSLATION — QUALITY CHECKS  — translation_text_processor.cpp
     // ─────────────────────────────────────────────────────────────────────────
-    inline constexpr int kTranslateLineScoreMin = 0;       // Minimum score for selectBestVietnameseLine() to accept a line.
+    inline int kTranslateLineScoreMin = 0;       // Minimum score for selectBestVietnameseLine() to accept a line.
 
-    // Ratio-based short-translation guard: suspicious when (output word count / source Han count) < ratio,
-    // applied only when the source has at least kMinHanCharsForRatioCheck Han chars.
-    inline constexpr double kMinTranslationWordRatio = 0.40;
-    inline constexpr int kMinHanCharsForRatioCheck = 5;
+    // The length-ratio guards compare the Vietnamese output word count against the
+    // *source unit count* — Han characters for Chinese, words for English. Both the
+    // ratios and the unit thresholds are per-language, since one Han character carries
+    // far more meaning than one English word. See LanguageProfile below.
 
     // ─────────────────────────────────────────────────────────────────────────
     // 6. DISPLAY QUEUE  — overlay_window.cpp
     // ─────────────────────────────────────────────────────────────────────────
     // Display duration is clamped to [kDisplayMinMs, kDisplayMaxMs].
     // Formula: clamp(kDisplayBaseMs + charCount * kDisplayMsPerChar, min, max)
-    inline constexpr int kDisplayMinMs        = 300;   // Minimum display time per entry (ms).
-    inline constexpr int kDisplayMaxMs        = 3500;  // Maximum display time per entry (ms).
-    inline constexpr int kDisplayBaseMs       = 250;   // Base display time before per-char contribution (ms).
-    inline constexpr int kDisplayMsPerChar    = 70;    // Additional ms per displayed character.
-    inline constexpr int kDisplayMaxLatencyMs = 2500;  // Drop entry if it has been queued longer than this (ms).
-    inline constexpr int kDisplayQueueMaxSize = 5;     // Max queue depth before overflow handling.
-    inline constexpr int kDisplayTickMs       = 60;    // Timer interval for advancing the display queue (ms).
+    inline int kDisplayMinMs        = 300;   // Minimum display time per entry (ms).
+    inline int kDisplayMaxMs        = 3500;  // Maximum display time per entry (ms).
+    inline int kDisplayBaseMs       = 250;   // Base display time before per-char contribution (ms).
+    inline int kDisplayMsPerChar    = 70;    // Additional ms per displayed character.
+    inline int kDisplayMaxLatencyMs = 2500;  // Drop entry if it has been queued longer than this (ms).
+    inline int kDisplayQueueMaxSize = 5;     // Max queue depth before overflow handling.
+    inline int kDisplayTickMs       = 60;    // Timer interval for advancing the display queue (ms).
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 7. PER-LANGUAGE PIPELINE PROFILES
+    // ─────────────────────────────────────────────────────────────────────────
+    // Everything that genuinely differs between the Chinese and the English pipeline.
+    // Selected once per language switch by profileFor(); nothing else in the codebase
+    // should branch on SourceLanguage for a *value* — only for behaviour.
+    //
+    // "Source units" is the language-neutral measure of how much meaning the source
+    // line carries: Han characters for Chinese, whitespace-delimited words for English.
+    // All translation length guards are expressed against it.
+    struct LanguageProfile
+    {
+        // ── OCR engine ────────────────────────────────────────────────────────
+        // Recognition model + its matching character dictionary. These MUST come as a pair:
+        // a model paired with the wrong dictionary decodes to garbage.
+        QString recOnnxPath;
+        QString charsetPath;
+        // Padded recognition input width. Wider = less horizontal squashing on long lines,
+        // at a proportional inference cost. Requires a dynamic-width ONNX export.
+        int inputWidth = 480;
+        // Reject a recognition whose mean per-character confidence is below this.
+        // TUNE ON REAL FOOTAGE: confidence is logged per detection.
+        float minOcrConfidence = 0.55f;
+        // Trim leading/trailing recognized characters whose individual confidence is below
+        // this — dark margins that slip into the crop decode as a stray low-confidence edge
+        // character. Set to 0 to disable.
+        float edgeMinConfidence = 0.80f;
+
+        // ── OCR subtitle filter ───────────────────────────────────────────────
+        int minContentUnits = 1;          // Minimum source units for a read to be a candidate at all.
+        int veryShortCandidateChars = 1;  // Candidate length (chars) at or below which "very short" stability rules apply.
+        int shortCandidateChars = 3;      // ...and "short" stability rules.
+
+        // ── Incomplete-subtitle hold ──────────────────────────────────────────
+        int maxIncompleteHoldUnits = 4;   // Hold on a trailing comma only up to this many source units.
+
+        // ── Translation prompt / history ──────────────────────────────────────
+        int historyEntryMaxChars = 42;    // Truncation for one recent source line injected as context.
+
+        // ── Translation quality gate ──────────────────────────────────────────
+        // Output is judged as (Vietnamese word count / source unit count).
+        double minTranslationWordRatio = 0.40; // Below this => suspiciously short.
+        int    minUnitsForRatioCheck = 5;      // Ratio is too noisy under this many source units; a hard floor is used instead.
+        int    shortSourceUnitLimit = 5;       // At or below this many units the source is a "short phrase" (over-expansion check).
+        int    longSourceUnitThreshold = 8;    // Above this many units the looser long-source max ratio applies.
+        double maxWordRatioShortSource = 4.0;  // Above this ratio a short source is over-generated.
+        double maxWordRatioLongSource = 3.0;   // ...and a long one.
+        int    maxOutputLengthFactor = 12;     // Output chars > sourceChars * this => clearly over-generated.
+
+        // ── Logging ───────────────────────────────────────────────────────────
+        QString sourceSrtFileName = QStringLiteral("chinese.srt"); // Source-side .srt written next to vietnamese.srt.
+    };
+
+    // Compile-time defaults, before config/tuning.json is applied.
+    LanguageProfile defaultChineseProfile();
+    LanguageProfile defaultEnglishProfile();
+
+    // The live profile for a language. Reads are lock-free; see the THREADING note above.
+    const LanguageProfile &profileFor(SourceLanguage language);
+
+    // Applies config/tuning.json over the defaults. Returns false when the file is missing
+    // or unparseable — in which case every default above stays in effect, which is a valid
+    // configuration, so a missing file is not fatal. `messages` collects human-readable
+    // notes (unknown keys, out-of-range values that were clamped) for logging.
+    bool loadTuningConfig(const QString &path, QStringList *messages = nullptr);
+
+    // Absolute path loadTuningConfig() last resolved, for logging and error messages.
+    QString resolvedTuningConfigPath();
 
 } // namespace tuning

@@ -3,6 +3,7 @@
 #include <QRect>
 
 #include "overlay_frame.h"
+#include "source_language.h"
 
 class QPaintEvent;
 
@@ -21,12 +22,23 @@ public:
     // geometry shrunk by the painted border so no frame pixels are grabbed.
     QRect captureRect() const;
 
+    // The source language shown as checked in the context menu. Set by the controller,
+    // which owns the actual pipeline state; the widget only renders and reports choices.
+    void setSourceLanguage(SourceLanguage language);
+    SourceLanguage sourceLanguage() const { return sourceLanguage_; }
+
+signals:
+    // Emitted when the user picks a different source language from the context menu.
+    void sourceLanguageSelected(SourceLanguage language);
+
 protected:
     void paintEvent(QPaintEvent *event) override;
     void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
+    void buildContextMenu(QMenu &menu) override;
 
 private:
     static constexpr int kBorderThickness = 4;
     bool hovered_ = false;
+    SourceLanguage sourceLanguage_ = sourcelang::kDefault;
 };

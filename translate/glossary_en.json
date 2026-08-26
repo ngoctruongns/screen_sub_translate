@@ -1,0 +1,36 @@
+{
+    "_note": [
+        "English -> Vietnamese glossary, the counterpart of glossary.json for the English source pipeline.",
+        "Matching is WHOLE-WORD and case-insensitive (unlike the Han glossary, which matches on substrings),",
+        "so 'war' will not fire inside 'warm'. Only entries whose term appears in the current line are injected.",
+        "Keep it lean — a capable model already handles ordinary English. Only add: (1) film-specific ranks,",
+        "units, organisations and codenames that need one fixed Vietnamese form, (2) terms of address the model",
+        "renders inconsistently, (3) names it mangles or over-translates.",
+        "Do NOT add ordinary vocabulary or well-known place names; the model handles those, and every extra",
+        "entry is prompt budget spent for nothing.",
+        "'aliases' are output-side fixes applied AFTER translation and are never sent to the model — use them",
+        "to normalise an English word that keeps leaking through untranslated."
+    ],
+    "glossary": {
+        "sir": "thưa ngài",
+        "ma'am": "thưa bà",
+        "captain": "Đại úy",
+        "lieutenant": "Trung úy",
+        "sergeant": "Trung sĩ",
+        "colonel": "Đại tá",
+        "general": "Tướng",
+        "corporal": "Hạ sĩ",
+        "private": "Binh nhì",
+        "headquarters": "sở chỉ huy",
+        "battalion": "tiểu đoàn",
+        "regiment": "trung đoàn",
+        "platoon": "trung đội",
+        "squad": "tiểu đội"
+    },
+    "aliases": {
+        "okay": "được rồi",
+        "sorry": "xin lỗi",
+        "thanks": "cảm ơn",
+        "please": "làm ơn"
+    }
+}

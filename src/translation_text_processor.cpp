@@ -217,14 +217,19 @@ bool isPlausibleVietnameseSyllable(const QString &base)
     return coda.contains(base.mid(pos));
 }
 
-// Detect an isolated non-Vietnamese Latin word leaking into the output
+// Count the isolated non-Vietnamese Latin words leaking into the output
 // (e.g. "prostration", "surprising"). Capitalized tokens are treated as proper
 // names (allowed by the rules) and skipped; tokens carrying Vietnamese diacritics
 // are certainly Vietnamese and skipped. High precision on purpose: short tokens
 // that coincide with a Vietnamese syllable shape are left alone.
-bool containsForeignLatinWord(const QString &text)
+//
+// The English pipeline needs the count rather than a yes/no, because it grades a line
+// by how much of it survived untranslated: a couple of leftovers is a repairable
+// residue, a majority means nothing was translated at all.
+int foreignLatinWordCount(const QString &text)
 {
     static const QRegularExpression kToken(QStringLiteral("[A-Za-zÀ-ỹĐđ]+"));
+    int count = 0;
     auto it = kToken.globalMatch(text);
     while (it.hasNext()) {
         const QString token = it.next().captured(0);
@@ -238,16 +243,20 @@ bool containsForeignLatinWord(const QString &text)
             continue; // Certainly Vietnamese.
         }
         if (!isPlausibleVietnameseSyllable(toVietnameseBaseLetters(token))) {
-            return true;
+            ++count;
         }
     }
-    return false;
+    return count;
 }
+
+} // anonymous namespace (resumed below) *********************************************************
 
 // Drop isolated non-Vietnamese Latin words (e.g. "prostration", "stupefied") from a
 // line while leaving Vietnamese syllables, proper names, and numbers intact. Used by
 // salvage so an otherwise-Vietnamese line with a couple of English leftovers can still
-// be recovered. Uses the same high-precision test as containsForeignLatinWord().
+// be recovered, and by the English pipeline's ResidualEnglish repair path as the
+// counterpart of removeHanCharacters(). Uses the same high-precision test as
+// foreignLatinWordCount().
 QString removeForeignLatinWords(QString text)
 {
     static const QRegularExpression kToken(QStringLiteral("[A-Za-zÀ-ỹĐđ]+"));
@@ -271,6 +280,8 @@ QString removeForeignLatinWords(QString text)
     return text;
 }
 
+namespace {  // Internal helpers, continued
+
 // Cheap "how much real Vietnamese is here" score, shared by salvage candidate ranking.
 int vietnameseContentScore(const QString &text)
 {
@@ -278,12 +289,20 @@ int vietnameseContentScore(const QString &text)
 }
 
 // Function calc score for translate line
-int calculateLineScore(const QString &line)
+int calculateLineScore(const QString &line, SourceLanguage language)
 {
-    int score = englishCharCount(line);
-    score += latinWordCount(line) * 6;
+    int score = latinWordCount(line) * 6;
     score += vietnameseAccentCount(line) * 8;  // Bonus with Vietnamese accent characters
     score -= hanCharCount(line) * 12;          // Penalize Han, but keep mixed candidates for retry analysis
+
+    if (language == SourceLanguage::English) {
+        // With a Latin-script source, raw Latin characters are not evidence of a
+        // translation at all — scoring them would rank the untranslated source line
+        // highest of every candidate. Penalise words that do not fit Vietnamese instead.
+        score -= foreignLatinWordCount(line) * 10;
+    } else {
+        score += englishCharCount(line);
+    }
 
     return score;
 }
@@ -297,6 +316,10 @@ QString retryInstructionForIssue(TranslationIssue issue)
             return QStringLiteral("The previous output copied Chinese characters. Translate the entire line into Vietnamese and do not copy Chinese text.");
         case TranslationIssue::ResidualHan:
             return QStringLiteral("The previous output was mostly Vietnamese but still contained Chinese characters. Replace every remaining Chinese name, place, and term with Vietnamese Sino-Vietnamese words.");
+        case TranslationIssue::ResidualEnglish:
+            return QStringLiteral("The previous output was mostly Vietnamese but left a few English words untranslated. Translate every remaining English word into Vietnamese; keep only proper names.");
+        case TranslationIssue::CopiedEnglishSource:
+            return QStringLiteral("The previous output repeated the English source line instead of translating it. Write the meaning in Vietnamese; do not copy English words.");
         case TranslationIssue::EnglishHeavy:
             return QStringLiteral("The previous output was English-heavy. Use Vietnamese only.");
         case TranslationIssue::OverExpanded:
@@ -368,10 +391,47 @@ void appendAliasRule(QVector<QPair<QString, QString>> &aliasPairs, QSet<QString>
     dedupe.insert(key);
 }
 
-bool isShortSourcePhrase(const QString &sourceText)
+bool isShortSourcePhrase(const QString &sourceText, SourceLanguage language)
 {
-    const int srcHan = hanCharCount(sourceText);
-    return srcHan > 0 && srcHan <= 5;
+    const int units = sourceUnitCount(sourceText, language);
+    return units > 0 && units <= tuning::profileFor(language).shortSourceUnitLimit;
+}
+
+// Set of lower-cased Latin word stems present in a line, used to measure how much of an
+// English source line survived verbatim into the translation.
+QSet<QString> latinWordSet(const QString &text)
+{
+    static const QRegularExpression kToken(QStringLiteral("[A-Za-zÀ-ỹĐđ]+"));
+    QSet<QString> words;
+    auto it = kToken.globalMatch(text);
+    while (it.hasNext()) {
+        words.insert(it.next().captured(0).toLower());
+    }
+    return words;
+}
+
+// The words of an English source line that a correct translation is expected to REPLACE.
+// Capitalized tokens are dropped: proper names are supposed to survive into the Vietnamese
+// output, so counting them as evidence of copying would flag a card like "Jack, Berlin" —
+// where leaving both words alone is exactly right — as an untranslated echo.
+//
+// Subtitles are often typeset in full caps, which makes capitalization carry no information
+// at all; in that case every word is kept rather than throwing the whole line away.
+QSet<QString> translatableSourceWords(const QString &sourceText)
+{
+    static const QRegularExpression kToken(QStringLiteral("[A-Za-zÀ-ỹĐđ]+"));
+    const bool capsAreUninformative = (sourceText == sourceText.toUpper());
+
+    QSet<QString> words;
+    auto it = kToken.globalMatch(sourceText);
+    while (it.hasNext()) {
+        const QString token = it.next().captured(0);
+        if (!capsAreUninformative && token.at(0).isUpper()) {
+            continue;
+        }
+        words.insert(token.toLower());
+    }
+    return words;
 }
 
 bool containsModelMetaText(const QString &text)
@@ -454,6 +514,18 @@ QString normalizeWhitespace(QString text)
 
 } // anonymous namespace ************************************************************************
 
+int sourceUnitCount(const QString &sourceText, SourceLanguage language)
+{
+    return language == SourceLanguage::English ? latinWordCount(sourceText)
+                                               : hanCharCount(sourceText);
+}
+
+bool isLikelySourceSubtitle(const QString &text, SourceLanguage language)
+{
+    return language == SourceLanguage::English ? isLikelyEnglishSubtitle(text)
+                                               : isLikelyChineseSubtitle(text);
+}
+
 bool isLikelyChineseSubtitle(const QString &text)
 {
     int cjkCount = 0;
@@ -475,6 +547,39 @@ bool isLikelyChineseSubtitle(const QString &text)
     }
 
     return cjkCount >= 2 && cjkCount * 2 >= std::max(1, latinLetterCount);
+}
+
+bool isLikelyEnglishSubtitle(const QString &text)
+{
+    // Mirror of isLikelyChineseSubtitle for the English pipeline: reject reads that are
+    // not plausibly an English subtitle line before spending a backend round-trip on them.
+    // Han characters are the tell-tale of a wrong-model or hallucinated read here.
+    if (hanCharCount(text) > 0) {
+        return false;
+    }
+
+    int latinLetters = 0;
+    int otherLetters = 0;
+    for (const QChar ch : text) {
+        if (!ch.isLetter()) {
+            continue;
+        }
+        if (isEnglishChar(ch)) {
+            ++latinLetters;
+        } else {
+            ++otherLetters;
+        }
+    }
+
+    // At least one real word and a couple of letters: single stray glyphs ("I", "a") are
+    // indistinguishable from OCR noise on a frame with no subtitle.
+    if (latinLetters < 2 || latinWordCount(text) < 1) {
+        return false;
+    }
+
+    // Accented letters in an English source mean the recognition drifted into another
+    // script (or the translation window is being captured back into the OCR zone).
+    return latinLetters >= otherLetters * 2;
 }
 
 bool containsHanCharacters(const QString &text)
@@ -520,26 +625,29 @@ bool isEnglishHeavyOutput(const QString &text)
     return vnHintLetters == 0 && latinRatio > 0.78;
 }
 
-bool isSuspiciouslyShortTranslation(const QString &sourceText, const QString &translatedText)
+bool isSuspiciouslyShortTranslation(const QString &sourceText, const QString &translatedText,
+                                    SourceLanguage language)
 {
-    const int srcHan = hanCharCount(sourceText);
+    const tuning::LanguageProfile &profile = tuning::profileFor(language);
+    const int srcUnits = sourceUnitCount(sourceText, language);
     const int outWords = latinWordCount(translatedText);
 
-    if (srcHan < tuning::kMinHanCharsForRatioCheck) {
+    if (srcUnits < profile.minUnitsForRatioCheck) {
         // Short source: ratio is too noisy; use a hard floor instead.
-        // srcHan >= 3 avoids false-positives for 1–2-char sources (e.g. names).
-        return srcHan >= 3 && outWords <= 1;
+        // Requiring >= 3 units avoids false-positives for 1–2-unit sources (e.g. names).
+        return srcUnits >= 3 && outWords <= 1;
     }
 
     // Longer source: ratio check only — all degenerate cases (empty, single-word,
-    // near-empty chars) are already covered when ratio < kMinTranslationWordRatio.
-    const double ratio = static_cast<double>(outWords) / static_cast<double>(srcHan);
-    return ratio < tuning::kMinTranslationWordRatio;
+    // near-empty chars) are already covered when ratio < minTranslationWordRatio.
+    const double ratio = static_cast<double>(outWords) / static_cast<double>(srcUnits);
+    return ratio < profile.minTranslationWordRatio;
 }
 
-bool isOverExpandedTranslation(const QString &sourceText, const QString &translatedText)
+bool isOverExpandedTranslation(const QString &sourceText, const QString &translatedText,
+                               SourceLanguage language)
 {
-    if (!isShortSourcePhrase(sourceText)) {
+    if (!isShortSourcePhrase(sourceText, language)) {
         return false;
     }
 
@@ -557,30 +665,65 @@ bool isOverExpandedTranslation(const QString &sourceText, const QString &transla
     return false;
 }
 
-bool isSuspiciouslyLongTranslation(const QString &sourceText, const QString &translatedText)
+bool isSuspiciouslyLongTranslation(const QString &sourceText, const QString &translatedText,
+                                   SourceLanguage language)
 {
-    const int srcHan = hanCharCount(sourceText);
+    const tuning::LanguageProfile &profile = tuning::profileFor(language);
+    const int srcUnits = sourceUnitCount(sourceText, language);
 
-    if (srcHan <= 0) {
+    if (srcUnits <= 0) {
         return false;
     }
 
     const int outWords = latinWordCount(translatedText);
 
     // Subtitle short but output unusually long.
-    if (srcHan <= 8) {
-        return outWords > srcHan * 4;
+    if (srcUnits <= profile.longSourceUnitThreshold) {
+        return outWords > srcUnits * profile.maxWordRatioShortSource;
     }
 
-    return outWords > srcHan * 3;
+    return outWords > srcUnits * profile.maxWordRatioLongSource;
 }
 
-bool isClearlyOverGenerated(const QString &sourceText, const QString &translatedText)
+bool isClearlyOverGenerated(const QString &sourceText, const QString &translatedText,
+                            SourceLanguage language)
 {
     const int srcLen = sourceText.trimmed().size();
     const int outLen = translatedText.trimmed().size();
 
-    return outLen > srcLen * 12;
+    // The factor is per-language because the comparison is raw characters: Vietnamese runs
+    // several times longer than its Han source but only marginally longer than its English
+    // one, so the Chinese factor would never trip on an English line.
+    return outLen > srcLen * tuning::profileFor(language).maxOutputLengthFactor;
+}
+
+bool isEchoOfEnglishSource(const QString &sourceText, const QString &translatedText)
+{
+    // With a Chinese source, an untranslated echo is caught by the script check. With an
+    // English one there is no script boundary, so measure overlap instead: if most of the
+    // words the model was supposed to replace come back verbatim, nothing was translated.
+    const QSet<QString> sourceWords = translatableSourceWords(sourceText);
+    if (sourceWords.size() < 2) {
+        // Too little signal — a one-word line, or a card that is nothing but proper names.
+        // The length guards cover these.
+        return false;
+    }
+
+    const QSet<QString> outputWords = latinWordSet(translatedText);
+    if (outputWords.isEmpty()) {
+        return false;
+    }
+
+    int shared = 0;
+    for (const QString &word : sourceWords) {
+        if (outputWords.contains(word)) {
+            ++shared;
+        }
+    }
+
+    const double overlap = static_cast<double>(shared) / static_cast<double>(sourceWords.size());
+    // A genuine Vietnamese translation shares only proper names with its English source.
+    return overlap >= 0.6;
 }
 
 bool containsUnexpectedEnglish(const QString &text)
@@ -656,7 +799,7 @@ QString stripReasoningBlocks(QString text)
     return text.trimmed();
 }
 
-QString selectBestVietnameseLine(const QString &text)
+QString selectBestVietnameseLine(const QString &text, SourceLanguage language)
 {
     QStringList lines = splitCandidateLines(text);
 
@@ -680,7 +823,7 @@ QString selectBestVietnameseLine(const QString &text)
             continue;
 
         // Calc Score for line
-        int score = calculateLineScore(line);
+        int score = calculateLineScore(line, language);
 
         if (score > bestScore) {
             bestScore = score;
@@ -1036,13 +1179,29 @@ QString buildGlossaryBlockForSource(const QString &sourceText,
     return block;
 }
 
-// Translation prompt for LLM model, with context and recent dialogue history.
-QString translationPrompt(const QString &sourceText,
-                         const QString &contextBlock,
-                         const QString &recentDialogueContext,
-                         const QString &glossaryBlock)
+namespace {
+
+// Rule block for the first-pass prompt. The two languages need opposite instructions on
+// proper names — Chinese names are converted to their Sino-Vietnamese readings, whereas
+// Western names must be left in Latin script untouched — so neither prompt is a
+// parameterisation of the other.
+QString firstPassRules(SourceLanguage language)
 {
-    QString prompt = QStringLiteral(
+    if (language == SourceLanguage::English) {
+        return QStringLiteral(
+            "You are translating OCR subtitles for an English-language film into natural Vietnamese subtitle style.\n"
+            "Rules:\n"
+            "- Output ONLY the Vietnamese subtitle.\n"
+            "- Absolutely NO explanations, NO notes, NO labels, No extra text, One line only.\n"
+            "- Translate every English word. Do not leave any English in the output.\n"
+            "- Keep Western proper names (people, places, brands) in their original Latin spelling.\n"
+            "- Do NOT repeat or quote the English source line.\n"
+            "- Use natural spoken Vietnamese with the right pronoun for the speakers, not word-for-word English word order.\n"
+            "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n"
+            "- Never output words like 'Vietnamese', 'Output', 'Rules', or any instruction text.\n");
+    }
+
+    return QStringLiteral(
         "You are translating OCR subtitles for a Chinese film into natural Vietnamese subtitle style.\n"
         "Rules:\n"
         "- Output ONLY the Vietnamese subtitle.\n"
@@ -1050,8 +1209,43 @@ QString translationPrompt(const QString &sourceText,
         "- No Chinese characters.\n"
         "- Convert Chinese names into Vietnamese Sino-Vietnamese readings.\n"
         "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n"
-        "- Never output words like 'Vietnamese', 'Output', 'Rules', or any instruction text.\n"
-    );
+        "- Never output words like 'Vietnamese', 'Output', 'Rules', or any instruction text.\n");
+}
+
+QString retryRules(SourceLanguage language)
+{
+    if (language == SourceLanguage::English) {
+        return QStringLiteral(
+            "Rules:\n"
+            "- Rewrite entirely in Vietnamese.\n"
+            "- No English words except unavoidable proper names.\n"
+            "- Do NOT copy the English source line.\n"
+            "- Output only one Vietnamese subtitle line.\n"
+            "- No explanations, no notes, no labels, no extra text.\n"
+            "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n");
+    }
+
+    return QStringLiteral(
+        "Rules:\n"
+        "- Rewrite entirely in Vietnamese.\n"
+        "- No Chinese Han characters.\n"
+        "- No English words unless they are unavoidable proper names.\n"
+        "- Convert all Chinese names to Sino-Vietnamese.\n"
+        "- Output only one Vietnamese subtitle line.\n"
+        "- No explanations, no notes, no labels, no extra text.\n"
+        "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n");
+}
+
+} // namespace
+
+// Translation prompt for LLM model, with context and recent dialogue history.
+QString translationPrompt(const QString &sourceText,
+                         const QString &contextBlock,
+                         const QString &recentDialogueContext,
+                         const QString &glossaryBlock,
+                         SourceLanguage language)
+{
+    QString prompt = firstPassRules(language);
 
     if (!contextBlock.isEmpty()) {
         prompt += QStringLiteral("\nMovie context provided by user:\n") + contextBlock + QStringLiteral("\n");
@@ -1086,7 +1280,8 @@ QString translationRetryPrompt(const QString &sourceText,
                               const QString &recentDialogueContext,
                               const QString &previousTranslation,
                               const QString &glossaryBlock,
-                              TranslationIssue issue)
+                              TranslationIssue issue,
+                              SourceLanguage language)
 {
     QString prompt = QStringLiteral("The previous translation is invalid.\n");
 
@@ -1095,16 +1290,7 @@ QString translationRetryPrompt(const QString &sourceText,
         prompt += QStringLiteral("Problem: ") + issueHint + QStringLiteral("\n");
     }
 
-    prompt += QStringLiteral(
-        "Rules:\n"
-        "- Rewrite entirely in Vietnamese.\n"
-        "- No Chinese Han characters.\n"
-        "- No English words unless they are unavoidable proper names.\n"
-        "- Convert all Chinese names to Sino-Vietnamese.\n"
-        "- Output only one Vietnamese subtitle line.\n"
-        "- No explanations, no notes, no labels, no extra text.\n"
-        "- Keep the translation concise, natural, and suitable for on-screen subtitles.\n"
-    );
+    prompt += retryRules(language);
 
     if (!glossaryBlock.isEmpty()) {
         prompt += QStringLiteral(
@@ -1127,12 +1313,17 @@ QString translationRetryPrompt(const QString &sourceText,
     return prompt;
 }
 
-TranslationIssue evaluateTranslationQuality(const QString &sourceText, const QString &translatedText)
+TranslationIssue evaluateTranslationQuality(const QString &sourceText,
+                                            const QString &translatedText,
+                                            SourceLanguage language)
 {
     if (translatedText.trimmed().isEmpty()) {
         return TranslationIssue::Empty;
     }
 
+    // Han in the output is always wrong, whichever language the source was: for a Chinese
+    // source it means the line was copied instead of translated, for an English one it
+    // means the model drifted into the wrong script entirely.
     const int outHan = hanCharCount(translatedText);
     if (outHan > 0) {
         const int outWords = latinWordCount(translatedText);
@@ -1147,16 +1338,23 @@ TranslationIssue evaluateTranslationQuality(const QString &sourceText, const QSt
         return TranslationIssue::EnglishHeavy;
     }
 
-    if (isOverExpandedTranslation(sourceText, translatedText)) {
+    // The English pipeline's equivalent of the "copied the source" check. It has to run
+    // before the length guards, which would otherwise report a verbatim echo as a
+    // perfectly-proportioned translation.
+    if (language == SourceLanguage::English && isEchoOfEnglishSource(sourceText, translatedText)) {
+        return TranslationIssue::CopiedEnglishSource;
+    }
+
+    if (isOverExpandedTranslation(sourceText, translatedText, language)) {
         return TranslationIssue::OverExpanded;
     }
 
-    if (isSuspiciouslyShortTranslation(sourceText, translatedText)) {
+    if (isSuspiciouslyShortTranslation(sourceText, translatedText, language)) {
         return TranslationIssue::TooShort;
     }
 
-    if (isSuspiciouslyLongTranslation(sourceText, translatedText) ||
-        isClearlyOverGenerated(sourceText, translatedText)) {
+    if (isSuspiciouslyLongTranslation(sourceText, translatedText, language) ||
+        isClearlyOverGenerated(sourceText, translatedText, language)) {
         return TranslationIssue::TooLong;
     }
 
@@ -1164,7 +1362,19 @@ TranslationIssue evaluateTranslationQuality(const QString &sourceText, const QSt
         return TranslationIssue::Repeated;
     }
 
-    if (containsUnexpectedEnglish(translatedText) || containsForeignLatinWord(translatedText)) {
+    if (containsUnexpectedEnglish(translatedText)) {
+        return TranslationIssue::UnexpectedEnglish;
+    }
+
+    // A handful of untranslated English words in an otherwise Vietnamese line is the
+    // English pipeline's residual case: cheap to repair by dropping them, so it gets its
+    // own issue rather than being lumped in with a wholesale failure.
+    const int foreignWords = foreignLatinWordCount(translatedText);
+    if (foreignWords > 0) {
+        if (language == SourceLanguage::English &&
+            latinWordCount(translatedText) >= foreignWords * 3) {
+            return TranslationIssue::ResidualEnglish;
+        }
         return TranslationIssue::UnexpectedEnglish;
     }
 
@@ -1184,6 +1394,10 @@ QString translationIssueMessage(TranslationIssue issue)
             return QStringLiteral("Translation backend output contains too many Han characters");
         case TranslationIssue::ResidualHan:
             return QStringLiteral("Translation backend output contains residual Han characters");
+        case TranslationIssue::ResidualEnglish:
+            return QStringLiteral("Translation backend output contains residual untranslated English words");
+        case TranslationIssue::CopiedEnglishSource:
+            return QStringLiteral("Translation backend output copied the English source line instead of translating it");
         case TranslationIssue::EnglishHeavy:
             return QStringLiteral("Translation backend output rejected: English-heavy output");
         case TranslationIssue::OverExpanded:

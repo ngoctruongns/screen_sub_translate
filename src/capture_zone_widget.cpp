@@ -1,11 +1,28 @@
 #include "capture_zone_widget.h"
 
+#include <QAction>
 #include <QEnterEvent>
+#include <QMenu>
 #include <QPainter>
+
+namespace
+{
+// Every language the tool can read. Adding one here surfaces it in the menu; the
+// pipeline picks up the rest from tuning::profileFor().
+const SourceLanguage kSelectableLanguages[] = {
+    SourceLanguage::Chinese,
+    SourceLanguage::English,
+};
+} // namespace
 
 CaptureZoneWidget::CaptureZoneWidget(QWidget *parent) : OverlayFrame(parent)
 {
     setMinimumSize(120, 40);
+}
+
+void CaptureZoneWidget::setSourceLanguage(SourceLanguage language)
+{
+    sourceLanguage_ = language;
 }
 
 QRect CaptureZoneWidget::captureRect() const
@@ -46,4 +63,22 @@ void CaptureZoneWidget::leaveEvent(QEvent *event)
     hovered_ = false;
     update();
     OverlayFrame::leaveEvent(event);
+}
+
+void CaptureZoneWidget::buildContextMenu(QMenu &menu)
+{
+    // The source language belongs on the capture window: it selects which OCR model
+    // reads this region, and everything downstream follows from that.
+    QMenu *languageMenu = menu.addMenu(QStringLiteral("Source language"));
+
+    for (const SourceLanguage language : kSelectableLanguages) {
+        QAction *action = languageMenu->addAction(sourcelang::displayName(language));
+        action->setCheckable(true);
+        action->setChecked(language == sourceLanguage_);
+        connect(action, &QAction::triggered, this, [this, language]() {
+            if (language != sourceLanguage_) {
+                emit sourceLanguageSelected(language);
+            }
+        });
+    }
 }

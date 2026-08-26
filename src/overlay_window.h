@@ -12,6 +12,7 @@
 #include "capture_worker.h"
 #include "ocr_subtitle_filter.h"
 #include "ocr_worker.h"
+#include "source_language.h"
 #include "subtitle_logger.h"
 #include "translate_client.h"
 #include "tuning_params.h"
@@ -37,9 +38,17 @@ private slots:
     void onOcrError(const QString &error, int requestId);
     void onTranslationReady(const QString &translatedText, const QString &sourceText);
     void onTranslationError(const QString &error);
+    void onOcrLanguageChanged(SourceLanguage language, bool ok);
 
 private:
     void setupWidgets();
+    // Switches the whole pipeline to another source language: reloads the OCR model on
+    // the OCR thread, re-points the filter, translate client and subtitle logger, and
+    // discards every piece of in-flight state carried over from the previous language.
+    void setSourceLanguage(SourceLanguage language);
+    SourceLanguage restoreSourceLanguage() const;
+    void saveSourceLanguage() const;
+    void resetPipelineState();
     void restoreWidgetGeometry();
     void saveWidgetGeometry() const;
     void onZoneGeometryChanged();
@@ -55,7 +64,12 @@ private:
     void applyDefaultNoiseConfig();
     void handleDispatchCandidate(const OcrSubtitleFilter::Decision &decision, float confidence);
     void flushPendingIncompleteSubtitle();
-    static bool isIncompleteSubtitlePhrase(const QString &text);
+    // Whether a stable read is a clause that should be held for its continuation. The
+    // two languages have separate implementations: Chinese cuts mid-construction on a
+    // small set of grammatical suffixes, English on trailing conjunctions/prepositions.
+    static bool isIncompleteSubtitlePhrase(const QString &text, SourceLanguage language);
+    static bool isIncompleteChinesePhrase(const QString &trimmed);
+    static bool isIncompleteEnglishPhrase(const QString &trimmed);
 
     // Translation display queue
     struct TranslationEntry {
@@ -77,6 +91,11 @@ private:
     QThread ocrThread_;
     OcrWorker *ocrWorker_ = nullptr;
     TranslateClient translateClient_;
+
+    SourceLanguage sourceLanguage_ = sourcelang::kDefault;
+    // Non-empty while the selected language has no usable OCR model. Kept on screen by
+    // the display tick so a missing model is visible rather than silently blank.
+    QString ocrDisabledMessage_;
 
     QString lastOcrText_;
     QString lastTranslation_;
