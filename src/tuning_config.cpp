@@ -341,7 +341,10 @@ LanguageProfile defaultChineseProfile()
     // (the stray 嶺). Turn it on once ./OcrBatchEval confirms no regression.
     p.adaptiveInputWidth = false;
     p.autoCropSubtitleRegion = true;
-    p.maxTextLines = 3;
+    // 1 = line splitting off. Chinese subtitles are single-line in practice, so the split
+    // would never fire on a real frame and could only misfire on one. Raise it if a source
+    // does wrap Chinese onto two cards.
+    p.maxTextLines = 1;
     p.minOcrConfidence = 0.55f;
     p.edgeMinConfidence = 0.80f;
 

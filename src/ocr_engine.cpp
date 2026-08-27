@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -94,6 +95,82 @@ QString resolveRuntimePath(const QString &rawPath)
     return appResolved;
 }
 
+// Otsu's threshold over an arbitrary 1-D distribution. Used on the row-ink profile, where a
+// FIXED fraction of the peak cannot work: a subtitle sits over live video, so the background
+// carries ink of its own (measured at 10-32% of the busiest row on real frames) and the split
+// point has to be derived from each frame's own distribution.
+double otsuThreshold(const std::vector<int> &values)
+{
+    if (values.empty()) {
+        return 0.0;
+    }
+    const auto [minIt, maxIt] = std::minmax_element(values.begin(), values.end());
+    const double lo = *minIt;
+    const double hi = *maxIt;
+    if (hi <= lo) {
+        return lo;
+    }
+
+    constexpr int kBins = 256;
+    std::array<int, kBins> histogram{};
+    for (const int value : values) {
+        const int bin = static_cast<int>((value - lo) * (kBins - 1) / (hi - lo));
+        ++histogram[std::clamp(bin, 0, kBins - 1)];
+    }
+
+    const double total = static_cast<double>(values.size());
+    double sumAll = 0.0;
+    for (int i = 0; i < kBins; ++i) {
+        sumAll += i * histogram[i];
+    }
+
+    double sumBackground = 0.0;
+    double weightBackground = 0.0;
+    double bestVariance = -1.0;
+    int bestBin = 0;
+    for (int t = 0; t < kBins; ++t) {
+        weightBackground += histogram[t];
+        if (weightBackground == 0.0) {
+            continue;
+        }
+        const double weightForeground = total - weightBackground;
+        if (weightForeground == 0.0) {
+            break;
+        }
+        sumBackground += t * histogram[t];
+        const double meanB = sumBackground / weightBackground;
+        const double meanF = (sumAll - sumBackground) / weightForeground;
+        const double variance = weightBackground * weightForeground * (meanB - meanF) * (meanB - meanF);
+        if (variance > bestVariance) {
+            bestVariance = variance;
+            bestBin = t;
+        }
+    }
+
+    return lo + bestBin * (hi - lo) / (kBins - 1);
+}
+
+// Mean number of ink<->background transitions per row. This is what separates a line of text
+// from a block of scenery: letters alternate stroke/gap many times across a row, a shoulder
+// or a carpet does not. Measured on real frames: background bands score 7-8, text bands
+// 40-107, so the two populations are far apart.
+double meanRowTransitions(const cv::Mat &binary, const cv::Range &rows)
+{
+    if (binary.cols < 2 || rows.size() <= 0) {
+        return 0.0;
+    }
+    long long transitions = 0;
+    for (int y = rows.start; y < rows.end; ++y) {
+        const uchar *row = binary.ptr<uchar>(y);
+        for (int x = 1; x < binary.cols; ++x) {
+            if (row[x] != row[x - 1]) {
+                ++transitions;
+            }
+        }
+    }
+    return static_cast<double>(transitions) / rows.size();
+}
+
 // Split a subtitle crop into its individual text lines.
 //
 // The recognition model reads ONE line: it squeezes whatever it is given into a 48px-tall
@@ -102,113 +179,132 @@ QString resolveRuntimePath(const QString &rawPath)
 // model; a projection profile is enough here because subtitles are high-contrast, axis
 // aligned and separated by a clear blank gap.
 //
-// Deliberately built so it can only ever SPLIT, never DISCARD: bands come from where the
-// ink is, not from size rules that can reject real text. Anything it cannot make sense of
-// falls back to the whole region, so the worst case is today's behaviour.
+// Every step is built to fail SAFE: anything it cannot confidently read as a multi-line
+// subtitle returns the whole region, which is exactly the single-line behaviour that was
+// already working. It can split, never discard.
 std::vector<cv::Rect> splitTextLines(const cv::Mat &bgr, int maxLines)
 {
     const cv::Rect wholeRegion(0, 0, bgr.cols, bgr.rows);
-    if (bgr.empty() || maxLines <= 1 || bgr.rows < 16)
-    {
+    if (bgr.empty() || maxLines <= 1 || bgr.rows < 16 || bgr.cols < 2) {
         return {wholeRegion};
     }
 
     cv::Mat gray;
     cv::cvtColor(bgr, gray, cv::COLOR_BGR2GRAY);
 
-    cv::Mat bin;
-    cv::threshold(gray, bin, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    cv::Mat binary;
+    cv::threshold(gray, binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
     // Text is always the minority of the pixels. If Otsu made the background white (dark
     // lettering over a bright scene), invert so "white" reliably means ink.
-    if (cv::countNonZero(bin) > static_cast<int>(bin.total() / 2))
-    {
-        cv::bitwise_not(bin, bin);
+    if (cv::countNonZero(binary) > static_cast<int>(binary.total() / 2)) {
+        cv::bitwise_not(binary, binary);
     }
 
-    cv::Mat rowInk;
-    cv::reduce(bin / 255, rowInk, 1, cv::REDUCE_SUM, CV_32S);
-
-    int peakInk = 0;
-    for (int y = 0; y < rowInk.rows; ++y)
-    {
-        peakInk = std::max(peakInk, rowInk.at<int>(y, 0));
+    std::vector<int> rowInk(binary.rows, 0);
+    for (int y = 0; y < binary.rows; ++y) {
+        rowInk[y] = cv::countNonZero(binary.row(y));
     }
-    if (peakInk <= 0)
-    {
+    if (*std::max_element(rowInk.begin(), rowInk.end()) <= 0) {
         return {wholeRegion};
     }
 
-    // A row counts as part of a line when it carries a small fraction of the busiest row.
-    // Low on purpose: it must catch the sparse rows of an ascender or a descender, which is
-    // what keeps a band from clipping the top of 'l' or the tail of 'y'.
-    const int inkRowThreshold = std::max(1, static_cast<int>(peakInk * 0.06));
+    const double coreThreshold = otsuThreshold(rowInk);
 
-    std::vector<cv::Rect> bands;
+    // 1. Rows carrying enough ink to be the body of a line.
+    std::vector<cv::Range> bands;
     int bandStart = -1;
-    for (int y = 0; y <= rowInk.rows; ++y)
-    {
-        const bool hasInk = (y < rowInk.rows) && (rowInk.at<int>(y, 0) >= inkRowThreshold);
-        if (hasInk && bandStart < 0)
-        {
+    for (int y = 0; y <= binary.rows; ++y) {
+        const bool hasInk = (y < binary.rows) && (rowInk[y] >= coreThreshold);
+        if (hasInk && bandStart < 0) {
             bandStart = y;
-        }
-        else if (!hasInk && bandStart >= 0)
-        {
-            bands.push_back(cv::Rect(0, bandStart, bgr.cols, y - bandStart));
+        } else if (!hasInk && bandStart >= 0) {
+            bands.push_back(cv::Range(bandStart, y));
             bandStart = -1;
         }
     }
 
-    // A band far too short to be a line of text is stray ink (a subtitle outline artifact,
-    // a sliver of the scene). Merge-by-dropping is safe here: these carry no glyphs.
-    const int minLineHeight = std::max(8, bgr.rows / 12);
-    bands.erase(std::remove_if(bands.begin(), bands.end(),
-                               [minLineHeight](const cv::Rect &r) { return r.height < minLineHeight; }),
-                bands.end());
+    // 2. Merge bands separated by less than a real inter-line gap. Within a single line some
+    //    rows dip under the threshold (the waist of lowercase letters), which would otherwise
+    //    saw one line into several.
+    const int minGapRows = std::max(3, bgr.rows / 20);
+    std::vector<cv::Range> merged;
+    for (const cv::Range &band : bands) {
+        if (!merged.empty() && band.start - merged.back().end < minGapRows) {
+            merged.back().end = band.end;
+        } else {
+            merged.push_back(band);
+        }
+    }
 
-    // One band means a single line — return the whole region rather than the band, so the
-    // established single-line path behaves exactly as before. More bands than a subtitle can
-    // plausibly have means the profile latched onto scene texture; fall back too.
-    if (bands.size() <= 1 || static_cast<int>(bands.size()) > maxLines)
-    {
+    // 3. Drop bands too short to hold a glyph, then anything that does not read as text.
+    //    The transition test is what keeps scenery above or below the subtitle from being
+    //    recognised as an extra "line".
+    constexpr double kMinTextTransitionsPerRow = 12.0;
+    const int minLineHeight = std::max(6, bgr.rows / 14);
+    merged.erase(std::remove_if(merged.begin(), merged.end(),
+                                [&](const cv::Range &r) {
+                                    return r.size() < minLineHeight ||
+                                           meanRowTransitions(binary, r) < kMinTextTransitionsPerRow;
+                                }),
+                 merged.end());
+
+    // One line means the established single-line path; more bands than a subtitle can
+    // plausibly have means the profile latched onto something else. Both fall back.
+    if (merged.size() < 2 || static_cast<int>(merged.size()) > maxLines) {
         return {wholeRegion};
     }
 
-    // Tighten each band horizontally as well. Unlike the contour crop this cannot cut a
-    // glyph: the extent is taken from where ink actually is, and then padded.
+    // 4. Grow each band back out over the faint rows an ascender or a descender leaves,
+    //    stopping at the midpoint to its neighbour so two lines can never overlap.
+    const double extendThreshold = coreThreshold * 0.55;
     const int padY = std::max(2, bgr.rows / 60);
     const int padX = std::max(4, bgr.cols / 100);
-    for (cv::Rect &band : bands)
-    {
-        cv::Mat colInk;
-        cv::reduce(bin(band) / 255, colInk, 0, cv::REDUCE_SUM, CV_32S);
 
+    std::vector<cv::Rect> lines;
+    lines.reserve(merged.size());
+    for (size_t i = 0; i < merged.size(); ++i) {
+        int top = merged[i].start;
+        int bottom = merged[i].end - 1;
+        const int limitTop = (i == 0) ? 0 : (merged[i - 1].end - 1 + top) / 2;
+        const int limitBottom = (i + 1 == merged.size()) ? binary.rows - 1
+                                                         : (bottom + merged[i + 1].start) / 2;
+        while (top > limitTop && rowInk[top - 1] >= extendThreshold) {
+            --top;
+        }
+        while (bottom < limitBottom && rowInk[bottom + 1] >= extendThreshold) {
+            ++bottom;
+        }
+
+        // Tighten horizontally too. Unlike the contour crop this cannot cut a glyph: the
+        // extent comes from where ink actually is, and is then padded.
         int first = -1;
         int last = -1;
-        for (int x = 0; x < colInk.cols; ++x)
-        {
-            if (colInk.at<int>(0, x) > 0)
-            {
-                if (first < 0)
-                {
-                    first = x;
+        for (int y = top; y <= bottom; ++y) {
+            const uchar *row = binary.ptr<uchar>(y);
+            for (int x = 0; x < binary.cols; ++x) {
+                if (row[x] != 0) {
+                    if (first < 0 || x < first) {
+                        first = x;
+                    }
+                    if (x > last) {
+                        last = x;
+                    }
                 }
-                last = x;
             }
         }
-        if (first < 0)
-        {
-            continue; // No ink after all; leave the band at full width.
+        if (first < 0) {
+            first = 0;
+            last = binary.cols - 1;
         }
 
         const int x0 = std::max(0, first - padX);
         const int x1 = std::min(bgr.cols - 1, last + padX);
-        const int y0 = std::max(0, band.y - padY);
-        const int y1 = std::min(bgr.rows - 1, band.y + band.height - 1 + padY);
-        band = cv::Rect(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+        const int y0 = std::max(0, top - padY);
+        const int y1 = std::min(bgr.rows - 1, bottom + padY);
+        lines.push_back(cv::Rect(x0, y0, x1 - x0 + 1, y1 - y0 + 1));
     }
 
-    return bands;
+    return lines;
 }
 
 cv::Mat cropLikelySubtitleRegion(const cv::Mat &bgr)

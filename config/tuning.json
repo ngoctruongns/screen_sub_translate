@@ -106,15 +106,16 @@
       "autoCropSubtitleRegion auto-tightens the crop onto detected text. It is a heuristic that CUTS",
       "whatever its size filters reject — on sharp input a whole leading word can vanish. Off = trust the",
       "capture window, which is correct when it is placed tightly around the subtitle.",
-      "maxTextLines: a subtitle wrapped onto two cards must be split before recognition, because the",
-      "model reads one line at a time; the parts are joined back into one sentence. 1 disables splitting."
+      "maxTextLines: 1 = line splitting off. Chinese subtitles are single-line in practice, so the",
+      "split would never fire on a real frame and could only misfire on one. Raise to 2-3 only if a",
+      "source actually wraps Chinese onto two cards."
     ],
     "recOnnxPath": "../models/paddle/ch_PP-OCRv4_rec_server_infer.onnx",
     "charsetPath": "../models/paddle/ppocr_keys_v1.txt",
     "inputWidth": 480,
     "adaptiveInputWidth": false,
     "autoCropSubtitleRegion": true,
-    "maxTextLines": 3,
+    "maxTextLines": 1,
     "minOcrConfidence": 0.55,
     "edgeMinConfidence": 0.80,
 
