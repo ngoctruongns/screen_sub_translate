@@ -176,6 +176,13 @@ namespace tuning
         // can emit spurious characters there. Sizing to the text removes that dead zone and
         // makes inference cheaper on short lines.
         bool adaptiveInputWidth = true;
+        // Auto-tighten the crop onto the detected text before recognition (Otsu + contour
+        // merge). This is a safety net for a loosely-placed capture window, and it is a
+        // heuristic: it merges only the contours that pass its size filters, so anything it
+        // rejects is CUT AWAY. On high-contrast input, adjacent glyphs close into one tall
+        // blob that can fail those filters, and a whole leading word disappears before the
+        // model ever sees it. Leave off when the capture window is placed tightly.
+        bool autoCropSubtitleRegion = true;
         // Reject a recognition whose mean per-character confidence is below this.
         // TUNE ON REAL FOOTAGE: confidence is logged per detection.
         float minOcrConfidence = 0.55f;

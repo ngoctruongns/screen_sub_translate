@@ -43,6 +43,12 @@ public:
     // live pipeline. The offline evaluator turns it on.
     void setPerCharacterDebug(bool enabled) { perCharacterDebug_ = enabled; }
 
+    // One-shot: writes the EXACT image handed to the model — after auto-crop, resize and
+    // padding — to filePath on the next performOcr(), then clears itself. This is the only
+    // way to tell a recognition error apart from the pipeline having cropped the text away
+    // before the model ever saw it. Offline diagnosis only.
+    void dumpNextModelInputTo(const QString &filePath) { modelInputDumpPath_ = filePath; }
+
 private:
     bool loadModel(const tuning::LanguageProfile &profile);
     QString decodeCtc(const float *logits, int timeSteps, int classes, float *outConfidence,
@@ -77,6 +83,7 @@ private:
     // warning is emitted once per load rather than once per frame.
     bool classCountChecked_ = false;
     bool perCharacterDebug_ = false;
+    QString modelInputDumpPath_;
 
     // Reused buffers to reduce per-frame allocations in performOcr.
     cv::Mat resizedBuffer_;

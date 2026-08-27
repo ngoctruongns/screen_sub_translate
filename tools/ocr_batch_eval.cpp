@@ -127,7 +127,10 @@ int main(int argc, char *argv[])
               << "\nCharset: " << profile.charsetPath.toStdString()
               << "\ninputWidth=" << profile.inputWidth
               << " minOcrConfidence=" << profile.minOcrConfidence
-              << " edgeMinConfidence=" << profile.edgeMinConfidence << "\n\n";
+              << " edgeMinConfidence=" << profile.edgeMinConfidence
+              << "\nadaptiveInputWidth=" << (profile.adaptiveInputWidth ? "true" : "false")
+              << " autoCropSubtitleRegion=" << (profile.autoCropSubtitleRegion ? "true" : "false")
+              << "\n\n";
 
     const std::string imageDir = "../test/image";
     const std::string expectedFile =
@@ -180,6 +183,12 @@ int main(int argc, char *argv[])
             cv::imwrite(preparedPath, prepared);
         }
 
+        // The image the model actually sees, saved next to the preprocessed one. Comparing
+        // the two is what separates "the model misread it" from "the pipeline cropped it
+        // away before the model saw it" — the per-char confidences cannot tell them apart.
+        const std::string modelInputPath = outputDir + "/" + id + "_model_input.png";
+        engine.dumpNextModelInputTo(QString::fromStdString(modelInputPath));
+
         const OcrEngine::OcrResult result = engine.performOcr(prepared);
         const QString predRaw = result.text.trimmed();
         const QString pred = normalize(predRaw, language);
@@ -220,7 +229,8 @@ int main(int argc, char *argv[])
                << "\n  confidence: " << result.confidence
                << (wouldPassGate ? "" : "  <-- below minOcrConfidence, dropped at runtime")
                << "\n  per-char: " << result.perCharacterDebug.toStdString()
-               << "\n  prepared: " << preparedPath << "\n\n";
+               << "\n  prepared: " << preparedPath
+               << "\n  model-input: " << modelInputPath << "\n\n";
     }
 
     std::cout << "\nOCR exact match:            " << ocrExact << "/" << total << '\n';

@@ -16,6 +16,7 @@
 #include <QTextStream>
 
 #include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
 namespace
@@ -530,7 +531,8 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
     const int targetH = tuning::kPaddleInputHeight;
     const int maxW = profile_->inputWidth;
 
-    const cv::Mat subtitleRegion = cropLikelySubtitleRegion(bgr);
+    const cv::Mat subtitleRegion =
+        profile_->autoCropSubtitleRegion ? cropLikelySubtitleRegion(bgr) : bgr;
 
     const float regionRatio = static_cast<float>(subtitleRegion.cols) / std::max(1, subtitleRegion.rows);
     int resizedW = static_cast<int>(std::ceil(targetH * regionRatio));
@@ -557,6 +559,12 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
     canvasBuffer_.create(targetH, canvasW, CV_8UC3);
     canvasBuffer_.setTo(cv::Scalar(0, 0, 0));
     resizedBuffer_.copyTo(canvasBuffer_(cv::Rect(0, 0, std::min(resizedW, canvasW), targetH)));
+
+    if (!modelInputDumpPath_.isEmpty())
+    {
+        cv::imwrite(modelInputDumpPath_.toStdString(), canvasBuffer_);
+        modelInputDumpPath_.clear();
+    }
 
     // Normalize mean=0.5 std=0.5 and pack as planar NCHW float.
     floatImgBuffer_.create(targetH, canvasW, CV_32FC3);

@@ -102,12 +102,16 @@
       "minOcrConfidence: raise toward 0.8 to drop more garbled reads, lower if valid subtitles get dropped.",
       "edgeMinConfidence: trims low-confidence first/last characters (dark margins decode as a stray glyph, typically 嶺). 0 disables.",
       "adaptiveInputWidth false = pad every crop out to inputWidth. true = size the tensor to the text,",
-      "which removes the black dead zone the CTC decoder can hallucinate into, and is faster on short lines."
+      "which removes the black dead zone the CTC decoder can hallucinate into, and is faster on short lines.",
+      "autoCropSubtitleRegion auto-tightens the crop onto detected text. It is a heuristic that CUTS",
+      "whatever its size filters reject — on sharp input a whole leading word can vanish. Off = trust the",
+      "capture window, which is correct when it is placed tightly around the subtitle."
     ],
     "recOnnxPath": "../models/paddle/ch_PP-OCRv4_rec_server_infer.onnx",
     "charsetPath": "../models/paddle/ppocr_keys_v1.txt",
     "inputWidth": 480,
     "adaptiveInputWidth": false,
+    "autoCropSubtitleRegion": true,
     "minOcrConfidence": 0.55,
     "edgeMinConfidence": 0.80,
 
@@ -148,6 +152,7 @@
     "charsetPath": "../models/paddle/en_dict.txt",
     "inputWidth": 800,
     "adaptiveInputWidth": true,
+    "autoCropSubtitleRegion": false,
     "minOcrConfidence": 0.60,
     "edgeMinConfidence": 0.0,
 
