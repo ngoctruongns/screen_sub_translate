@@ -254,6 +254,11 @@ std::vector<cv::Rect> splitTextLines(const cv::Mat &bgr, int maxLines)
         textRuns.push_back(candidate);
     }
 
+    // A single run returns the WHOLE region, not the tight band. Cropping a single line to
+    // its band was tried and measurably regressed recognition: the band excludes the faint
+    // rows that carry ascender tops, so apostrophes vanished and f/l/g turned into t/T/q.
+    // Only a multi-line crop is worth splitting, because there the alternative — both lines
+    // squeezed into one 48px strip — is far worse.
     if (textRuns.size() < 2 || static_cast<int>(textRuns.size()) > maxLines) {
         return {wholeRegion};
     }
@@ -261,11 +266,35 @@ std::vector<cv::Rect> splitTextLines(const cv::Mat &bgr, int maxLines)
     const int padY = std::max(2, bgr.rows / 60);
     const int padX = std::max(4, bgr.cols / 100);
 
+    // Rows holding only the top of an 'f' or 'l', or an apostrophe, carry so little ink that
+    // they fall on the gap side of the threshold — so the band clips them, and that is what
+    // turns f into t and drops apostrophes. Grow back over them, but BOUNDED: on a busy frame
+    // the background clears any such threshold everywhere, and an unbounded walk swallows the
+    // region (measured: a 28-row band expanding to 91). The cap is a fraction of the band's
+    // own height, which is the scale an ascender lives at.
+    const double extendInkThreshold = std::max(1.0, 0.02 * highest);
+
     std::vector<cv::Rect> lines;
     lines.reserve(textRuns.size());
-    for (const cv::Range &run : textRuns) {
-        const int top = run.start;
-        const int bottom = run.end - 1;
+    for (size_t i = 0; i < textRuns.size(); ++i) {
+        const cv::Range &run = textRuns[i];
+        int top = run.start;
+        int bottom = run.end - 1;
+
+        const int maxExpand = std::max(2, run.size() * 3 / 5);
+        // Never past the midpoint to the neighbouring line, so two lines cannot overlap.
+        const int limitTop = std::max(top - maxExpand,
+                                      (i == 0) ? 0 : (textRuns[i - 1].end - 1 + top) / 2);
+        const int limitBottom =
+            std::min(bottom + maxExpand, (i + 1 == textRuns.size())
+                                             ? bright.rows - 1
+                                             : (bottom + textRuns[i + 1].start) / 2);
+        while (top > limitTop && rowInk[top - 1] >= extendInkThreshold) {
+            --top;
+        }
+        while (bottom < limitBottom && rowInk[bottom + 1] >= extendInkThreshold) {
+            ++bottom;
+        }
 
         // Tighten horizontally too. Unlike a contour crop this cannot cut a glyph: the
         // extent comes from where the bright pixels actually are, and is then padded.

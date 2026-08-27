@@ -470,9 +470,13 @@ QStringList splitCandidateLines(const QString &text)
     // Collapse hard line breaks.
     normalized.replace(QRegularExpression(QStringLiteral("[\\r\\n]+")), QStringLiteral("\n"));
 
-    // Treat '.' as a sentence separator, EXCEPT between two digits: Vietnamese groups
-    // thousands with dots (e.g. "46.000"), so splitting there would strip part of a number.
-    normalized.replace(QRegularExpression(QStringLiteral("(?<![0-9])\\.+|\\.+(?![0-9])")),
+    // Treat '.' as a candidate separator ONLY where it genuinely ends a sentence: followed by
+    // whitespace and a capital, or at the very end. Splitting on every period threw away half
+    // a translation in the field — the model returned "Người kia là Chen Jingrun P. từ Viện
+    // Khoa học Trung Quốc.", the initial's period split it, and only the higher-scoring half
+    // survived. English subtitles are full of initials and abbreviations, so this fires often.
+    // It also subsumes the old digit exception: "46.000" has no capital after the dot.
+    normalized.replace(QRegularExpression(QStringLiteral("\\.+(?=\\s+\\p{Lu})|\\.+\\s*$")),
                        QStringLiteral("\n"));
 
     // Avoid splitting every Vietnamese hyphenated word blindly.
