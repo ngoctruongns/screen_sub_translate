@@ -1,5 +1,7 @@
 #include "capture_worker.h"
 
+#include "ocr_preprocess.h"
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QGuiApplication>
@@ -22,11 +24,6 @@ namespace
 {
 constexpr double kSmallFrameScale = 0.25;
 constexpr double kDiffPixelThreshold = 12.0;
-// 1.0 = no rescale. The OCR engine resizes the crop to the model input height itself,
-// so upscaling the whole frame here was redundant compute; kept tunable for experiments.
-constexpr double kOcrResizeScale = 1.0;
-constexpr double kClaheClipLimit = 2.0;
-constexpr int kClaheTileSize = 8;
 constexpr int kDebugSaveEveryNFrames = 50;
 constexpr int kDebugCleanupEveryNSaves = 10;
 
@@ -167,36 +164,13 @@ cv::Mat CaptureWorker::preprocessForOcr(const cv::Mat &grayFrame, double minStdD
         return {};
     }
 
-    // Step 1: Gaussian blur for noise reduction
-    cv::Mat denoised;
-    cv::GaussianBlur(grayFrame, denoised, cv::Size(3, 3), 0.0);
-
-    // Step 2: Optional rescale (off by default; engine handles final sizing to model height)
-    cv::Mat scaled;
-    if (std::abs(kOcrResizeScale - 1.0) > 1e-3) {
-        cv::resize(denoised, scaled, cv::Size(), kOcrResizeScale, kOcrResizeScale, cv::INTER_CUBIC);
-    } else {
-        scaled = denoised;
+    // Shared with the offline evaluator so both see identical pixels — see ocr_preprocess.h.
+    const cv::Mat normalized = OcrPreprocess::enhanceForRecognition(grayFrame);
+    if (normalized.empty()) {
+        return {};
     }
 
-    // Step 3: Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to improve text contrast and visibility
-    cv::Mat claheResult;
-    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(kClaheClipLimit,
-                                               cv::Size(kClaheTileSize, kClaheTileSize));
-    clahe->apply(scaled, claheResult);
-
-    // Step 4: Unsharp masking to sharpen text edges
-    cv::Mat blurred;
-    cv::GaussianBlur(claheResult, blurred, cv::Size(5, 5), 1.0);
-
-    cv::Mat sharpened;
-    cv::addWeighted(claheResult, 1.5, blurred, -0.5, 0, sharpened);
-
-    // Step 5: Normalize to standard OCR input range
-    cv::Mat normalized;
-    cv::normalize(sharpened, normalized, 0, 255, cv::NORM_MINMAX);
-
-    // Step 6: Check standard deviation to filter out low-contrast frames
+    // Contrast gate: reject frames that carry no legible text at all.
     cv::Scalar meanVal;
     cv::Scalar stdDev;
     cv::meanStdDev(normalized, meanVal, stdDev);

@@ -55,6 +55,7 @@ add_executable(ScreenSubTranslator
 	main.cpp
 	src/capture_worker.cpp
 	src/ocr_engine.cpp
+	src/ocr_preprocess.cpp
 	src/ocr_subtitle_filter.cpp
 	src/ocr_worker.cpp
 	src/overlay_frame.cpp
@@ -71,6 +72,7 @@ add_executable(ScreenSubTranslator
 add_executable(OcrBatchEval
 	tools/ocr_batch_eval.cpp
 	src/ocr_engine.cpp
+	src/ocr_preprocess.cpp
 	src/tuning_config.cpp
 )
 

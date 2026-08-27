@@ -188,6 +188,7 @@ void applyLanguageProfile(QJsonObject section, LanguageProfile &profile, const Q
     takeString(section, QStringLiteral("recOnnxPath"), profile.recOnnxPath, messages);
     takeString(section, QStringLiteral("charsetPath"), profile.charsetPath, messages);
     takeInt(section, QStringLiteral("inputWidth"), profile.inputWidth, 32, 4096, messages);
+    takeBool(section, QStringLiteral("adaptiveInputWidth"), profile.adaptiveInputWidth, messages);
     takeFloat(section, QStringLiteral("minOcrConfidence"), profile.minOcrConfidence, 0.0, 1.0, messages);
     takeFloat(section, QStringLiteral("edgeMinConfidence"), profile.edgeMinConfidence, 0.0, 1.0, messages);
 
@@ -333,6 +334,10 @@ LanguageProfile defaultChineseProfile()
     p.recOnnxPath = QStringLiteral("../models/paddle/ch_PP-OCRv4_rec_server_infer.onnx");
     p.charsetPath = QStringLiteral("../models/paddle/ppocr_keys_v1.txt");
     p.inputWidth = 480;
+    // Left off deliberately: the Chinese pipeline is tuned and working against fixed-width
+    // padding, and its edgeMinConfidence of 0.80 already suppresses the padding artifact
+    // (the stray 嶺). Turn it on once ./OcrBatchEval confirms no regression.
+    p.adaptiveInputWidth = false;
     p.minOcrConfidence = 0.55f;
     p.edgeMinConfidence = 0.80f;
 
@@ -378,6 +383,7 @@ LanguageProfile defaultEnglishProfile()
     p.recOnnxPath = QStringLiteral("../models/paddle/en_PP-OCRv4_rec_infer.onnx");
     p.charsetPath = QStringLiteral("../models/paddle/en_dict.txt");
     p.inputWidth = 800;
+    p.adaptiveInputWidth = true;
     p.minOcrConfidence = 0.60f;
     p.edgeMinConfidence = 0.0f;
 

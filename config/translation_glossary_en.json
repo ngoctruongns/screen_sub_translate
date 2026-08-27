@@ -12,25 +12,10 @@
         "to normalise an English word that keeps leaking through untranslated."
     ],
     "glossary": {
-        "sir": "thưa ngài",
-        "ma'am": "thưa bà",
-        "captain": "Đại úy",
-        "lieutenant": "Trung úy",
-        "sergeant": "Trung sĩ",
-        "colonel": "Đại tá",
-        "general": "Tướng",
-        "corporal": "Hạ sĩ",
-        "private": "Binh nhì",
-        "headquarters": "sở chỉ huy",
-        "battalion": "tiểu đoàn",
-        "regiment": "trung đoàn",
-        "platoon": "trung đội",
-        "squad": "tiểu đội"
+        "sir": "thưa ngài"
+
     },
     "aliases": {
-        "okay": "được rồi",
-        "sorry": "xin lỗi",
-        "thanks": "cảm ơn",
-        "please": "làm ơn"
+        "okay": "được rồi"
     }
 }

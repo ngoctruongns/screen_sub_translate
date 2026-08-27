@@ -100,11 +100,14 @@
       "recOnnxPath/charsetPath MUST be a matched pair — a model with the wrong dict decodes to garbage.",
       "PP-OCRv5: point recOnnxPath at PP-OCRv5_server_rec_infer.onnx AND charsetPath at ppocrv5_dict.txt.",
       "minOcrConfidence: raise toward 0.8 to drop more garbled reads, lower if valid subtitles get dropped.",
-      "edgeMinConfidence: trims low-confidence first/last characters (dark margins decode as a stray glyph, typically 嶺). 0 disables."
+      "edgeMinConfidence: trims low-confidence first/last characters (dark margins decode as a stray glyph, typically 嶺). 0 disables.",
+      "adaptiveInputWidth false = pad every crop out to inputWidth. true = size the tensor to the text,",
+      "which removes the black dead zone the CTC decoder can hallucinate into, and is faster on short lines."
     ],
     "recOnnxPath": "../models/paddle/ch_PP-OCRv4_rec_server_infer.onnx",
     "charsetPath": "../models/paddle/ppocr_keys_v1.txt",
     "inputWidth": 480,
+    "adaptiveInputWidth": false,
     "minOcrConfidence": 0.55,
     "edgeMinConfidence": 0.80,
 
@@ -134,8 +137,9 @@
       "edgeMinConfidence is 0 (off) on purpose: the Chinese value exists to cut dark-margin glyphs,",
       "which English does not produce, while narrow legitimate glyphs (t, apostrophe, comma) score low",
       "enough to be trimmed and cost real characters at the ends of the line. Raise only if needed.",
-      "inputWidth is 800 vs Chinese 480: an English line runs 3-4x more characters. If ONNX Runtime",
-      "rejects the input shape at startup, lower it (the export must support dynamic width).",
+      "inputWidth is 800 vs Chinese 480: an English line runs 3-4x more characters. With",
+      "adaptiveInputWidth it is a MAXIMUM, not a fixed pad width. If ONNX Runtime rejects the",
+      "input shape, lower it (the export must support dynamic width).",
       "The candidate-length thresholds are in CHARACTERS and are ~3x the Chinese ones for the same reason.",
       "minTranslationWordRatio compares Vietnamese words to English words, so it sits near 1.0 —",
       "unlike Chinese, where it compares Vietnamese words to Han characters."
@@ -143,6 +147,7 @@
     "recOnnxPath": "../models/paddle/en_PP-OCRv4_rec_infer.onnx",
     "charsetPath": "../models/paddle/en_dict.txt",
     "inputWidth": 800,
+    "adaptiveInputWidth": true,
     "minOcrConfidence": 0.60,
     "edgeMinConfidence": 0.0,
 

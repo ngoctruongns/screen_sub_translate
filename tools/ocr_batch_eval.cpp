@@ -14,6 +14,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include "ocr_engine.h"
+#include "ocr_preprocess.h"
 #include "source_language.h"
 #include "tuning_params.h"
 
@@ -70,6 +71,9 @@ std::map<std::string, QString> loadExpected(const std::string &filePath)
     return expected;
 }
 
+// Must stay identical to what CaptureWorker feeds the engine, or the numbers this tool
+// reports describe a pipeline that does not exist. Grayscale conversion is the only step
+// the capture path does not need (it grabs grayscale already).
 cv::Mat prepareForOcr(const cv::Mat &bgr)
 {
     if (bgr.empty()) {
@@ -83,13 +87,7 @@ cv::Mat prepareForOcr(const cv::Mat &bgr)
         cv::cvtColor(bgr, gray, cv::COLOR_BGR2GRAY);
     }
 
-    cv::Mat denoised;
-    cv::GaussianBlur(gray, denoised, cv::Size(3, 3), 0.0);
-
-    cv::Mat enlarged;
-    cv::resize(denoised, enlarged, cv::Size(), 2.6, 2.6, cv::INTER_CUBIC);
-
-    return enlarged;
+    return OcrPreprocess::enhanceForRecognition(gray);
 }
 
 QString normalize(const QString &text, SourceLanguage language)

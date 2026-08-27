@@ -166,9 +166,16 @@ namespace tuning
         // a model paired with the wrong dictionary decodes to garbage.
         QString recOnnxPath;
         QString charsetPath;
-        // Padded recognition input width. Wider = less horizontal squashing on long lines,
-        // at a proportional inference cost. Requires a dynamic-width ONNX export.
+        // Recognition input width. With adaptiveInputWidth this is the MAXIMUM (long lines
+        // are squashed into it); otherwise every crop is padded out to exactly this width.
+        // Wider = less horizontal squashing, at a proportional inference cost. Requires a
+        // dynamic-width ONNX export.
         int inputWidth = 480;
+        // Size the input tensor to the text instead of always filling inputWidth. The tail
+        // of a fixed-width canvas is black padding that the CTC decoder still scans, and it
+        // can emit spurious characters there. Sizing to the text removes that dead zone and
+        // makes inference cheaper on short lines.
+        bool adaptiveInputWidth = true;
         // Reject a recognition whose mean per-character confidence is below this.
         // TUNE ON REAL FOOTAGE: confidence is logged per detection.
         float minOcrConfidence = 0.55f;

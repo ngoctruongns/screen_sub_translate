@@ -526,31 +526,44 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
         return {};
     }
 
-    // Keep text aspect ratio, then pad to model width to reduce CTC hallucinations.
-    // The width comes from the active language profile: an English line runs several
-    // times more characters than its Han equivalent and needs a wider canvas.
+    // Resize the crop to the model height, preserving its aspect ratio.
     const int targetH = tuning::kPaddleInputHeight;
-    const int targetW = profile_->inputWidth;
+    const int maxW = profile_->inputWidth;
 
     const cv::Mat subtitleRegion = cropLikelySubtitleRegion(bgr);
 
     const float regionRatio = static_cast<float>(subtitleRegion.cols) / std::max(1, subtitleRegion.rows);
     int resizedW = static_cast<int>(std::ceil(targetH * regionRatio));
-    resizedW = std::clamp(resizedW, 8, targetW);
+    resizedW = std::clamp(resizedW, 8, maxW);
+
+    // Width of the tensor actually fed to the model. Filling a fixed maxW canvas leaves the
+    // tail beyond the text as black padding, and the CTC decoder still walks those timesteps
+    // — it can and does emit characters into that dead zone (observed: a trailing '.' at
+    // confidence 0.41 on a line whose real characters all scored 1.00). Sizing the canvas to
+    // the text removes the dead zone at the source, and costs proportionally less inference.
+    int canvasW = maxW;
+    if (profile_->adaptiveInputWidth) {
+        // Quantised rather than exact: ONNX Runtime re-plans whenever the input shape it has
+        // not seen before arrives, and cv::Mat reallocates on every size change. Rounding up
+        // keeps the number of distinct shapes small while capping the dead zone at one step.
+        constexpr int kWidthQuantum = 64;
+        canvasW = ((resizedW + kWidthQuantum - 1) / kWidthQuantum) * kWidthQuantum;
+        canvasW = std::clamp(canvasW, kWidthQuantum, maxW);
+    }
 
     resizedBuffer_.create(targetH, resizedW, CV_8UC3);
     cv::resize(subtitleRegion, resizedBuffer_, cv::Size(resizedW, targetH), 0, 0, cv::INTER_LINEAR);
 
-    canvasBuffer_.create(targetH, targetW, CV_8UC3);
+    canvasBuffer_.create(targetH, canvasW, CV_8UC3);
     canvasBuffer_.setTo(cv::Scalar(0, 0, 0));
-    resizedBuffer_.copyTo(canvasBuffer_(cv::Rect(0, 0, resizedW, targetH)));
+    resizedBuffer_.copyTo(canvasBuffer_(cv::Rect(0, 0, std::min(resizedW, canvasW), targetH)));
 
     // Normalize mean=0.5 std=0.5 and pack as planar NCHW float.
-    floatImgBuffer_.create(targetH, targetW, CV_32FC3);
+    floatImgBuffer_.create(targetH, canvasW, CV_32FC3);
     canvasBuffer_.convertTo(floatImgBuffer_, CV_32FC3, 1.0 / 255.0);
 
     constexpr int C = 3;
-    const size_t planeSize = static_cast<size_t>(targetH) * targetW;
+    const size_t planeSize = static_cast<size_t>(targetH) * canvasW;
     const size_t totalInputSize = static_cast<size_t>(C) * planeSize;
     if (inputTensorValues_.size() != totalInputSize)
     {
@@ -568,7 +581,7 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
         }
     }
 
-    const std::array<int64_t, 4> shape = {1, C, targetH, targetW};
+    const std::array<int64_t, 4> shape = {1, C, targetH, canvasW};
     Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
         memoryInfo_, inputTensorValues_.data(), inputTensorValues_.size(), shape.data(), shape.size());
 
