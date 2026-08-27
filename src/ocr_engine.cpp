@@ -94,6 +94,123 @@ QString resolveRuntimePath(const QString &rawPath)
     return appResolved;
 }
 
+// Split a subtitle crop into its individual text lines.
+//
+// The recognition model reads ONE line: it squeezes whatever it is given into a 48px-tall
+// strip, so handing it a two-line subtitle stacks both lines on top of each other at half
+// height and the output is garbage. PP-OCR normally solves this with a separate detection
+// model; a projection profile is enough here because subtitles are high-contrast, axis
+// aligned and separated by a clear blank gap.
+//
+// Deliberately built so it can only ever SPLIT, never DISCARD: bands come from where the
+// ink is, not from size rules that can reject real text. Anything it cannot make sense of
+// falls back to the whole region, so the worst case is today's behaviour.
+std::vector<cv::Rect> splitTextLines(const cv::Mat &bgr, int maxLines)
+{
+    const cv::Rect wholeRegion(0, 0, bgr.cols, bgr.rows);
+    if (bgr.empty() || maxLines <= 1 || bgr.rows < 16)
+    {
+        return {wholeRegion};
+    }
+
+    cv::Mat gray;
+    cv::cvtColor(bgr, gray, cv::COLOR_BGR2GRAY);
+
+    cv::Mat bin;
+    cv::threshold(gray, bin, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    // Text is always the minority of the pixels. If Otsu made the background white (dark
+    // lettering over a bright scene), invert so "white" reliably means ink.
+    if (cv::countNonZero(bin) > static_cast<int>(bin.total() / 2))
+    {
+        cv::bitwise_not(bin, bin);
+    }
+
+    cv::Mat rowInk;
+    cv::reduce(bin / 255, rowInk, 1, cv::REDUCE_SUM, CV_32S);
+
+    int peakInk = 0;
+    for (int y = 0; y < rowInk.rows; ++y)
+    {
+        peakInk = std::max(peakInk, rowInk.at<int>(y, 0));
+    }
+    if (peakInk <= 0)
+    {
+        return {wholeRegion};
+    }
+
+    // A row counts as part of a line when it carries a small fraction of the busiest row.
+    // Low on purpose: it must catch the sparse rows of an ascender or a descender, which is
+    // what keeps a band from clipping the top of 'l' or the tail of 'y'.
+    const int inkRowThreshold = std::max(1, static_cast<int>(peakInk * 0.06));
+
+    std::vector<cv::Rect> bands;
+    int bandStart = -1;
+    for (int y = 0; y <= rowInk.rows; ++y)
+    {
+        const bool hasInk = (y < rowInk.rows) && (rowInk.at<int>(y, 0) >= inkRowThreshold);
+        if (hasInk && bandStart < 0)
+        {
+            bandStart = y;
+        }
+        else if (!hasInk && bandStart >= 0)
+        {
+            bands.push_back(cv::Rect(0, bandStart, bgr.cols, y - bandStart));
+            bandStart = -1;
+        }
+    }
+
+    // A band far too short to be a line of text is stray ink (a subtitle outline artifact,
+    // a sliver of the scene). Merge-by-dropping is safe here: these carry no glyphs.
+    const int minLineHeight = std::max(8, bgr.rows / 12);
+    bands.erase(std::remove_if(bands.begin(), bands.end(),
+                               [minLineHeight](const cv::Rect &r) { return r.height < minLineHeight; }),
+                bands.end());
+
+    // One band means a single line — return the whole region rather than the band, so the
+    // established single-line path behaves exactly as before. More bands than a subtitle can
+    // plausibly have means the profile latched onto scene texture; fall back too.
+    if (bands.size() <= 1 || static_cast<int>(bands.size()) > maxLines)
+    {
+        return {wholeRegion};
+    }
+
+    // Tighten each band horizontally as well. Unlike the contour crop this cannot cut a
+    // glyph: the extent is taken from where ink actually is, and then padded.
+    const int padY = std::max(2, bgr.rows / 60);
+    const int padX = std::max(4, bgr.cols / 100);
+    for (cv::Rect &band : bands)
+    {
+        cv::Mat colInk;
+        cv::reduce(bin(band) / 255, colInk, 0, cv::REDUCE_SUM, CV_32S);
+
+        int first = -1;
+        int last = -1;
+        for (int x = 0; x < colInk.cols; ++x)
+        {
+            if (colInk.at<int>(0, x) > 0)
+            {
+                if (first < 0)
+                {
+                    first = x;
+                }
+                last = x;
+            }
+        }
+        if (first < 0)
+        {
+            continue; // No ink after all; leave the band at full width.
+        }
+
+        const int x0 = std::max(0, first - padX);
+        const int x1 = std::min(bgr.cols - 1, last + padX);
+        const int y0 = std::max(0, band.y - padY);
+        const int y1 = std::min(bgr.rows - 1, band.y + band.height - 1 + padY);
+        band = cv::Rect(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+    }
+
+    return bands;
+}
+
 cv::Mat cropLikelySubtitleRegion(const cv::Mat &bgr)
 {
     if (bgr.empty())
@@ -500,39 +617,14 @@ QString OcrEngine::normalizeLatinText(const QString &text)
     return out.trimmed();
 }
 
-OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
+// Recognizes ONE already-isolated line of text. Callers hand it a single line; splitting a
+// multi-line crop into lines happens in performOcr().
+QString OcrEngine::recognizeLine(const cv::Mat &subtitleRegion, const QString &dumpPath,
+                                 float *outConfidence, QString *outPerCharacter)
 {
-    if (!initialized_ || inputImg.empty() || !session_)
-    {
-        return {};
-    }
-
-    // Convert to BGR 3-channel (PP-OCRv4 rec expects [1,3,H,W]).
-    cv::Mat bgr;
-    if (inputImg.channels() == 1)
-    {
-        cv::cvtColor(inputImg, bgr, cv::COLOR_GRAY2BGR);
-    }
-    else if (inputImg.channels() == 3)
-    {
-        bgr = inputImg;
-    }
-    else if (inputImg.channels() == 4)
-    {
-        cv::cvtColor(inputImg, bgr, cv::COLOR_BGRA2BGR);
-    }
-    else
-    {
-        qWarning() << "Unsupported input channels for OCR:" << inputImg.channels();
-        return {};
-    }
-
     // Resize the crop to the model height, preserving its aspect ratio.
     const int targetH = tuning::kPaddleInputHeight;
     const int maxW = profile_->inputWidth;
-
-    const cv::Mat subtitleRegion =
-        profile_->autoCropSubtitleRegion ? cropLikelySubtitleRegion(bgr) : bgr;
 
     const float regionRatio = static_cast<float>(subtitleRegion.cols) / std::max(1, subtitleRegion.rows);
     int resizedW = static_cast<int>(std::ceil(targetH * regionRatio));
@@ -560,10 +652,9 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
     canvasBuffer_.setTo(cv::Scalar(0, 0, 0));
     resizedBuffer_.copyTo(canvasBuffer_(cv::Rect(0, 0, std::min(resizedW, canvasW), targetH)));
 
-    if (!modelInputDumpPath_.isEmpty())
+    if (!dumpPath.isEmpty())
     {
-        cv::imwrite(modelInputDumpPath_.toStdString(), canvasBuffer_);
-        modelInputDumpPath_.clear();
+        cv::imwrite(dumpPath.toStdString(), canvasBuffer_);
     }
 
     // Normalize mean=0.5 std=0.5 and pack as planar NCHW float.
@@ -637,17 +728,105 @@ OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
             }
         }
 
-        float confidence = 0.0f;
-        QString perCharacter;
-        const QString decoded = decodeCtc(logits, timeSteps, classes, &confidence,
-                                          perCharacterDebug_ ? &perCharacter : nullptr);
-        return {normalizeRecognizedText(decoded), confidence, perCharacter};
+        const QString decoded = decodeCtc(logits, timeSteps, classes, outConfidence,
+                                          perCharacterDebug_ ? outPerCharacter : nullptr);
+        return normalizeRecognizedText(decoded);
     }
     catch (const std::exception &e)
     {
         qWarning() << "ONNX inference failed:" << e.what();
         return {};
     }
+}
+
+OcrEngine::OcrResult OcrEngine::performOcr(const cv::Mat &inputImg)
+{
+    if (!initialized_ || inputImg.empty() || !session_)
+    {
+        return {};
+    }
+
+    // Convert to BGR 3-channel (PP-OCR rec expects [1,3,H,W]).
+    cv::Mat bgr;
+    if (inputImg.channels() == 1)
+    {
+        cv::cvtColor(inputImg, bgr, cv::COLOR_GRAY2BGR);
+    }
+    else if (inputImg.channels() == 3)
+    {
+        bgr = inputImg;
+    }
+    else if (inputImg.channels() == 4)
+    {
+        cv::cvtColor(inputImg, bgr, cv::COLOR_BGRA2BGR);
+    }
+    else
+    {
+        qWarning() << "Unsupported input channels for OCR:" << inputImg.channels();
+        return {};
+    }
+
+    const cv::Mat subtitleRegion =
+        profile_->autoCropSubtitleRegion ? cropLikelySubtitleRegion(bgr) : bgr;
+
+    // A subtitle wrapped onto two cards is one sentence, so the lines are recognized
+    // separately and then joined back into the single line the translator expects.
+    const std::vector<cv::Rect> lines = splitTextLines(subtitleRegion, profile_->maxTextLines);
+    const bool multiLine = lines.size() > 1;
+
+    QStringList lineTexts;
+    QStringList perCharacterParts;
+    double confidenceSum = 0.0;
+    int weightedChars = 0;
+
+    for (int i = 0; i < static_cast<int>(lines.size()); ++i)
+    {
+        // One dump per line, so a multi-line crop can be inspected line by line.
+        QString dumpPath = modelInputDumpPath_;
+        if (!dumpPath.isEmpty() && multiLine)
+        {
+            const int dot = dumpPath.lastIndexOf(QLatin1Char('.'));
+            const QString suffix = QStringLiteral("_line%1").arg(i);
+            dumpPath = (dot > 0) ? dumpPath.left(dot) + suffix + dumpPath.mid(dot)
+                                 : dumpPath + suffix;
+        }
+
+        float lineConfidence = 0.0f;
+        QString linePerCharacter;
+        const QString text =
+            recognizeLine(subtitleRegion(lines[i]), dumpPath, &lineConfidence, &linePerCharacter);
+        if (text.isEmpty())
+        {
+            continue;
+        }
+
+        lineTexts.append(text);
+        if (!linePerCharacter.isEmpty())
+        {
+            perCharacterParts.append(linePerCharacter);
+        }
+        // Weighted by length: a two-word second line should not drag the score of a full
+        // first line around as much as an unweighted mean would.
+        confidenceSum += static_cast<double>(lineConfidence) * text.size();
+        weightedChars += text.size();
+    }
+
+    modelInputDumpPath_.clear();
+
+    if (lineTexts.isEmpty())
+    {
+        return {};
+    }
+
+    // Han is written without word spacing, so its wrapped lines butt together; English
+    // needs the separator or the last word of one line fuses with the first of the next.
+    const QString separator = (language_ == SourceLanguage::English) ? QStringLiteral(" ")
+                                                                    : QString();
+    const float confidence =
+        weightedChars > 0 ? static_cast<float>(confidenceSum / weightedChars) : 0.0f;
+
+    return {lineTexts.join(separator), confidence,
+            perCharacterParts.join(QStringLiteral("  |  "))};
 }
 
 bool OcrEngine::isReady() const

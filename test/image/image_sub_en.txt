@@ -27,3 +27,4 @@
 - image_en8: We're trying to deal with them all.
 - image_en9: For the sake of our country's security,
 - image_en10: we have to give it further thought.
+- image_en11: I volunteered to take charge of education and science.

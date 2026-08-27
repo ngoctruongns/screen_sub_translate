@@ -183,6 +183,11 @@ namespace tuning
         // blob that can fail those filters, and a whole leading word disappears before the
         // model ever sees it. Leave off when the capture window is placed tightly.
         bool autoCropSubtitleRegion = true;
+        // Maximum text lines to expect in one capture. The recognition model reads a single
+        // line, so a subtitle wrapped onto two cards has to be split before recognition and
+        // the parts joined afterwards. 1 disables splitting entirely. Raising it past what
+        // subtitles actually use only makes stray ink likelier to be mistaken for a line.
+        int maxTextLines = 3;
         // Reject a recognition whose mean per-character confidence is below this.
         // TUNE ON REAL FOOTAGE: confidence is logged per detection.
         float minOcrConfidence = 0.55f;

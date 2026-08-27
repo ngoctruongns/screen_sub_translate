@@ -51,6 +51,10 @@ public:
 
 private:
     bool loadModel(const tuning::LanguageProfile &profile);
+    // Recognizes one already-isolated line. performOcr() splits a multi-line crop into
+    // lines and calls this per line; the model itself can only read one line at a time.
+    QString recognizeLine(const cv::Mat &subtitleRegion, const QString &dumpPath,
+                          float *outConfidence, QString *outPerCharacter);
     QString decodeCtc(const float *logits, int timeSteps, int classes, float *outConfidence,
                       QString *outPerCharacter) const;
     bool loadCharset(const QString &charsetPath);

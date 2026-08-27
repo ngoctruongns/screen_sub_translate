@@ -105,13 +105,16 @@
       "which removes the black dead zone the CTC decoder can hallucinate into, and is faster on short lines.",
       "autoCropSubtitleRegion auto-tightens the crop onto detected text. It is a heuristic that CUTS",
       "whatever its size filters reject — on sharp input a whole leading word can vanish. Off = trust the",
-      "capture window, which is correct when it is placed tightly around the subtitle."
+      "capture window, which is correct when it is placed tightly around the subtitle.",
+      "maxTextLines: a subtitle wrapped onto two cards must be split before recognition, because the",
+      "model reads one line at a time; the parts are joined back into one sentence. 1 disables splitting."
     ],
     "recOnnxPath": "../models/paddle/ch_PP-OCRv4_rec_server_infer.onnx",
     "charsetPath": "../models/paddle/ppocr_keys_v1.txt",
     "inputWidth": 480,
     "adaptiveInputWidth": false,
     "autoCropSubtitleRegion": true,
+    "maxTextLines": 3,
     "minOcrConfidence": 0.55,
     "edgeMinConfidence": 0.80,
 
@@ -153,6 +156,7 @@
     "inputWidth": 800,
     "adaptiveInputWidth": true,
     "autoCropSubtitleRegion": false,
+    "maxTextLines": 3,
     "minOcrConfidence": 0.60,
     "edgeMinConfidence": 0.0,
 

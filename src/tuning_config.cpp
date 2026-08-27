@@ -190,6 +190,7 @@ void applyLanguageProfile(QJsonObject section, LanguageProfile &profile, const Q
     takeInt(section, QStringLiteral("inputWidth"), profile.inputWidth, 32, 4096, messages);
     takeBool(section, QStringLiteral("adaptiveInputWidth"), profile.adaptiveInputWidth, messages);
     takeBool(section, QStringLiteral("autoCropSubtitleRegion"), profile.autoCropSubtitleRegion, messages);
+    takeInt(section, QStringLiteral("maxTextLines"), profile.maxTextLines, 1, 8, messages);
     takeFloat(section, QStringLiteral("minOcrConfidence"), profile.minOcrConfidence, 0.0, 1.0, messages);
     takeFloat(section, QStringLiteral("edgeMinConfidence"), profile.edgeMinConfidence, 0.0, 1.0, messages);
 
@@ -340,6 +341,7 @@ LanguageProfile defaultChineseProfile()
     // (the stray 嶺). Turn it on once ./OcrBatchEval confirms no regression.
     p.adaptiveInputWidth = false;
     p.autoCropSubtitleRegion = true;
+    p.maxTextLines = 3;
     p.minOcrConfidence = 0.55f;
     p.edgeMinConfidence = 0.80f;
 
@@ -390,6 +392,7 @@ LanguageProfile defaultEnglishProfile()
     // was sharpened ("We're trying to..." recognised as "ing to..."). The capture window
     // already bounds the subtitle, so the auto-crop only has downside here.
     p.autoCropSubtitleRegion = false;
+    p.maxTextLines = 3;
     p.minOcrConfidence = 0.60f;
     p.edgeMinConfidence = 0.0f;
 
