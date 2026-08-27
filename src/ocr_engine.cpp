@@ -95,59 +95,27 @@ QString resolveRuntimePath(const QString &rawPath)
     return appResolved;
 }
 
-// Otsu's threshold over an arbitrary 1-D distribution. Used on the row-ink profile, where a
-// FIXED fraction of the peak cannot work: a subtitle sits over live video, so the background
-// carries ink of its own (measured at 10-32% of the busiest row on real frames) and the split
-// point has to be derived from each frame's own distribution.
-double otsuThreshold(const std::vector<int> &values)
+// Grey level at a given brightness percentile.
+int brightnessPercentile(const cv::Mat &gray, double percentile)
 {
-    if (values.empty()) {
-        return 0.0;
-    }
-    const auto [minIt, maxIt] = std::minmax_element(values.begin(), values.end());
-    const double lo = *minIt;
-    const double hi = *maxIt;
-    if (hi <= lo) {
-        return lo;
-    }
-
-    constexpr int kBins = 256;
-    std::array<int, kBins> histogram{};
-    for (const int value : values) {
-        const int bin = static_cast<int>((value - lo) * (kBins - 1) / (hi - lo));
-        ++histogram[std::clamp(bin, 0, kBins - 1)];
-    }
-
-    const double total = static_cast<double>(values.size());
-    double sumAll = 0.0;
-    for (int i = 0; i < kBins; ++i) {
-        sumAll += i * histogram[i];
-    }
-
-    double sumBackground = 0.0;
-    double weightBackground = 0.0;
-    double bestVariance = -1.0;
-    int bestBin = 0;
-    for (int t = 0; t < kBins; ++t) {
-        weightBackground += histogram[t];
-        if (weightBackground == 0.0) {
-            continue;
-        }
-        const double weightForeground = total - weightBackground;
-        if (weightForeground == 0.0) {
-            break;
-        }
-        sumBackground += t * histogram[t];
-        const double meanB = sumBackground / weightBackground;
-        const double meanF = (sumAll - sumBackground) / weightForeground;
-        const double variance = weightBackground * weightForeground * (meanB - meanF) * (meanB - meanF);
-        if (variance > bestVariance) {
-            bestVariance = variance;
-            bestBin = t;
+    std::array<long long, 256> histogram{};
+    for (int y = 0; y < gray.rows; ++y) {
+        const uchar *row = gray.ptr<uchar>(y);
+        for (int x = 0; x < gray.cols; ++x) {
+            ++histogram[row[x]];
         }
     }
 
-    return lo + bestBin * (hi - lo) / (kBins - 1);
+    const long long target =
+        static_cast<long long>(static_cast<double>(gray.total()) * percentile / 100.0);
+    long long cumulative = 0;
+    for (int value = 0; value < 256; ++value) {
+        cumulative += histogram[value];
+        if (cumulative >= target) {
+            return value;
+        }
+    }
+    return 255;
 }
 
 // Mean number of ink<->background transitions per row. This is what separates a line of text
@@ -176,12 +144,24 @@ double meanRowTransitions(const cv::Mat &binary, const cv::Range &rows)
 // The recognition model reads ONE line: it squeezes whatever it is given into a 48px-tall
 // strip, so handing it a two-line subtitle stacks both lines on top of each other at half
 // height and the output is garbage. PP-OCR normally solves this with a separate detection
-// model; a projection profile is enough here because subtitles are high-contrast, axis
-// aligned and separated by a clear blank gap.
+// model; a projection profile is enough here because subtitles are bright, axis aligned and
+// separated by a blank gap.
 //
-// Every step is built to fail SAFE: anything it cannot confidently read as a multi-line
-// subtitle returns the whole region, which is exactly the single-line behaviour that was
-// already working. It can split, never discard.
+// Two things about the approach were established by measuring real frames rather than
+// assumed, and both are easy to get wrong:
+//
+//  - The mask is taken at a high BRIGHTNESS PERCENTILE, not by Otsu. The image reaching this
+//    point has already been through CLAHE, which lifts flat background into strong texture:
+//    on real frames Otsu then puts the split inside a single line's own variation, sawing it
+//    into pieces. Subtitles are near-white, so the top few percent of brightness isolates
+//    them cleanly where Otsu cannot.
+//  - Lines are found by locating the GAPS, not the text. A gap has to be both deep AND
+//    sustained; a dip inside one line is deep but only a row or two long, which is exactly
+//    what distinguishes them.
+//
+// Every step fails SAFE: anything that does not read as a clean multi-line subtitle returns
+// the whole region, which is the single-line behaviour that already worked. It can split,
+// never discard.
 std::vector<cv::Rect> splitTextLines(const cv::Mat &bgr, int maxLines)
 {
     const cv::Rect wholeRegion(0, 0, bgr.cols, bgr.rows);
@@ -189,99 +169,111 @@ std::vector<cv::Rect> splitTextLines(const cv::Mat &bgr, int maxLines)
         return {wholeRegion};
     }
 
+    // Tuned on 15 real subtitle frames; every value sits mid-plateau, with 10 single-line
+    // frames left unsplit and 5 two-line frames split correctly across P 92-98 and
+    // gap depth 0.30-0.40.
+    constexpr double kBrightPercentile = 94.0;
+    constexpr double kGapDepthFraction = 0.35;
+    constexpr double kMinGapHeightFraction = 0.10;
+    constexpr double kMinProfileContrast = 0.25;
+    constexpr double kMinTextTransitionsPerRow = 12.0;
+
     cv::Mat gray;
     cv::cvtColor(bgr, gray, cv::COLOR_BGR2GRAY);
 
-    cv::Mat binary;
-    cv::threshold(gray, binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-    // Text is always the minority of the pixels. If Otsu made the background white (dark
-    // lettering over a bright scene), invert so "white" reliably means ink.
-    if (cv::countNonZero(binary) > static_cast<int>(binary.total() / 2)) {
-        cv::bitwise_not(binary, binary);
-    }
+    // Bright pixels only. Subtitles are white with a dark outline; dark-on-light lettering
+    // would select background instead, produce no usable structure, and fall back below.
+    cv::Mat bright;
+    cv::threshold(gray, bright, brightnessPercentile(gray, kBrightPercentile), 255,
+                  cv::THRESH_BINARY);
 
-    std::vector<int> rowInk(binary.rows, 0);
-    for (int y = 0; y < binary.rows; ++y) {
-        rowInk[y] = cv::countNonZero(binary.row(y));
+    std::vector<int> rowInk(bright.rows, 0);
+    for (int y = 0; y < bright.rows; ++y) {
+        rowInk[y] = cv::countNonZero(bright.row(y));
     }
-    if (*std::max_element(rowInk.begin(), rowInk.end()) <= 0) {
+    const auto [minIt, maxIt] = std::minmax_element(rowInk.begin(), rowInk.end());
+    const double lowest = *minIt;
+    const double highest = *maxIt;
+    // A profile with no relief carries no line structure to find (a busy frame where the
+    // background is as bright as the text).
+    if (highest <= 0.0 || (highest - lowest) / highest < kMinProfileContrast) {
         return {wholeRegion};
     }
 
-    const double coreThreshold = otsuThreshold(rowInk);
-
-    // 1. Rows carrying enough ink to be the body of a line.
-    std::vector<cv::Range> bands;
-    int bandStart = -1;
-    for (int y = 0; y <= binary.rows; ++y) {
-        const bool hasInk = (y < binary.rows) && (rowInk[y] >= coreThreshold);
-        if (hasInk && bandStart < 0) {
-            bandStart = y;
-        } else if (!hasInk && bandStart >= 0) {
-            bands.push_back(cv::Range(bandStart, y));
-            bandStart = -1;
-        }
-    }
-
-    // 2. Merge bands separated by less than a real inter-line gap. Within a single line some
-    //    rows dip under the threshold (the waist of lowercase letters), which would otherwise
-    //    saw one line into several.
-    const int minGapRows = std::max(3, bgr.rows / 20);
-    std::vector<cv::Range> merged;
-    for (const cv::Range &band : bands) {
-        if (!merged.empty() && band.start - merged.back().end < minGapRows) {
-            merged.back().end = band.end;
-        } else {
-            merged.push_back(band);
-        }
-    }
-
-    // 3. Drop bands too short to hold a glyph, then anything that does not read as text.
-    //    The transition test is what keeps scenery above or below the subtitle from being
-    //    recognised as an extra "line".
-    constexpr double kMinTextTransitionsPerRow = 12.0;
+    const double gapThreshold = lowest + kGapDepthFraction * (highest - lowest);
+    const int minGapRows = std::max(4, static_cast<int>(bgr.rows * kMinGapHeightFraction));
     const int minLineHeight = std::max(6, bgr.rows / 14);
-    merged.erase(std::remove_if(merged.begin(), merged.end(),
-                                [&](const cv::Range &r) {
-                                    return r.size() < minLineHeight ||
-                                           meanRowTransitions(binary, r) < kMinTextTransitionsPerRow;
-                                }),
-                 merged.end());
 
-    // One line means the established single-line path; more bands than a subtitle can
-    // plausibly have means the profile latched onto something else. Both fall back.
-    if (merged.size() < 2 || static_cast<int>(merged.size()) > maxLines) {
+    // Sustained runs of near-empty rows: the leading between two lines, plus whatever
+    // background sits above and below the subtitle.
+    std::vector<cv::Range> gaps;
+    int runStart = -1;
+    for (int y = 0; y <= bright.rows; ++y) {
+        const bool isGapRow = (y < bright.rows) && (rowInk[y] <= gapThreshold);
+        if (isGapRow && runStart < 0) {
+            runStart = y;
+        } else if (!isGapRow && runStart >= 0) {
+            if (y - runStart >= minGapRows) {
+                gaps.push_back(cv::Range(runStart, y));
+            }
+            runStart = -1;
+        }
+    }
+
+    // Two gaps separated by less than a line can hold have nothing between them, so the
+    // sliver is noise rather than a third line.
+    std::vector<cv::Range> mergedGaps;
+    for (const cv::Range &gap : gaps) {
+        if (!mergedGaps.empty() && gap.start - mergedGaps.back().end < minLineHeight) {
+            mergedGaps.back().end = gap.end;
+        } else {
+            mergedGaps.push_back(gap);
+        }
+    }
+
+    // What is left between the gaps is the text. Taking the complement also crops the
+    // background above and below the subtitle away for free.
+    std::vector<cv::Range> candidates;
+    int cursor = 0;
+    for (const cv::Range &gap : mergedGaps) {
+        if (gap.start > cursor) {
+            candidates.push_back(cv::Range(cursor, gap.start));
+        }
+        cursor = gap.end;
+    }
+    if (cursor < bright.rows) {
+        candidates.push_back(cv::Range(cursor, bright.rows));
+    }
+
+    std::vector<cv::Range> textRuns;
+    for (const cv::Range &candidate : candidates) {
+        if (candidate.size() < minLineHeight ||
+            meanRowTransitions(bright, candidate) < kMinTextTransitionsPerRow) {
+            continue;
+        }
+        textRuns.push_back(candidate);
+    }
+
+    if (textRuns.size() < 2 || static_cast<int>(textRuns.size()) > maxLines) {
         return {wholeRegion};
     }
 
-    // 4. Grow each band back out over the faint rows an ascender or a descender leaves,
-    //    stopping at the midpoint to its neighbour so two lines can never overlap.
-    const double extendThreshold = coreThreshold * 0.55;
     const int padY = std::max(2, bgr.rows / 60);
     const int padX = std::max(4, bgr.cols / 100);
 
     std::vector<cv::Rect> lines;
-    lines.reserve(merged.size());
-    for (size_t i = 0; i < merged.size(); ++i) {
-        int top = merged[i].start;
-        int bottom = merged[i].end - 1;
-        const int limitTop = (i == 0) ? 0 : (merged[i - 1].end - 1 + top) / 2;
-        const int limitBottom = (i + 1 == merged.size()) ? binary.rows - 1
-                                                         : (bottom + merged[i + 1].start) / 2;
-        while (top > limitTop && rowInk[top - 1] >= extendThreshold) {
-            --top;
-        }
-        while (bottom < limitBottom && rowInk[bottom + 1] >= extendThreshold) {
-            ++bottom;
-        }
+    lines.reserve(textRuns.size());
+    for (const cv::Range &run : textRuns) {
+        const int top = run.start;
+        const int bottom = run.end - 1;
 
-        // Tighten horizontally too. Unlike the contour crop this cannot cut a glyph: the
-        // extent comes from where ink actually is, and is then padded.
+        // Tighten horizontally too. Unlike a contour crop this cannot cut a glyph: the
+        // extent comes from where the bright pixels actually are, and is then padded.
         int first = -1;
         int last = -1;
         for (int y = top; y <= bottom; ++y) {
-            const uchar *row = binary.ptr<uchar>(y);
-            for (int x = 0; x < binary.cols; ++x) {
+            const uchar *row = bright.ptr<uchar>(y);
+            for (int x = 0; x < bright.cols; ++x) {
                 if (row[x] != 0) {
                     if (first < 0 || x < first) {
                         first = x;
@@ -294,7 +286,7 @@ std::vector<cv::Rect> splitTextLines(const cv::Mat &bgr, int maxLines)
         }
         if (first < 0) {
             first = 0;
-            last = binary.cols - 1;
+            last = bright.cols - 1;
         }
 
         const int x0 = std::max(0, first - padX);
