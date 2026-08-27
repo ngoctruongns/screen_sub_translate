@@ -28,3 +28,7 @@
 - image_en9: For the sake of our country's security,
 - image_en10: we have to give it further thought.
 - image_en11: I volunteered to take charge of education and science.
+- image_en12: They said enemy agents can be found everywhere in academia.
+- image_en13: They called us who worked in CIOMP capitalist roaders, traitors,
+- image_en14: More than one hundred people were ordered to attend a political class for self-examination.
+- image_en15: Ten people who were tortured or beaten to death
