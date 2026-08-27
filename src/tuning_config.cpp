@@ -389,7 +389,13 @@ LanguageProfile defaultEnglishProfile()
     LanguageProfile p;
     p.recOnnxPath = QStringLiteral("../models/paddle/en_PP-OCRv4_rec_infer.onnx");
     p.charsetPath = QStringLiteral("../models/paddle/en_dict.txt");
-    p.inputWidth = 800;
+    // 1600, not the 800 a single line needs: line splitting tightens each band down to the
+    // text, which cuts its height to ~30px and pushes the aspect ratio past 30:1. At 800 the
+    // width was clamped while the height still scaled up, distorting glyphs 2x tall-and-thin
+    // — measured as f->t and T->I errors, since the hook of 'f' and the bar of 'T' are what
+    // a horizontal squeeze destroys first. adaptiveInputWidth keeps short lines cheap, so
+    // only genuinely long lines pay for the extra width.
+    p.inputWidth = 1600;
     p.adaptiveInputWidth = true;
     // Off: measured to cut whole leading words off English lines once the preprocessing
     // was sharpened ("We're trying to..." recognised as "ing to..."). The capture window
